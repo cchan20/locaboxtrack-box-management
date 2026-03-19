@@ -1,0 +1,2201 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  Plus, RotateCcw, CheckCircle, AlertCircle, Package, Clock, 
+  Trash2, AlertTriangle, Wallet, RefreshCw, Users, Search, 
+  ChevronRight, Box, Calendar, Timer, History, ChevronDown, 
+  ChevronUp, X, Upload, FileSpreadsheet, Mail, Phone, User, 
+  Download, Lock, Unlock, Edit, Save, Settings, ClipboardList, 
+  LogIn, ShieldCheck, UserX, Database, AlertOctagon, CheckSquare, Square
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- HELPER: DATA GENERATION ---
+const generateEmptyData = () => {
+  const customers = [{
+      id: 'CUST-DEPOSIT',
+      name: 'Deposit',
+      phone: 'N/A',
+      email: '-',
+      totalTaken: 0,
+      totalReturned: 0,
+      lateReturns: 0 
+  }];
+  return { boxes: [], customers };
+};
+
+// --- HELPER: CSV EXPORT ---
+const downloadCSV = (data, filename) => {
+  const csvContent = "data:text/csv;charset=utf-8," 
+    + data.map(e => e.join(",")).join("\n");
+  
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// --- COMPONENT: REUSABLE SEARCHABLE INPUT ---
+const SearchableCustomerInput = ({ 
+  customers, 
+  value,
+  onChange,
+  onSelect, 
+  placeholder = "Search Name or Phone...", 
+  required = false
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!value) return [];
+    const lower = value.toLowerCase();
+    return customers.filter(c => 
+      c.name.toLowerCase().includes(lower) || 
+      c.phone.includes(lower)
+    ).slice(0, 8); 
+  }, [value, customers]);
+
+  const handleSelect = (customer) => {
+    setShowDropdown(false);
+    onSelect(customer); 
+  };
+
+  return (
+    <div className="relative w-full">
+      <div className="relative">
+        <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+        <input
+          type="text"
+          required={required}
+          value={value}
+          onFocus={() => setShowDropdown(true)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)} 
+          onChange={(e) => {
+            onChange(e.target.value);
+            setShowDropdown(true);
+          }}
+          placeholder={placeholder}
+          className="w-full pl-9 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+          autoComplete="off"
+        />
+        {value && (
+           <button 
+             type="button"
+             onClick={() => {
+                onChange('');
+                onSelect(null);
+             }}
+             className="absolute right-3 top-3 text-gray-400 hover:text-red-500"
+           >
+             <X size={16} />
+           </button>
+        )}
+      </div>
+      
+      {showDropdown && value.length > 0 && (
+        <div className="absolute w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-50 max-h-60 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div 
+                className="p-3 text-gray-500 text-xs text-center italic hover:bg-emerald-50 cursor-pointer"
+                onMouseDown={() => handleSelect({ name: value, id: null, phone: 'N/A' })}
+            >
+                No existing customer found.<br/>
+                <span className="font-bold text-emerald-600">Click to use "{value}" as new name</span>
+            </div>
+          ) : (
+            filtered.map(c => {
+              const hasActiveBox = c.totalTaken > c.totalReturned;
+              return (
+                <div 
+                  key={c.id}
+                  onMouseDown={() => handleSelect(c)}
+                  className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center group"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-800 text-sm">{c.name}</p>
+                      {hasActiveBox && (
+                        <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">{c.phone}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function LocaBoxTracker() {
+  // --- AUTH STATE ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginInput, setLoginInput] = useState('');
+  const [loginError, setLoginError] = useState(false);
+  const MASTER_PASSWORD = 'Freshideas100';
+
+  // --- APP STATE ---
+  const [boxes, setBoxes] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [notification, setNotification] = useState(null);
+
+  // Dashboard State
+  const [activityLimit, setActivityLimit] = useState(20);
+  const [dashboardFilter, setDashboardFilter] = useState(null); 
+
+  // Form states
+  const [checkoutCode, setCheckoutCode] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerSearchText, setCustomerSearchText] = useState(''); 
+  const [isDepositMode, setIsDepositMode] = useState(false);
+  
+  // Manual Backdate State
+  const [showManualBackdate, setShowManualBackdate] = useState(false);
+  const [manualBoxId, setManualBoxId] = useState('');
+  const [manualCustData, setManualCustData] = useState(null); 
+  const [manualCustSearch, setManualCustSearch] = useState(''); 
+  const [manualDate, setManualDate] = useState('');
+  
+  const [checkinCode, setCheckinCode] = useState('');
+  const [newBoxCode, setNewBoxCode] = useState('');
+  
+  // Client List State
+  const [clientSearch, setClientSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '' });
+  const fileInputRef = useRef(null);
+  
+  // Multi-Select Client State
+  const [selectedClientIds, setSelectedClientIds] = useState([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [deletePasswordInput, setDeletePasswordInput] = useState('');
+
+  // Admin / Inventory Edit State
+  const [adminPassword, setAdminPassword] = useState('0000');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showChangePassModal, setShowChangePassModal] = useState(false);
+  const [showInitBoxesModal, setShowInitBoxesModal] = useState(false); 
+  
+  // Security Modal State
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false); 
+  const [clearConfirmPassword, setClearConfirmPassword] = useState(''); 
+  const [clearActionType, setClearActionType] = useState('inventory_only'); // 'inventory_only' or 'full_reset'
+  
+  const [passwordInput, setPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [initBoxCount, setInitBoxCount] = useState(50); 
+  
+  // Edit States (Box & Client)
+  const [editingBox, setEditingBox] = useState(null); 
+  const [editingBoxSearch, setEditingBoxSearch] = useState('');
+  const [editingClient, setEditingClient] = useState(null);
+  const [deletingClient, setDeletingClient] = useState(null);
+
+  // --- LOAD DATA ---
+  useEffect(() => {
+    const data = generateEmptyData();
+    setBoxes(data.boxes);
+    setCustomers(data.customers);
+    setIsLoaded(true);
+  }, []);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const getDaysOut = (dateString) => {
+    if (!dateString) return 0;
+    const diff = new Date() - new Date(dateString);
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  };
+
+  // --- AUTH ACTIONS ---
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginInput === adminPassword || loginInput === MASTER_PASSWORD) {
+      setIsAuthenticated(true);
+      setLoginError(false);
+    } else {
+      setLoginError(true);
+    }
+  };
+
+  // --- SORTING HANDLER ---
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // --- EXPORT ACTIONS ---
+  const handleExportClients = () => {
+    const header = ["ID", "Name", "Phone", "Email", "Total Taken", "Total Returned", "Late Returns", "Current Balance"];
+    const rows = customers.map(c => [
+      c.id,
+      `"${c.name}"`, 
+      c.phone,
+      c.email,
+      c.totalTaken,
+      c.totalReturned,
+      c.lateReturns,
+      c.totalTaken - c.totalReturned
+    ]);
+    downloadCSV([header, ...rows], `LocaBox_Clients_${new Date().toISOString().split('T')[0]}.csv`);
+    showNotification("Client list downloaded");
+  };
+
+  const handleExportInventory = () => {
+    const header = ["Box ID", "Status", "Customer Name", "Date Out", "Days Out"];
+    const rows = boxes.map(b => [
+      b.id,
+      b.status,
+      b.customerName ? `"${b.customerName}"` : "",
+      b.dateOut ? new Date(b.dateOut).toLocaleDateString() : "",
+      getDaysOut(b.dateOut)
+    ]);
+    downloadCSV([header, ...rows], `LocaBox_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    showNotification("Inventory list downloaded");
+  };
+
+  // --- ADMIN / EDIT ACTIONS ---
+  const handleUnlockAdmin = (e) => {
+    e.preventDefault();
+    if (passwordInput === adminPassword || passwordInput === MASTER_PASSWORD) {
+      setIsEditMode(true);
+      setShowAuthModal(false);
+      setPasswordInput('');
+      showNotification("Edit Mode Unlocked");
+    } else {
+      showNotification("Incorrect Password", "error");
+    }
+  };
+
+  const handleChangePassword = (e) => {
+    e.preventDefault();
+    if (newPasswordInput.length < 4) {
+      showNotification("Password must be at least 4 chars", "error");
+      return;
+    }
+    setAdminPassword(newPasswordInput);
+    setNewPasswordInput('');
+    setShowChangePassModal(false);
+    showNotification("Password Updated Successfully");
+  };
+
+  // --- INVENTORY MANAGEMENT ---
+  const handleInitializeBoxes = (e) => {
+    e.preventDefault();
+    const count = parseInt(initBoxCount);
+    if (isNaN(count) || count < 1) {
+        showNotification("Please enter a valid number", "error");
+        return;
+    }
+
+    const newBoxes = [];
+    let skippedCount = 0;
+
+    for (let i = 1; i <= count; i++) {
+        const id = `BOX-${String(i).padStart(3, '0')}`;
+        // Only add if it doesn't exist
+        if (!boxes.find(b => b.id === id)) {
+            newBoxes.push({ id, status: 'available', customerId: null, customerName: null, dateOut: null });
+        } else {
+            skippedCount++;
+        }
+    }
+    
+    setBoxes([...boxes, ...newBoxes].sort((a, b) => a.id.localeCompare(b.id)));
+    setShowInitBoxesModal(false);
+    
+    if (newBoxes.length > 0) {
+        showNotification(`Success: Added ${newBoxes.length} boxes.`);
+    } else {
+        showNotification(`No new boxes added. All ${count} already exist.`, "error");
+    }
+  };
+
+  // --- SECURITY / CLEAR LOGIC ---
+  const requestClearInventoryOnly = () => {
+      setClearActionType('inventory_only');
+      setShowClearConfirmModal(true);
+      setClearConfirmPassword('');
+  };
+
+  const requestFullReset = () => {
+      setClearActionType('full_reset');
+      setShowClearConfirmModal(true);
+      setClearConfirmPassword('');
+  };
+
+  const executeClear = (e) => {
+      e.preventDefault();
+      
+      if (clearConfirmPassword === MASTER_PASSWORD) {
+          if (clearActionType === 'full_reset') {
+              const data = generateEmptyData();
+              setBoxes(data.boxes);
+              setCustomers(data.customers);
+              setDashboardFilter(null);
+              showNotification('System Reset Completely');
+          } else {
+              // Inventory Only
+              setBoxes([]);
+              showNotification('Inventory Cleared');
+          }
+          
+          // Close all modals
+          setShowClearConfirmModal(false);
+          setShowInitBoxesModal(false);
+          setClearConfirmPassword('');
+      } else {
+          showNotification("Incorrect Master Password", "error");
+      }
+  };
+
+  const handleSaveBoxEdit = (e) => {
+    e.preventDefault();
+    if (!editingBox) return;
+
+    if (editingBox.status === 'checked-out' && !editingBox.customerName) {
+        showNotification("Customer Name is required for checked-out boxes", "error");
+        return;
+    }
+
+    const updatedBoxes = boxes.map(b => b.id === editingBox.id ? editingBox : b);
+    setBoxes(updatedBoxes);
+    setEditingBox(null);
+    showNotification(`Box ${editingBox.id} updated manually`);
+  };
+
+  // --- CLIENT MANAGEMENT ACTIONS ---
+  const handleAddClient = (e) => {
+    e.preventDefault();
+    if (!newClient.name || !newClient.phone) {
+      showNotification('Name and Phone are required', 'error');
+      return;
+    }
+
+    const newId = `CUST-${Math.floor(10000 + Math.random() * 90000)}`;
+    const clientToAdd = {
+      id: newId,
+      name: newClient.name,
+      phone: newClient.phone,
+      email: newClient.email || '-',
+      totalTaken: 0,
+      totalReturned: 0,
+      lateReturns: 0
+    };
+
+    setCustomers([clientToAdd, ...customers]);
+    setNewClient({ name: '', phone: '', email: '' });
+    setShowAddClient(false);
+    showNotification(`${clientToAdd.name} added successfully`);
+  };
+
+  const handleUpdateClient = (e) => {
+    e.preventDefault();
+    if (!editingClient) return;
+    
+    const updatedCustomers = customers.map(c => c.id === editingClient.id ? editingClient : c);
+    setCustomers(updatedCustomers);
+    setEditingClient(null);
+    showNotification(`Client ${editingClient.name} updated`);
+  };
+
+  const handleDeleteClient = (e) => {
+    e.preventDefault();
+    if (!deletingClient) return;
+
+    if (deletePasswordInput !== MASTER_PASSWORD) {
+        showNotification("Incorrect Master Password", "error");
+        return;
+    }
+
+    if (deletingClient.totalTaken > deletingClient.totalReturned) {
+        showNotification("Cannot delete: Client has unreturned boxes.", "error");
+        setDeletingClient(null);
+        setDeletePasswordInput('');
+        return;
+    }
+
+    const updatedCustomers = customers.filter(c => c.id !== deletingClient.id);
+    setCustomers(updatedCustomers);
+    setDeletingClient(null);
+    setDeletePasswordInput('');
+    showNotification("Client deleted successfully");
+  };
+
+  // --- BULK DELETE ACTIONS ---
+  const handleToggleSelectClient = (id) => {
+    setSelectedClientIds(prev => {
+        if (prev.includes(id)) {
+            return prev.filter(cid => cid !== id);
+        } else {
+            return [...prev, id];
+        }
+    });
+  };
+
+  const handleToggleSelectAll = (filteredClients) => {
+      const allIds = filteredClients.map(c => c.id);
+      const allSelected = allIds.every(id => selectedClientIds.includes(id));
+
+      if (allSelected) {
+          // Deselect all visible
+          setSelectedClientIds(prev => prev.filter(id => !allIds.includes(id)));
+      } else {
+          // Select all visible
+          const newSelection = [...new Set([...selectedClientIds, ...allIds])];
+          setSelectedClientIds(newSelection);
+      }
+  };
+
+  const handleBulkDelete = (e) => {
+      e.preventDefault();
+
+      if (deletePasswordInput !== MASTER_PASSWORD) {
+          showNotification("Incorrect Master Password", "error");
+          return;
+      }
+
+      // Filter out clients who have active boxes
+      const clientsToDelete = customers.filter(c => selectedClientIds.includes(c.id));
+      const safeToDelete = clientsToDelete.filter(c => c.totalTaken <= c.totalReturned);
+      const unsafeCount = clientsToDelete.length - safeToDelete.length;
+
+      if (safeToDelete.length === 0 && unsafeCount > 0) {
+          showNotification(`Cannot delete ${unsafeCount} clients because they have active boxes.`, 'error');
+          setShowBulkDeleteModal(false);
+          setDeletePasswordInput('');
+          return;
+      }
+
+      const safeIds = safeToDelete.map(c => c.id);
+      const updatedCustomers = customers.filter(c => !safeIds.includes(c.id));
+      
+      setCustomers(updatedCustomers);
+      setSelectedClientIds([]);
+      setShowBulkDeleteModal(false);
+      setDeletePasswordInput('');
+
+      if (unsafeCount > 0) {
+          showNotification(`Deleted ${safeToDelete.length} clients. Skipped ${unsafeCount} due to active boxes.`, 'warning');
+      } else {
+          showNotification(`Successfully deleted ${safeToDelete.length} clients.`);
+      }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result;
+        const rows = text.split('\n').map(row => row.split(','));
+        
+        let startIndex = 0;
+        if (rows[0][0].toLowerCase().includes('name')) startIndex = 1;
+
+        let addedCount = 0;
+        const newCustomers = [];
+
+        for (let i = startIndex; i < rows.length; i++) {
+          const cols = rows[i];
+          if (cols.length < 2) continue; 
+
+          const name = cols[0]?.trim();
+          const phone = cols[1]?.trim();
+          const email = cols[2]?.trim() || '-';
+
+          if (name && phone) {
+            newCustomers.push({
+              id: `CUST-${Math.floor(10000 + Math.random() * 90000) + i}`,
+              name,
+              phone,
+              email,
+              totalTaken: 0,
+              totalReturned: 0,
+              lateReturns: 0
+            });
+            addedCount++;
+          }
+        }
+
+        setCustomers([...newCustomers, ...customers]);
+        showNotification(`Imported ${addedCount} clients successfully`);
+      } catch (err) {
+        showNotification('Failed to parse file. Ensure it is CSV.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null;
+  };
+
+  // --- BOX ACTIONS ---
+  const handleCheckout = (e) => {
+    e.preventDefault();
+    if (!checkoutCode) {
+      showNotification('Please select a box first', 'error');
+      return;
+    }
+    
+    // Determine customer details
+    let custId = null;
+    let custName = '';
+
+    if (isDepositMode) {
+        // Deposit Logic remains same...
+        const depositIndex = customers.findIndex(c => c.name === 'Deposit');
+        if (depositIndex !== -1) {
+             custId = customers[depositIndex].id;
+             custName = customers[depositIndex].name;
+        } else {
+             custName = 'Deposit';
+             custId = 'CUST-DEPOSIT';
+        }
+    } else if (selectedCustomer) {
+        // Selected from Dropdown
+        custId = selectedCustomer.id;
+        custName = selectedCustomer.name;
+    } else if (customerSearchText) {
+        // Manual Entry (Typed but not selected)
+        custName = customerSearchText;
+        custId = null; // New customer, no ID yet
+    } else {
+        showNotification('Please select a customer or type a name', 'error');
+        return;
+    }
+
+    const boxIndex = boxes.findIndex(b => b.id === checkoutCode);
+    if (boxIndex === -1) {
+      showNotification('Invalid Box ID', 'error');
+      return;
+    }
+    
+    if (boxes[boxIndex].status === 'checked-out') {
+      showNotification('That box is already checked out!', 'error');
+      return;
+    }
+
+    let updatedBoxes = [...boxes];
+    let updatedCustomers = [...customers];
+
+    // Update Customer Stats
+    if (custId) {
+        const custIndex = updatedCustomers.findIndex(c => c.id === custId);
+        if (custIndex !== -1) {
+            updatedCustomers[custIndex] = {
+                ...updatedCustomers[custIndex],
+                totalTaken: updatedCustomers[custIndex].totalTaken + 1
+            };
+        } else if (custId === 'CUST-DEPOSIT') {
+            // Create Deposit if missing
+             updatedCustomers.push({
+                id: 'CUST-DEPOSIT',
+                name: 'Deposit',
+                phone: 'N/A',
+                email: '-',
+                totalTaken: 1,
+                totalReturned: 0,
+                lateReturns: 0 
+            });
+        }
+    }
+
+    // Update Box
+    updatedBoxes[boxIndex] = {
+      id: checkoutCode,
+      status: 'checked-out',
+      customerId: custId,
+      customerName: custName,
+      dateOut: new Date().toISOString()
+    };
+
+    setBoxes(updatedBoxes);
+    setCustomers(updatedCustomers);
+    
+    setCheckoutCode('');
+    setSelectedCustomer(null);
+    setCustomerSearchText('');
+    setIsDepositMode(false);
+    showNotification(`Box ${checkoutCode} assigned to ${custName}`);
+  };
+
+  const handleManualBackdate = (e) => {
+    e.preventDefault();
+
+    // Logic for Manual Backdate using either selected or typed name
+    const finalName = manualCustData ? manualCustData.name : manualCustSearch;
+
+    if (!manualBoxId || !finalName || !manualDate) {
+      showNotification('All fields are required for manual entry', 'error');
+      return;
+    }
+
+    let formattedCode = manualBoxId.trim().toUpperCase();
+    if (!formattedCode.startsWith('BOX-')) {
+        const numericPart = formattedCode.replace(/\D/g, ''); 
+        if (numericPart.length > 0) {
+            formattedCode = `BOX-${numericPart.padStart(3, '0')}`;
+        }
+    }
+
+    const boxIndex = boxes.findIndex(b => b.id === formattedCode);
+    if (boxIndex === -1) {
+      showNotification(`Box ${formattedCode} not found in inventory`, 'error');
+      return;
+    }
+
+    const updatedBoxes = [...boxes];
+    const custId = manualCustData ? manualCustData.id : null;
+
+    updatedBoxes[boxIndex] = {
+      id: formattedCode,
+      status: 'checked-out',
+      customerId: custId, 
+      customerName: finalName,
+      dateOut: new Date(manualDate).toISOString()
+    };
+
+    setBoxes(updatedBoxes);
+    setManualBoxId('');
+    setManualCustData(null);
+    setManualCustSearch('');
+    setManualDate('');
+    showNotification(`Backdated entry saved for ${formattedCode}`);
+  };
+
+  const handleCheckin = (e) => {
+    e.preventDefault();
+    
+    let formattedCode = checkinCode.trim().toUpperCase();
+    if (!formattedCode.startsWith('BOX-')) {
+        const numericPart = formattedCode.replace(/\D/g, ''); 
+        if (numericPart.length > 0) {
+            formattedCode = `BOX-${numericPart.padStart(3, '0')}`;
+        }
+    }
+
+    const boxIndex = boxes.findIndex(b => b.id === formattedCode);
+
+    if (boxIndex === -1) {
+      showNotification(`Box ${formattedCode} not found.`, 'error');
+      return;
+    }
+
+    const box = boxes[boxIndex];
+
+    if (box.status === 'available') {
+      showNotification(`Box ${formattedCode} is already returned.`, 'error');
+      return;
+    }
+
+    let updatedCustomers = [...customers];
+    const daysOut = getDaysOut(box.dateOut);
+
+    if (box.customerId) {
+      const custIndex = updatedCustomers.findIndex(c => c.id === box.customerId);
+      if (custIndex !== -1) {
+        const cust = updatedCustomers[custIndex];
+        updatedCustomers[custIndex] = {
+          ...cust,
+          totalReturned: cust.totalReturned + 1,
+          lateReturns: daysOut > 14 ? (cust.lateReturns || 0) + 1 : (cust.lateReturns || 0)
+        };
+      }
+    }
+
+    const updatedBoxes = [...boxes];
+    updatedBoxes[boxIndex] = {
+      ...updatedBoxes[boxIndex],
+      status: 'available',
+      customerId: null,
+      customerName: null,
+      dateOut: null
+    };
+
+    setBoxes(updatedBoxes);
+    setCustomers(updatedCustomers);
+    
+    if (daysOut > 14) {
+      showNotification(`Box ${formattedCode} returned LATE (${daysOut} days). Recorded.`, 'error');
+    } else {
+      showNotification(`Box ${formattedCode} returned successfully.`);
+    }
+    setCheckinCode('');
+  };
+
+  const handleAddBox = (e) => {
+    e.preventDefault();
+    if (!newBoxCode) return;
+    if (boxes.find(b => b.id === newBoxCode)) {
+      showNotification('Box ID already exists', 'error');
+      return;
+    }
+    setBoxes([...boxes, { id: newBoxCode, status: 'available', customerId: null, customerName: null, dateOut: null }]);
+    setNewBoxCode('');
+    showNotification(`Box ${newBoxCode} added`);
+  };
+
+  // --- FILTER & SORT LOGIC ---
+  const clientsTableData = useMemo(() => {
+    let data = customers;
+    if (clientSearch) {
+      data = customers.filter(c => 
+        c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+        c.phone.includes(clientSearch) ||
+        (c.email && c.email.toLowerCase().includes(clientSearch.toLowerCase()))
+      );
+    }
+
+    if (sortConfig.key) {
+      data = [...data].sort((a, b) => {
+        let aValue, bValue;
+        if (sortConfig.key === 'balance') {
+          aValue = a.totalTaken - a.totalReturned;
+          bValue = b.totalTaken - b.totalReturned;
+        } else {
+          aValue = a[sortConfig.key];
+          bValue = b[sortConfig.key];
+        }
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
+    }
+    return data;
+  }, [clientSearch, customers, sortConfig]);
+
+  const availableBoxes = useMemo(() => {
+    return boxes.filter(b => b.status === 'available');
+  }, [boxes]);
+
+  const recentCheckouts = useMemo(() => {
+    return boxes.filter(b => {
+      if (b.status !== 'checked-out') return false;
+      const days = getDaysOut(b.dateOut);
+      return days <= 14;
+    });
+  }, [boxes]);
+
+  const dashboardActivities = useMemo(() => {
+    return boxes
+      .filter(b => b.status === 'checked-out')
+      .sort((a, b) => new Date(b.dateOut) - new Date(a.dateOut));
+  }, [boxes]);
+
+  const warningList = useMemo(() => {
+    return boxes.filter(b => {
+      if (b.status !== 'checked-out') return false;
+      const d = getDaysOut(b.dateOut);
+      return d > 7 && d <= 14;
+    });
+  }, [boxes]);
+
+  const overdueList = useMemo(() => {
+    return boxes.filter(b => {
+      if (b.status !== 'checked-out') return false;
+      const d = getDaysOut(b.dateOut);
+      return d > 14;
+    });
+  }, [boxes]);
+
+  // --- RENDER HELPERS ---
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <div className="w-4 h-4 ml-1 inline-block" />; 
+    return sortConfig.direction === 'ascending' 
+      ? <ChevronUp size={14} className="ml-1 inline-block text-emerald-600" />
+      : <ChevronDown size={14} className="ml-1 inline-block text-emerald-600" />;
+  };
+
+  const TableHeader = ({ label, sortKey, align = 'left' }) => (
+    <th 
+      className={`p-4 font-semibold text-emerald-900 cursor-pointer hover:bg-emerald-100 transition-colors select-none text-${align}`}
+      onClick={() => requestSort(sortKey)}
+    >
+      <div className={`flex items-center ${align === 'center' ? 'justify-center' : 'justify-start'}`}>
+        {label} <SortIcon columnKey={sortKey} />
+      </div>
+    </th>
+  );
+
+  // --- LOADING SCREEN ---
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-emerald-50 text-emerald-900">
+        <div className="flex flex-col items-center gap-2">
+          <RefreshCw className="animate-spin w-8 h-8" />
+          <p className="font-medium">Initializing System...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-emerald-900 text-white p-4">
+        
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white text-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm"
+        >
+          <div className="flex flex-col items-center mb-6">
+            <div className="bg-emerald-100 p-4 rounded-full mb-4">
+              <ShieldCheck className="w-10 h-10 text-emerald-700" />
+            </div>
+            <h1 className="text-2xl font-bold text-emerald-900">LocaBox Secure</h1>
+            <p className="text-gray-500 text-sm mt-1">Please login to access customer data</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+                <input 
+                  type="password" 
+                  autoFocus
+                  value={loginInput}
+                  onChange={(e) => setLoginInput(e.target.value)}
+                  className={`w-full pl-10 p-3 border rounded-lg outline-none focus:ring-2 ${
+                    loginError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-emerald-200'
+                  }`}
+                  placeholder="Enter access code"
+                />
+              </div>
+              {loginError && <p className="text-red-500 text-xs mt-1 ml-1">Incorrect password. Default is 0000.</p>}
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <LogIn size={18} /> Access System
+            </button>
+          </form>
+          <p className="text-center text-xs text-gray-400 mt-6">Authorized Personnel Only</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // --- MAIN APP RENDER ---
+  const totalBoxes = boxes.length;
+  const checkedOut = boxes.filter(b => b.status === 'checked-out').length;
+  const available = totalBoxes - checkedOut;
+
+  return (
+    <div className="min-h-screen bg-emerald-50/30 text-gray-800 font-sans relative">
+      
+      {/* --- HEADER --- */}
+      <header className="bg-emerald-800 text-white p-4 shadow-lg sticky top-0 z-40 border-b border-emerald-900">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <Package className="w-6 h-6 text-emerald-200" />
+            <h1 className="text-xl font-bold tracking-wide">LocaBox Tracker</h1>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={requestFullReset} className="text-xs bg-emerald-700 hover:bg-emerald-600 px-3 py-1 rounded text-emerald-100 flex items-center gap-1 transition-colors border border-emerald-600">
+              <RefreshCw size={12} /> Clear Data
+            </button>
+            <button onClick={() => setIsAuthenticated(false)} className="text-xs bg-red-900/50 hover:bg-red-900 px-3 py-1 rounded text-red-100 flex items-center gap-1 transition-colors border border-red-800">
+              <Lock size={12} /> Logout
+            </button>
+           </div>
+        </div>
+      </header>
+
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-20 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl z-[150] flex items-center space-x-2 ${
+              notification.type === 'error' ? 'bg-red-800 text-white' : (notification.type === 'warning' ? 'bg-amber-600 text-white' : 'bg-emerald-800 text-white')
+            }`}
+          >
+            {notification.type === 'error' ? <AlertCircle size={20} /> : (notification.type === 'warning' ? <AlertTriangle size={20} /> : <CheckCircle size={20} />)}
+            <span>{notification.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <main className="max-w-6xl mx-auto p-4 pb-24">
+        
+        {/* Navigation Tabs */}
+        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: Package },
+            { id: 'checkout', label: 'Give Box', icon: Plus },
+            { id: 'checkin', label: 'Return Box', icon: RotateCcw },
+            { id: 'clients', label: 'Client List', icon: Users },
+            { id: 'inventory', label: 'Inventory', icon: Package },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium capitalize transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-emerald-700 text-white shadow-md'
+                  : 'bg-white text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content Area */}
+        <div className="space-y-6">
+
+          {/* DASHBOARD VIEW */}
+          {activeTab === 'dashboard' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-4"
+            >
+              <div className="col-span-1 bg-white p-4 rounded-xl shadow-sm border border-emerald-100">
+                <p className="text-emerald-900/60 text-xs font-bold uppercase">Available</p>
+                <p className="text-3xl font-bold text-emerald-700 mt-1">{available}</p>
+              </div>
+              
+              <div className="col-span-1 bg-white p-4 rounded-xl shadow-sm border border-emerald-100">
+                <p className="text-emerald-900/60 text-xs font-bold uppercase">Total Out</p>
+                <p className="text-3xl font-bold text-blue-800 mt-1">{checkedOut}</p>
+              </div>
+
+              <button 
+                onClick={() => setDashboardFilter(dashboardFilter === 'warning' ? null : 'warning')}
+                className={`col-span-1 p-4 rounded-xl shadow-sm border text-left transition-all ${
+                  dashboardFilter === 'warning' 
+                    ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-500' 
+                    : 'bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-400'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-amber-800 text-xs font-bold uppercase flex items-center gap-1">
+                     Warning <Timer size={14}/>
+                  </p>
+                  {dashboardFilter === 'warning' && <ChevronDown size={16} className="text-amber-800"/>}
+                </div>
+                <p className="text-3xl font-bold text-amber-700 mt-1">{warningList.length}</p>
+                <p className="text-[10px] text-amber-900 mt-1">7-14 Days</p>
+              </button>
+
+              <button 
+                onClick={() => setDashboardFilter(dashboardFilter === 'overdue' ? null : 'overdue')}
+                className={`col-span-1 p-4 rounded-xl shadow-sm border text-left transition-all ${
+                  dashboardFilter === 'overdue' 
+                    ? 'bg-red-100 border-red-500 ring-2 ring-red-500' 
+                    : 'bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-400'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-red-800 text-xs font-bold uppercase flex items-center gap-1">
+                     Overdue <AlertTriangle size={14}/>
+                  </p>
+                  {dashboardFilter === 'overdue' && <ChevronDown size={16} className="text-red-800"/>}
+                </div>
+                <p className="text-3xl font-bold text-red-700 mt-1">{overdueList.length}</p>
+                <p className="text-[10px] text-red-900 mt-1">&gt; 14 Days</p>
+              </button>
+
+              <div className="col-span-2 md:col-span-4">
+                <AnimatePresence>
+                  {dashboardFilter && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className={`rounded-xl border p-4 mb-4 ${
+                        dashboardFilter === 'warning' ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-300'
+                      }`}>
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className={`font-bold flex items-center gap-2 ${
+                            dashboardFilter === 'warning' ? 'text-amber-900' : 'text-red-900'
+                          }`}>
+                            {dashboardFilter === 'warning' ? <Timer size={18}/> : <AlertTriangle size={18}/>}
+                            {dashboardFilter === 'warning' ? 'Warning List (7-14 Days)' : 'Overdue List (>14 Days)'}
+                          </h3>
+                          <button 
+                            onClick={() => setDashboardFilter(null)}
+                            className={`p-1 rounded-full hover:bg-white/50 ${
+                              dashboardFilter === 'warning' ? 'text-amber-900' : 'text-red-900'
+                            }`}
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {(dashboardFilter === 'warning' ? warningList : overdueList).map(box => (
+                            <div key={box.id} className="bg-white p-3 rounded-lg shadow-sm border border-emerald-100 flex flex-col">
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="font-bold text-gray-800">{box.id.replace('BOX-', '')}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                  dashboardFilter === 'warning' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {getDaysOut(box.dateOut)} days
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 truncate">{box.customerName}</p>
+                              <p className="text-xs text-gray-400 mt-1">Out: {new Date(box.dateOut).toLocaleDateString()}</p>
+                            </div>
+                          ))}
+                          {(dashboardFilter === 'warning' ? warningList : overdueList).length === 0 && (
+                            <p className="col-span-full text-center text-gray-500 italic py-4">No boxes in this category.</p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="col-span-2 md:col-span-4 bg-white p-6 rounded-xl shadow-sm border border-emerald-100 mt-2">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-emerald-900">Recent Activity</h3>
+                  <span className="text-xs text-emerald-700/60">Showing {Math.min(activityLimit, dashboardActivities.length)} of {dashboardActivities.length}</span>
+                </div>
+                
+                <div className="space-y-3">
+                  {dashboardActivities.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic">No activity yet.</div>
+                  ) : (
+                    dashboardActivities
+                      .slice(0, activityLimit)
+                      .map(box => (
+                        <div key={box.id} className="flex justify-between items-center p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 hover:bg-emerald-50 transition-colors">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-blue-100 p-2 rounded-full">
+                              <Clock size={16} className="text-blue-700" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800 text-sm">{box.customerName}</p>
+                              <p className="text-xs text-gray-500">{box.id}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">
+                              {getDaysOut(box.dateOut) === 0 ? 'Today' : `${getDaysOut(box.dateOut)} days ago`}
+                            </p>
+                          </div>
+                        </div>
+                    ))
+                  )}
+                </div>
+
+                {dashboardActivities.length > activityLimit && activityLimit < 100 && (
+                  <button 
+                    onClick={() => setActivityLimit(prev => Math.min(prev + 20, 100))}
+                    className="w-full mt-4 py-2 text-sm text-emerald-800 font-medium bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors flex items-center justify-center gap-1"
+                  >
+                    Show More <ChevronDown size={14} />
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* CHECKOUT VIEW */}
+          {activeTab === 'checkout' && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* LEFT: FORM */}
+                <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-emerald-100 h-fit">
+                  <h2 className="text-xl font-bold mb-6 text-emerald-900 flex items-center gap-2">
+                    <div className="bg-blue-100 p-2 rounded-full"><Plus className="text-blue-700" size={20}/></div>
+                    1. Details
+                  </h2>
+                  <form onSubmit={handleCheckout} className="space-y-6">
+                    
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-gray-700">Customer</label>
+                      
+                      <div 
+                        onClick={() => {
+                          setIsDepositMode(!isDepositMode);
+                          setSelectedCustomer(null);
+                          setCustomerSearchText('');
+                        }}
+                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
+                          isDepositMode ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-emerald-200 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+                          isDepositMode ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-400'
+                        }`}>
+                          {isDepositMode && <CheckCircle size={14} className="text-white" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${isDepositMode ? 'text-blue-800' : 'text-gray-700'}`}>Deposit Only</p>
+                          <p className="text-xs text-gray-500">Assigns to client "Deposit"</p>
+                        </div>
+                        <Wallet size={20} className={isDepositMode ? 'text-blue-500' : 'text-gray-400'} />
+                      </div>
+
+                      {!isDepositMode && (
+                        <div className="relative">
+                          {selectedCustomer ? (
+                            <div className="p-3 bg-emerald-50 border border-emerald-500 rounded-lg flex justify-between items-center">
+                              <div>
+                                 <p className="font-bold text-emerald-900">{selectedCustomer.name}</p>
+                                 <p className="text-xs text-emerald-700">{selectedCustomer.phone}</p>
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                    setSelectedCustomer(null);
+                                    setCustomerSearchText('');
+                                }}
+                                className="text-emerald-700 hover:text-red-600 p-1"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          ) : (
+                            <SearchableCustomerInput 
+                                customers={customers}
+                                value={customerSearchText}
+                                onChange={setCustomerSearchText}
+                                onSelect={(c) => {
+                                    if (c) {
+                                        setSelectedCustomer(c);
+                                        setCustomerSearchText(c.name);
+                                    } else {
+                                        setSelectedCustomer(null);
+                                    }
+                                }}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={!checkoutCode || (!isDepositMode && !selectedCustomer && !customerSearchText)}
+                      className={`w-full font-bold py-4 rounded-lg transition-all shadow-md mt-4 flex justify-center items-center gap-2 ${
+                        !checkoutCode || (!isDepositMode && !selectedCustomer && !customerSearchText)
+                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                         : 'bg-blue-700 hover:bg-blue-800 text-white'
+                      }`}
+                    >
+                      Confirm Check-out {checkoutCode && `for ${checkoutCode}`}
+                    </button>
+                  </form>
+                </div>
+
+                {/* RIGHT: BOX SELECTOR */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-emerald-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
+                      <div className="bg-emerald-100 p-2 rounded-full"><Box className="text-emerald-700" size={20}/></div>
+                      2. Select Available Box
+                    </h2>
+                    <span className="text-sm bg-emerald-100 px-3 py-1 rounded-full text-emerald-800 font-medium">
+                      {availableBoxes.length} Available
+                    </span>
+                  </div>
+                  
+                  {availableBoxes.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                      <p>No boxes available.</p>
+                      <p className="text-xs mt-2">Go to "Inventory" tab to add boxes.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                      {availableBoxes.map((box) => (
+                        <button
+                          key={box.id}
+                          type="button"
+                          onClick={() => setCheckoutCode(box.id)}
+                          className={`aspect-square flex items-center justify-center rounded-md font-bold border transition-all shadow-sm text-xs ${
+                            checkoutCode === box.id
+                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-md ring-1 ring-emerald-200 scale-95'
+                              : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {parseInt(box.id.replace('BOX-', ''), 10)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-6">
+                <button 
+                  onClick={() => setShowManualBackdate(!showManualBackdate)}
+                  className="w-full flex justify-between items-center text-amber-900 font-bold"
+                >
+                  <span className="flex items-center gap-2"><ClipboardList size={20}/> Missed Entry / Backdate?</span>
+                  {showManualBackdate ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                </button>
+                
+                <AnimatePresence>
+                  {showManualBackdate && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 pt-4 border-t border-amber-200">
+                        <p className="text-sm text-amber-800 mb-3">
+                           Manually add a record for a box that was already taken. This will mark the box as checked out and set the date.
+                        </p>
+                        <form onSubmit={handleManualBackdate} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                          <div>
+                            <label className="text-xs font-bold text-amber-800 uppercase">Box ID</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. 45"
+                              value={manualBoxId}
+                              onChange={(e) => setManualBoxId(e.target.value)}
+                              className="w-full p-2.5 border border-amber-300 rounded bg-white text-sm h-[42px]"
+                            />
+                          </div>
+                          
+                          <div className="relative">
+                            <label className="text-xs font-bold text-amber-800 uppercase mb-1 block">Customer Name</label>
+                            <SearchableCustomerInput 
+                                customers={customers}
+                                value={manualCustData ? manualCustData.name : manualCustSearch}
+                                onChange={(val) => {
+                                    setManualCustSearch(val);
+                                    setManualCustData(null);
+                                }}
+                                onSelect={(c) => {
+                                    if(c) {
+                                        setManualCustData(c);
+                                        setManualCustSearch(c.name);
+                                    }
+                                }}
+                                placeholder="Search or type name..."
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold text-amber-800 uppercase">Date Taken</label>
+                            <input 
+                              type="date" 
+                              value={manualDate}
+                              onChange={(e) => setManualDate(e.target.value)}
+                              className="w-full p-2.5 border border-amber-300 rounded bg-white text-sm h-[42px]"
+                            />
+                          </div>
+                          <button 
+                            type="submit"
+                            className="bg-amber-700 text-white font-bold py-2 px-4 rounded hover:bg-amber-800 transition-colors text-sm h-[42px]"
+                          >
+                            Save Record
+                          </button>
+                        </form>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+
+          {/* CHECKIN VIEW */}
+          {activeTab === 'checkin' && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
+                    <div className="bg-emerald-100 p-2 rounded-full"><RotateCcw className="text-emerald-700" size={20}/></div>
+                    Quick Return
+                  </h2>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                    &le; 14 Days Out
+                  </span>
+                </div>
+                
+                <p className="text-sm text-gray-500 mb-4">Select a box below to auto-fill the return form.</p>
+
+                {recentCheckouts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                    No recent boxes checked out.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-[400px] overflow-y-auto pr-2">
+                    {recentCheckouts.map((box) => (
+                      <button
+                        key={box.id}
+                        type="button"
+                        onClick={() => setCheckinCode(box.id)}
+                        className={`py-2 px-1 rounded-md text-xs font-bold border transition-all ${
+                          checkinCode === box.id
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-200'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                        }`}
+                      >
+                        {box.id.replace('BOX-', '')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 h-fit">
+                <h2 className="text-xl font-bold mb-6 text-emerald-900 flex items-center gap-2">
+                  <div className="bg-amber-100 p-2 rounded-full"><Calendar className="text-amber-700" size={20}/></div>
+                  Overdue / Manual
+                </h2>
+                
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6 flex gap-3 items-start">
+                  <AlertTriangle className="text-amber-700 shrink-0 mt-0.5" size={18} />
+                  <p className="text-sm text-amber-900">
+                    Use this for boxes checked out <strong>more than 14 days ago</strong>. You can type just the number (e.g., "42") or the full ID.
+                  </p>
+                </div>
+
+                <form onSubmit={handleCheckin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Box Number</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={checkinCode}
+                        onChange={(e) => setCheckinCode(e.target.value)}
+                        placeholder="e.g. 42 or BOX-042"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-mono"
+                      />
+                      {checkinCode && (
+                        <button 
+                          type="button"
+                          onClick={() => setCheckinCode('')}
+                          className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!checkinCode}
+                    className={`w-full font-bold py-3 rounded-lg transition-colors shadow-md mt-2 ${
+                      checkinCode 
+                        ? 'bg-emerald-700 hover:bg-emerald-800 text-white' 
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Confirm Return
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          )}
+
+          {/* CLIENT LIST VIEW */}
+          {activeTab === 'clients' && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-emerald-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2 whitespace-nowrap">
+                    <Users size={20} className="text-emerald-700"/> Client Database
+                    <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">{customers.length}</span>
+                  </h3>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setShowAddClient(!showAddClient)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1 transition-colors ${
+                        showAddClient 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                          : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {showAddClient ? <X size={14}/> : <Plus size={14}/>} {showAddClient ? 'Close' : 'Add'}
+                    </button>
+                    <button 
+                      onClick={handleExportClients}
+                      className="text-xs px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1 transition-colors bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                    >
+                      <Download size={14}/> Export CSV
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 w-full md:w-auto items-center">
+                  
+                  {isEditMode && selectedClientIds.length > 0 && (
+                      <button 
+                        onClick={() => {
+                            setDeletePasswordInput('');
+                            setShowBulkDeleteModal(true);
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm animate-pulse"
+                      >
+                        <Trash2 size={14} /> Delete Selected ({selectedClientIds.length})
+                      </button>
+                  )}
+
+                  <button 
+                    onClick={() => {
+                        if (isEditMode) {
+                            setIsEditMode(false);
+                            setSelectedClientIds([]); // Clear selection on exit
+                        } else {
+                            setShowAuthModal(true);
+                        }
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                        isEditMode 
+                        ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200' 
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
+                    {isEditMode ? 'Exit Edit Mode' : 'Manage / Edit'}
+                  </button>
+
+                  <div className="relative flex-1 md:w-64">
+                    <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search clients..." 
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      className="w-full pl-9 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {isEditMode && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 items-center">
+                    <AlertTriangle className="text-amber-700" size={18} />
+                    <p className="text-sm text-amber-900 font-medium">
+                        Admin Mode Active. Select checkboxes to delete multiple clients.
+                    </p>
+                  </div>
+              )}
+
+              <AnimatePresence>
+                {showAddClient && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
+                      <div className="flex flex-col md:flex-row gap-6">
+                        
+                        <div className="flex-1">
+                          <h4 className="font-bold text-emerald-900 mb-3 flex items-center gap-2">
+                            <User size={16} /> Manual Entry
+                          </h4>
+                          <form onSubmit={handleAddClient} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1">Name *</label>
+                              <div className="relative">
+                                <User className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
+                                <input 
+                                  required
+                                  type="text" 
+                                  placeholder="John Doe"
+                                  value={newClient.name}
+                                  onChange={(e) => setNewClient({...newClient, name: e.target.value})}
+                                  className="w-full pl-8 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1">Phone *</label>
+                              <div className="relative">
+                                <Phone className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
+                                <input 
+                                  required
+                                  type="text" 
+                                  placeholder="555-0123"
+                                  value={newClient.phone}
+                                  onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
+                                  className="w-full pl-8 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1">Email</label>
+                              <div className="relative">
+                                <Mail className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
+                                <input 
+                                  type="email" 
+                                  placeholder="john@example.com"
+                                  value={newClient.email}
+                                  onChange={(e) => setNewClient({...newClient, email: e.target.value})}
+                                  className="w-full pl-8 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="md:col-span-3 flex justify-end">
+                              <button type="submit" className="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition-colors">
+                                Save Client
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        <div className="hidden md:block w-px bg-emerald-200 mx-2"></div>
+
+                        <div className="md:w-1/3">
+                          <h4 className="font-bold text-emerald-900 mb-3 flex items-center gap-2">
+                            <FileSpreadsheet size={16} /> Import Excel/CSV
+                          </h4>
+                          <div className="bg-white border-2 border-dashed border-emerald-300 rounded-lg p-4 text-center hover:bg-emerald-50 transition-colors relative cursor-pointer">
+                            <input 
+                              type="file" 
+                              ref={fileInputRef}
+                              accept=".csv,.txt"
+                              onChange={handleFileUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <Upload className="mx-auto text-emerald-400 mb-2" size={24} />
+                            <p className="text-sm font-medium text-emerald-800">Click to Upload CSV</p>
+                            <p className="text-[10px] text-gray-500 mt-1">Format: Name, Phone, Email</p>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="bg-white rounded-xl shadow-sm border border-emerald-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-emerald-50 border-b border-emerald-200">
+                      <tr>
+                        {isEditMode && (
+                            <th className="p-4 w-10">
+                                <button 
+                                    onClick={() => handleToggleSelectAll(clientsTableData)}
+                                    className="text-emerald-800 hover:text-emerald-600"
+                                >
+                                    {clientsTableData.length > 0 && clientsTableData.every(c => selectedClientIds.includes(c.id)) 
+                                        ? <CheckSquare size={18} /> 
+                                        : <Square size={18} />
+                                    }
+                                </button>
+                            </th>
+                        )}
+                        <TableHeader label="Name" sortKey="name" />
+                        <TableHeader label="Phone" sortKey="phone" />
+                        <TableHeader label="Email" sortKey="email" />
+                        <TableHeader label="Taken" sortKey="totalTaken" align="center" />
+                        <TableHeader label="Returned" sortKey="totalReturned" align="center" />
+                        <TableHeader label="Late Returns" sortKey="lateReturns" align="center" />
+                        <TableHeader label="Balance" sortKey="balance" align="center" />
+                        {isEditMode && <th className="p-4 font-semibold text-emerald-900 text-center">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {clientsTableData.length === 0 ? (
+                        <tr><td colSpan={isEditMode ? 9 : 8} className="p-8 text-center text-gray-400">No clients found.</td></tr>
+                      ) : (
+                        clientsTableData.map((c) => {
+                          const balance = c.totalTaken - c.totalReturned;
+                          const isSelected = selectedClientIds.includes(c.id);
+                          return (
+                            <tr key={c.id} className={`hover:bg-emerald-50 transition-colors ${isSelected ? 'bg-emerald-50' : ''}`}>
+                              {isEditMode && (
+                                  <td className="p-4 text-center">
+                                      <button 
+                                          onClick={() => handleToggleSelectClient(c.id)}
+                                          className={`transition-colors ${isSelected ? 'text-emerald-600' : 'text-gray-300 hover:text-gray-500'}`}
+                                      >
+                                          {isSelected ? <CheckSquare size={18}/> : <Square size={18}/>}
+                                      </button>
+                                  </td>
+                              )}
+                              <td className="p-4 font-medium text-gray-800">{c.name}</td>
+                              <td className="p-4 text-gray-500">{c.phone}</td>
+                              <td className="p-4 text-gray-500 text-xs">{c.email || '-'}</td>
+                              <td className="p-4 text-center text-blue-700 font-medium">{c.totalTaken}</td>
+                              <td className="p-4 text-center text-emerald-700 font-medium">{c.totalReturned}</td>
+                              <td className="p-4 text-center font-bold text-red-600">
+                                {c.lateReturns > 0 ? c.lateReturns : <span className="text-gray-300 font-normal">-</span>}
+                              </td>
+                              <td className="p-4 text-center">
+                                {balance > 0 ? (
+                                  <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">
+                                    {balance} Out
+                                  </span>
+                                ) : (
+                                  <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs">
+                                    Clear
+                                  </span>
+                                )}
+                              </td>
+                              {isEditMode && (
+                                <td className="p-4 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <button 
+                                            onClick={() => setEditingClient(c)}
+                                            className="p-1.5 bg-white border border-gray-300 rounded hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                            title="Edit Client"
+                                        >
+                                            <Edit size={14} />
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                setDeletePasswordInput('');
+                                                setDeletingClient(c);
+                                            }}
+                                            className="p-1.5 bg-white border border-gray-300 rounded hover:bg-red-50 hover:text-red-700 transition-colors"
+                                            title="Delete Client"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* INVENTORY VIEW */}
+          {activeTab === 'inventory' && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-emerald-100 flex flex-col md:flex-row gap-4 justify-between items-end">
+                <div className="w-full md:w-1/2">
+                  <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Quick Add Inventory</h3>
+                  <form onSubmit={handleAddBox} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newBoxCode}
+                      onChange={(e) => setNewBoxCode(e.target.value)}
+                      placeholder="New Box ID..."
+                      className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                    <button type="submit" className="bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-900 transition-colors">
+                      Add
+                    </button>
+                  </form>
+                </div>
+
+                <div className="flex gap-2 items-center">
+                  <button 
+                    onClick={handleExportInventory}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                        if (isEditMode) {
+                            setIsEditMode(false);
+                        } else {
+                            setShowAuthModal(true);
+                        }
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                        isEditMode 
+                        ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200' 
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
+                    {isEditMode ? 'Exit Edit Mode' : 'Manage / Edit'}
+                  </button>
+
+                  {isEditMode && (
+                    <>
+                      <button 
+                        onClick={() => setShowInitBoxesModal(true)}
+                        className="p-2 bg-blue-100 text-blue-700 rounded-lg border border-blue-300 hover:bg-blue-200"
+                        title="Initialize Bulk Boxes"
+                      >
+                        <Database size={16} />
+                      </button>
+                      <button 
+                        onClick={() => setShowChangePassModal(true)}
+                        className="p-2 bg-gray-100 text-gray-600 rounded-lg border border-gray-300 hover:bg-gray-200"
+                        title="Change Password"
+                      >
+                        <Settings size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isEditMode && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 items-center animate-pulse">
+                    <AlertTriangle className="text-amber-700" size={18} />
+                    <p className="text-sm text-amber-900 font-medium">
+                        Edit Mode Active. You can manually change box status below.
+                    </p>
+                  </div>
+              )}
+
+              <div className="bg-white rounded-xl shadow-sm border border-emerald-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-emerald-50 border-b border-emerald-200">
+                      <tr>
+                        <th className="p-4 font-semibold text-emerald-900">Box ID</th>
+                        <th className="p-4 font-semibold text-emerald-900">Status</th>
+                        <th className="p-4 font-semibold text-emerald-900">Customer</th>
+                        <th className="p-4 font-semibold text-emerald-900">Date Out</th>
+                        {isEditMode && <th className="p-4 font-semibold text-emerald-900 text-center">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {boxes.length === 0 ? (
+                        <tr><td colSpan="5" className="p-8 text-center text-gray-400">No boxes found.</td></tr>
+                      ) : (
+                        boxes.map((box) => {
+                          const daysOut = getDaysOut(box.dateOut);
+                          const isOverdue14 = box.status === 'checked-out' && daysOut > 14;
+                          const isWarning7 = box.status === 'checked-out' && daysOut > 7 && daysOut <= 14;
+
+                          return (
+                            <tr key={box.id} className={`hover:bg-emerald-50 transition-colors ${isOverdue14 ? 'bg-red-50' : ''}`}>
+                              <td className="p-4 font-medium text-gray-800">{box.id}</td>
+                              <td className="p-4">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  box.status === 'available' 
+                                    ? 'bg-emerald-100 text-emerald-800' 
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {box.status === 'available' ? 'In Shop' : 'Out'}
+                                </span>
+                              </td>
+                              <td className="p-4 text-gray-600">
+                                {box.customerName || '-'}
+                              </td>
+                              <td className="p-4 text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  {box.dateOut ? (
+                                    <>
+                                      <span>{new Date(box.dateOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                      {isOverdue14 && <AlertTriangle size={18} className="text-red-600" title="Overdue > 14 days" />}
+                                      {isWarning7 && <Timer size={18} className="text-amber-500" title="Warning > 7 days" />}
+                                    </>
+                                  ) : '-'}
+                                </div>
+                              </td>
+                              {isEditMode && (
+                                <td className="p-4 text-center">
+                                    <button 
+                                        onClick={() => setEditingBox(box)}
+                                        className="p-1.5 bg-white border border-gray-300 rounded hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                    >
+                                        <Edit size={14} />
+                                    </button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+        </div>
+      </main>
+
+      {/* --- MODALS (MOVED TO BOTTOM FOR Z-INDEX FIX) --- */}
+
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Lock size={20} className="text-emerald-700"/> Admin Access
+            </h3>
+            <form onSubmit={handleUnlockAdmin}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Enter Password</label>
+              <input 
+                autoFocus
+                type="password" 
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="w-full p-2 border rounded mb-4"
+                placeholder="Default: 0000"
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setShowAuthModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-800">Unlock</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showChangePassModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Settings size={20} className="text-emerald-700"/> Change Password
+            </h3>
+            <form onSubmit={handleChangePassword}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+              <input 
+                autoFocus
+                type="text" 
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value)}
+                className="w-full p-2 border rounded mb-4"
+                placeholder="Minimum 4 chars"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowChangePassModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showInitBoxesModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Database size={20} className="text-emerald-700"/> Initialize Inventory
+            </h3>
+            <form onSubmit={handleInitializeBoxes}>
+              <p className="text-sm text-gray-600 mb-4">
+                Create box numbers from <strong>1 to {initBoxCount}</strong>.
+                <br/>
+                <span className="text-xs text-gray-500">Existing boxes will be skipped, not duplicated.</span>
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Box Count</label>
+              <input 
+                autoFocus
+                type="number" 
+                min="1"
+                max="1000"
+                value={initBoxCount}
+                onChange={(e) => setInitBoxCount(e.target.value)}
+                className="w-full p-2 border rounded mb-4"
+              />
+              <div className="flex justify-between items-center mt-4">
+                <button 
+                  type="button" 
+                  onClick={requestClearInventoryOnly}
+                  className="px-3 py-2 text-red-600 hover:bg-red-50 rounded text-xs font-bold border border-red-200"
+                >
+                  Clear All Inventory
+                </button>
+                <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowInitBoxesModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                    <button type="submit" className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-800">Generate</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingBox && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Edit size={20} className="text-emerald-700"/> Edit {editingBox.id}
+            </h3>
+            <form onSubmit={handleSaveBoxEdit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select 
+                  value={editingBox.status}
+                  onChange={(e) => {
+                    const status = e.target.value;
+                    setEditingBox(prev => ({
+                      ...prev,
+                      status,
+                      customerName: status === 'available' ? null : (prev.customerName || ''),
+                      dateOut: status === 'available' ? null : (prev.dateOut || new Date().toISOString())
+                    }));
+                  }}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="available">Available</option>
+                  <option value="checked-out">Checked Out</option>
+                </select>
+              </div>
+              {editingBox.status === 'checked-out' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                    <SearchableCustomerInput 
+                        customers={customers}
+                        value={editingBox.customerName || editingBoxSearch}
+                        onChange={(val) => {
+                             setEditingBoxSearch(val);
+                             setEditingBox({...editingBox, customerName: val});
+                        }}
+                        onSelect={(c) => {
+                            if (c) {
+                                setEditingBox({...editingBox, customerName: c.name, customerId: c.id});
+                            } else {
+                                setEditingBox({...editingBox, customerName: '', customerId: null});
+                            }
+                        }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date Out</label>
+                    <input 
+                      type="date" 
+                      value={editingBox.dateOut ? new Date(editingBox.dateOut).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setEditingBox({...editingBox, dateOut: new Date(e.target.value).toISOString()})}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" onClick={() => setEditingBox(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-800 flex items-center gap-2">
+                  <Save size={16} /> Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingClient && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Edit size={20} className="text-emerald-700"/> Edit Client
+            </h3>
+            <form onSubmit={handleUpdateClient} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingClient.name}
+                  onChange={(e) => setEditingClient({...editingClient, name: e.target.value})}
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingClient.phone}
+                  onChange={(e) => setEditingClient({...editingClient, phone: e.target.value})}
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input 
+                  type="email" 
+                  value={editingClient.email}
+                  onChange={(e) => setEditingClient({...editingClient, email: e.target.value})}
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" onClick={() => setEditingClient(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-800 flex items-center gap-2">
+                  <Save size={16} /> Update Client
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deletingClient && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+                <div className="bg-red-100 p-3 rounded-full mb-4">
+                    <UserX className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Client?</h3>
+                <p className="text-gray-500 mb-4">
+                    Are you sure you want to delete <strong>{deletingClient.name}</strong>? This action cannot be undone.
+                </p>
+                
+                <form onSubmit={handleDeleteClient} className="w-full">
+                    <div className="mb-4 text-left">
+                        <label className="text-xs font-bold text-gray-700 uppercase">Master Password</label>
+                        <input 
+                            autoFocus
+                            type="password"
+                            placeholder="Required"
+                            value={deletePasswordInput}
+                            onChange={(e) => setDeletePasswordInput(e.target.value)}
+                            className="w-full p-2 border border-red-300 rounded focus:ring-2 focus:ring-red-500 outline-none mt-1"
+                        />
+                    </div>
+                    <div className="flex gap-3 w-full">
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                setDeletingClient(null);
+                                setDeletePasswordInput('');
+                            }}
+                            className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+                <div className="bg-red-100 p-3 rounded-full mb-4">
+                    <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Bulk Delete</h3>
+                <p className="text-gray-500 mb-4">
+                    Are you sure you want to delete <strong>{selectedClientIds.length}</strong> selected clients? 
+                    <br/>
+                    <span className="text-xs text-red-500 font-bold">Clients with active boxes will be skipped.</span>
+                </p>
+
+                <form onSubmit={handleBulkDelete} className="w-full">
+                    <div className="mb-4 text-left">
+                        <label className="text-xs font-bold text-gray-700 uppercase">Master Password</label>
+                        <input 
+                            autoFocus
+                            type="password"
+                            placeholder="Required"
+                            value={deletePasswordInput}
+                            onChange={(e) => setDeletePasswordInput(e.target.value)}
+                            className="w-full p-2 border border-red-300 rounded focus:ring-2 focus:ring-red-500 outline-none mt-1"
+                        />
+                    </div>
+
+                    <div className="flex gap-3 w-full">
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                setShowBulkDeleteModal(false);
+                                setDeletePasswordInput('');
+                            }}
+                            className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+                        >
+                            Delete Selected
+                        </button>
+                    </div>
+                </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl border-2 border-red-200">
+            <div className="flex flex-col items-center mb-4">
+                <AlertOctagon size={40} className="text-red-600 mb-2"/>
+                <h3 className="text-lg font-bold text-red-700">Security Check</h3>
+                <p className="text-xs text-center text-gray-500 mt-1">
+                    {clearActionType === 'full_reset' 
+                        ? "CLEARING ALL DATA (Clients & Boxes)." 
+                        : "CLEARING ALL INVENTORY BOXES."}
+                    <br/>Enter Master Password to confirm.
+                </p>
+            </div>
+            <form onSubmit={executeClear}>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Master Password</label>
+              <input 
+                autoFocus
+                type="password" 
+                value={clearConfirmPassword}
+                onChange={(e) => setClearConfirmPassword(e.target.value)}
+                className="w-full p-2 border border-red-300 rounded mb-4 focus:ring-2 focus:ring-red-500 outline-none"
+                placeholder="Required"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowClearConfirmModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-bold">CONFIRM CLEAR</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

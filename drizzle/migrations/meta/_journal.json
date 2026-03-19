@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1773346203553,
+      "tag": "0000_dapper_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1773386078223,
+      "tag": "0001_regular_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773388504800,
+      "tag": "0002_purple_puma",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773643163109,
+      "tag": "0003_military_spiral",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1773828768391,
+      "tag": "0004_thick_weapon_omega",
+      "breakpoints": true
+    }
+  ]
+}
