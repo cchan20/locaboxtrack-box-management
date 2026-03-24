@@ -25,30 +25,41 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ClientsScreen() {
   const router = useRouter();
-  const { customers, boxes, isReady, refreshData, setCustomerRiskStatus, setCustomerCreditCount } = useAppData();
+  const { customers, boxes, isReady, refreshData, setCustomerRiskStatus, setCustomerCreditCount, deleteCustomerById } = useAppData();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isEditingCredit, setIsEditingCredit] = useState(false);
   const [creditDraft, setCreditDraft] = useState(1);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
+  const sortByRemainingCredit = (a: typeof customers[number], b: typeof customers[number]) => {
+    const remainingA = a.creditCount - a.currentTaken;
+    const remainingB = b.creditCount - b.currentTaken;
+    if (remainingA !== remainingB) return remainingA - remainingB;
+    return a.name.localeCompare(b.name);
+  };
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     if (!query) {
-      return customers;
+      return [...customers].sort(sortByRemainingCredit);
     }
 
-    return customers.filter(
-      (customer) =>
-        customer.name.toLowerCase().includes(query) ||
-        customer.phone.includes(query) ||
-        customer.email.toLowerCase().includes(query),
-    );
+    return customers
+      .filter(
+        (customer) =>
+          customer.name.toLowerCase().includes(query) ||
+          customer.phone.includes(query) ||
+          customer.email.toLowerCase().includes(query),
+      )
+      .sort(sortByRemainingCredit);
   }, [customers, search]);
 
   useFocusEffect(
@@ -71,7 +82,7 @@ export default function ClientsScreen() {
 
     return boxes
       .filter((box) => box.status === "checked-out" && box.customerId === selectedClient.id)
-      .sort((a, b) => a.id.localeCompare(b.id));
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
   }, [boxes, selectedClient]);
 
   useEffect(() => {
@@ -81,6 +92,17 @@ export default function ClientsScreen() {
 
   const openCreateClient = () => {
     router.push("/(auth)/create-client");
+  };
+
+  const openEditClient = () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    router.push({
+      pathname: "/(auth)/create-client",
+      params: { customerId: selectedClient.id },
+    });
   };
 
   const openClientDetails = (clientId: string) => setSelectedClientId(clientId);
@@ -136,6 +158,44 @@ export default function ClientsScreen() {
     }
 
     setIsEditingCredit(false);
+  };
+
+  const openDeleteCustomerConfirm = () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    const hasLinkedBox = boxes.some((box) => box.customerId === selectedClient.id);
+
+    if (hasLinkedBox) {
+      Alert.alert("Cannot delete customer", "This customer is currently linked to one or more boxes.");
+      return;
+    }
+
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteCustomer = async () => {
+    if (!selectedClient || isDeletingCustomer) {
+      return;
+    }
+
+    setIsDeletingCustomer(true);
+
+    try {
+      const result = await deleteCustomerById(selectedClient.id);
+
+      if (!result.ok) {
+        Alert.alert("Error", result.message);
+        return;
+      }
+
+      setIsDeleteModalOpen(false);
+      setSelectedClientId(null);
+      Alert.alert("Success", result.message);
+    } finally {
+      setIsDeletingCustomer(false);
+    }
   };
 
   const renderEmptyState = () => {
@@ -238,7 +298,14 @@ export default function ClientsScreen() {
             </View>
 
             <View style={styles.detailsCard}>
-              <Text style={styles.sectionTitle}>Customer Details</Text>
+              <View style={styles.detailsTitleRow}>
+                <Text style={styles.sectionTitle}>Customer Details</Text>
+                {selectedClient ? (
+                  <Pressable style={styles.editCustomerButton} onPress={openEditClient}>
+                    <Text style={styles.editCustomerButtonText}>Edit</Text>
+                  </Pressable>
+                ) : null}
+              </View>
 
               <ScrollView
                 style={styles.detailsScroll}
@@ -389,6 +456,10 @@ export default function ClientsScreen() {
                     <Pressable style={[styles.riskActionButton, styles.creditActionButton]} onPress={openChangeCredit}>
                       <Text style={styles.riskActionButtonText}>Change Credit</Text>
                     </Pressable>
+
+                    <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
+                      <Text style={styles.riskActionButtonText}>Delete Customer</Text>
+                    </Pressable>
                   </View>
                   </>
                 )}
@@ -406,6 +477,41 @@ export default function ClientsScreen() {
         isLoading={transactionsLoading}
         onClose={() => setTransactionsModalOpen(false)}
       />
+
+      <Modal
+        visible={isDeleteModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsDeleteModalOpen(false)}
+      >
+        <View style={styles.creditModalOverlay}>
+          <View style={styles.creditModalCard}>
+            <Text style={styles.creditModalTitle}>Delete Customer</Text>
+            <Text style={styles.deleteModalText}>
+              Are you sure you want to delete {selectedClient?.name ?? "this customer"}? This action cannot be undone.
+            </Text>
+
+            <View style={styles.creditEditorActionsRow}>
+              <Pressable
+                style={[styles.creditEditorButton, styles.creditEditorCancelButton]}
+                onPress={() => setIsDeleteModalOpen(false)}
+                disabled={isDeletingCustomer}
+              >
+                <Text style={styles.creditEditorCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.creditEditorButton, styles.deleteModalConfirmButton]}
+                onPress={confirmDeleteCustomer}
+                disabled={isDeletingCustomer}
+              >
+                <Text style={styles.creditEditorSaveText}>
+                  {isDeletingCustomer ? "Deleting..." : "Confirm Delete"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={isEditingCredit}
@@ -478,6 +584,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DDEBE6",
     padding: 14,
+  },
+  detailsTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  editCustomerButton: {
+    borderWidth: 1,
+    borderColor: "#A9C8BA",
+    backgroundColor: "#EDF7F3",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  editCustomerButtonText: {
+    color: "#0E6045",
+    fontSize: 12,
+    fontWeight: "700",
   },
   detailsEmptyState: {
     flex: 1,
@@ -712,6 +836,9 @@ const styles = StyleSheet.create({
   creditActionButton: {
     backgroundColor: "#2F6EA3",
   },
+  deleteCustomerActionButton: {
+    backgroundColor: "#BD2323",
+  },
   creditModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(16, 35, 28, 0.45)",
@@ -796,6 +923,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 13,
+  },
+  deleteModalText: {
+    color: "#35574A",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  deleteModalConfirmButton: {
+    backgroundColor: "#BD2323",
   },
   filterCard: {
     backgroundColor: "#FFFFFF",

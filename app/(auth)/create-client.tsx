@@ -1,8 +1,8 @@
 import { useAppData } from "@/store/AppDataContext";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
-import { Stack, useRouter } from "expo-router";
-import { useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as XLSX from "xlsx";
 import {
@@ -89,13 +89,60 @@ const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
 
 export default function CreateClientScreen() {
   const router = useRouter();
-  const { addCustomer, importCustomers } = useAppData();
+  const params = useLocalSearchParams<{ customerId?: string }>();
+  const { customers, addCustomer, updateCustomer, importCustomers } = useAppData();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [isImporting, setIsImporting] = useState(false);
 
+  const editingCustomerId = useMemo(() => {
+    if (!params.customerId) {
+      return null;
+    }
+
+    return String(params.customerId);
+  }, [params.customerId]);
+
+  const editingCustomer = useMemo(
+    () => (editingCustomerId ? customers.find((item) => item.id === editingCustomerId) ?? null : null),
+    [customers, editingCustomerId],
+  );
+
+  const isEditMode = editingCustomerId !== null;
+
+  useEffect(() => {
+    if (!isEditMode) {
+      return;
+    }
+
+    if (!editingCustomer) {
+      return;
+    }
+
+    setName(editingCustomer.name);
+    setPhone(editingCustomer.phone);
+    setEmail(editingCustomer.email === "-" ? "" : editingCustomer.email);
+  }, [isEditMode, editingCustomer]);
+
   const handleCreateClient = async () => {
+    if (isEditMode) {
+      if (!editingCustomerId) {
+        Alert.alert("Unable to update client", "Missing customer information.");
+        return;
+      }
+
+      const result = await updateCustomer(editingCustomerId, name, phone, email);
+
+      if (result.ok) {
+        router.back();
+        return;
+      }
+
+      Alert.alert("Unable to update client", result.message);
+      return;
+    }
+
     const result = await addCustomer(name, phone, email);
 
     if (result.ok) {
@@ -159,7 +206,7 @@ export default function CreateClientScreen() {
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
       <Stack.Screen
         options={{
-          title: "Create Client",
+          title: isEditMode ? "Update Client" : "Create Client",
         }}
       />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -196,12 +243,14 @@ export default function CreateClientScreen() {
         />
 
         <Pressable style={styles.createButton} onPress={handleCreateClient}>
-          <Text style={styles.createButtonText}>Create Client</Text>
+          <Text style={styles.createButtonText}>{isEditMode ? "Update Client" : "Create Client"}</Text>
         </Pressable>
 
-        <Pressable style={styles.importButton} onPress={handleImportClient}>
-          <Text style={styles.importButtonText}>{isImporting ? "Importing..." : "Import Client"}</Text>
-        </Pressable>
+        {!isEditMode ? (
+          <Pressable style={styles.importButton} onPress={handleImportClient}>
+            <Text style={styles.importButtonText}>{isImporting ? "Importing..." : "Import Client"}</Text>
+          </Pressable>
+        ) : null}
           </View>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>

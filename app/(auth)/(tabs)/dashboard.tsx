@@ -2,24 +2,46 @@ import { fetchTransactionsSince } from "@/database/appDatabase";
 import { useAppData } from "@/store/AppDataContext";
 import * as echarts from "echarts/core";
 import { BarChart } from "echarts/charts";
-import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
+import {
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+} from "echarts/components";
 import { SkiaChart, SkiaRenderer } from "@wuba/react-native-echarts";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-echarts.use([SkiaRenderer, BarChart, GridComponent, LegendComponent, TooltipComponent]);
+echarts.use([
+  SkiaRenderer,
+  BarChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+]);
 
 const CHART_HEIGHT = 260;
 
-
 export default function DashboardScreen() {
-  const { dashboardStats, isReady, refreshData } = useAppData();
+  const { boxes, dashboardStats, getDaysOut, isReady, refreshData } =
+    useAppData();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
   const chartWidth = width - 32;
+  const [detailsModalType, setDetailsModalType] = useState<
+    "total-out" | "safe" | "warning" | "overdue" | null
+  >(null);
 
   const chartRef = useRef<any>(null);
   const [chartData, setChartData] = useState<{
@@ -27,6 +49,56 @@ export default function DashboardScreen() {
     checkouts: number[];
     checkins: number[];
   }>({ dates: [], checkouts: [], checkins: [] });
+
+  const checkedOutBoxes = useMemo(
+    () =>
+      boxes
+        .filter((box) => box.status === "checked-out")
+        .sort((a, b) =>
+          a.id.localeCompare(b.id, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }),
+        ),
+    [boxes],
+  );
+
+  const safeBoxes = useMemo(
+    () => checkedOutBoxes.filter((box) => getDaysOut(box.dateOut) <= 7),
+    [checkedOutBoxes, getDaysOut],
+  );
+
+  const warningBoxes = useMemo(
+    () =>
+      checkedOutBoxes.filter((box) => {
+        const daysOut = getDaysOut(box.dateOut);
+        return daysOut > 7 && daysOut <= 14;
+      }),
+    [checkedOutBoxes, getDaysOut],
+  );
+
+  const overdueBoxes = useMemo(
+    () => checkedOutBoxes.filter((box) => getDaysOut(box.dateOut) > 14),
+    [checkedOutBoxes, getDaysOut],
+  );
+
+  const modalTitle =
+    detailsModalType === "safe"
+      ? "Safe Boxes (0-7 Days)"
+      : detailsModalType === "warning"
+        ? "Warning Boxes (7-14 Days)"
+        : detailsModalType === "overdue"
+          ? "Overdue Boxes (>14 Days)"
+          : "";
+
+  const modalBoxes =
+    detailsModalType === "safe"
+      ? safeBoxes
+      : detailsModalType === "warning"
+        ? warningBoxes
+        : detailsModalType === "overdue"
+          ? overdueBoxes
+          : [];
 
   const loadChartData = useCallback(async () => {
     const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -139,7 +211,10 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.headerRow}>
           <Text style={styles.title}>LocaBox Tracker</Text>
         </View>
@@ -152,30 +227,96 @@ export default function DashboardScreen() {
             width={metricCardWidth}
           />
           <MetricCard
-            label="Total Out"
-            value={dashboardStats.checkedOutCount}
+            label="Safe (0-7)"
+            value={dashboardStats.safeCount}
             color="#1C5AA6"
             width={metricCardWidth}
+            onPress={() => setDetailsModalType("safe")}
           />
           <MetricCard
             label="Warning (7-14)"
             value={dashboardStats.warningCount}
             color="#C48700"
             width={metricCardWidth}
+            onPress={() => setDetailsModalType("warning")}
           />
           <MetricCard
             label="Overdue (>14)"
             value={dashboardStats.overdueCount}
             color="#BD2323"
             width={metricCardWidth}
+            onPress={() => setDetailsModalType("overdue")}
           />
         </View>
 
         <Text style={styles.sectionTitle}>Last 14 Days Activity</Text>
-        <View style={[styles.chartContainer, { width: chartWidth, height: CHART_HEIGHT }]}>
+        <View
+          style={[
+            styles.chartContainer,
+            { width: chartWidth, height: CHART_HEIGHT },
+          ]}
+        >
           <SkiaChart ref={chartRef} />
         </View>
       </ScrollView>
+
+      <Modal
+        visible={detailsModalType !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailsModalType(null)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setDetailsModalType(null)}
+        >
+          <Pressable
+            style={styles.modalCard}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+
+            {modalBoxes.length === 0 ? (
+              <View style={styles.modalEmptyState}>
+                <Text style={styles.modalEmptyText}>No boxes found.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={modalBoxes}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.modalListContent}
+                renderItem={({ item }) => (
+                  <View style={styles.modalItem}>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Box ID</Text>
+                      <Text style={styles.modalMetaValue}>{item.id}</Text>
+                    </View>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Customer Name</Text>
+                      <Text style={styles.modalMetaValue}>
+                        {item.customerName ?? "-"}
+                      </Text>
+                    </View>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Days Out</Text>
+                      <Text style={styles.modalMetaValue}>
+                        {getDaysOut(item.dateOut)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            )}
+
+            <Pressable
+              style={styles.modalCloseButton}
+              onPress={() => setDetailsModalType(null)}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -185,17 +326,28 @@ function MetricCard({
   value,
   color,
   width,
+  onPress,
 }: {
   label: string;
   value: number;
   color: string;
   width: `${number}%`;
+  onPress?: () => void;
 }) {
+  const Container = onPress ? Pressable : View;
+
   return (
-    <View style={[styles.metricCard, { width }]}>
+    <Container
+      style={[
+        styles.metricCard,
+        onPress ? styles.metricCardClickable : null,
+        { width },
+      ]}
+      onPress={onPress}
+    >
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={[styles.metricValue, { color }]}>{value}</Text>
-    </View>
+    </Container>
   );
 }
 
@@ -229,6 +381,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DCE9E4",
   },
+  metricCardClickable: {
+    borderColor: "#BCD5CA",
+  },
   metricLabel: {
     fontSize: 12,
     color: "#43635A",
@@ -255,5 +410,82 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DCE9E4",
     overflow: "hidden",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.28)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 520,
+    maxHeight: "80%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    padding: 14,
+    gap: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B3D2E",
+  },
+  modalListContent: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  modalItem: {
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#FAFCFB",
+    gap: 4,
+  },
+  modalMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalMetaLabel: {
+    color: "#5B7268",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  modalMetaValue: {
+    color: "#13493A",
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  modalEmptyState: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#CFE0D9",
+    borderRadius: 10,
+    paddingVertical: 22,
+    alignItems: "center",
+  },
+  modalEmptyText: {
+    color: "#617870",
+    fontSize: 13,
+  },
+  modalCloseButton: {
+    marginTop: 4,
+    backgroundColor: "#E8EFEC",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    color: "#35574A",
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

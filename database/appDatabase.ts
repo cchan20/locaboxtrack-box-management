@@ -187,6 +187,11 @@ export async function updateCustomerCreditCount(customerId: string, creditCount:
   );
 }
 
+export async function deleteCustomer(customerId: string) {
+  const db = await getDb();
+  await db.runAsync("DELETE FROM customers WHERE id = ?;", customerId);
+}
+
 export async function insertBox(box: Box) {
   const db = await getDb();
   await db.runAsync(
@@ -200,7 +205,12 @@ export async function insertBox(box: Box) {
   );
 }
 
-export async function updateBoxCheckout(boxId: string, customerId: string | null, customerName: string) {
+export async function updateBoxCheckout(
+  boxId: string,
+  customerId: string | null,
+  customerName: string,
+  checkoutDate?: Date,
+) {
   const db = await getDb();
   await db.runAsync(
     `UPDATE boxes
@@ -208,7 +218,7 @@ export async function updateBoxCheckout(boxId: string, customerId: string | null
      WHERE id = ?;`,
     customerId,
     customerName,
-    new Date().toISOString(),
+    (checkoutDate ?? new Date()).toISOString(),
     boxId,
   );
 }
@@ -239,6 +249,7 @@ export async function insertTransaction(input: {
   customerId: string;
   userId: number;
   type: TransactionType;
+  date?: number;
 }) {
   const db = await getDb();
   await db.runAsync(
@@ -248,7 +259,7 @@ export async function insertTransaction(input: {
     input.customerId,
     input.userId,
     input.type,
-    Date.now(),
+    input.date ?? Date.now(),
   );
 }
 

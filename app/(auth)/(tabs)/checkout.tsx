@@ -1,6 +1,7 @@
 import { useAppData } from "@/store/AppDataContext";
+import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -29,6 +30,10 @@ export default function CheckoutScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string } | null>(null);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [checkoutDate, setCheckoutDate] = useState(new Date());
+  const [showCheckoutDatePicker, setShowCheckoutDatePicker] = useState(false);
+
+  const customerSearchRef = useRef<import("react-native").TextInput>(null);
 
   // Right panel state
   const [boxSearch, setBoxSearch] = useState("");
@@ -36,7 +41,7 @@ export default function CheckoutScreen() {
   const availableBoxes = useMemo(() => {
     const available = boxes
       .filter((box) => box.status === "available")
-      .sort((a, b) => a.id.localeCompare(b.id));
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
     const query = boxSearch.trim().toLowerCase();
     if (!query) return available;
     return available.filter((box) => box.id.toLowerCase().includes(query));
@@ -48,8 +53,7 @@ export default function CheckoutScreen() {
     return customers.filter(
       (c) =>
         c.name.toLowerCase().includes(query) ||
-        c.phone.includes(query) ||
-        c.email.toLowerCase().includes(query),
+        c.phone.includes(query),
     );
   }, [customers, customerSearch]);
 
@@ -68,6 +72,24 @@ export default function CheckoutScreen() {
     setSelectedCustomer(null);
   };
 
+  const formatDateLabel = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const onCheckoutDateChange = (_event: DateTimePickerChangeEvent, selected: Date) => {
+    if (Platform.OS !== "ios") {
+      setShowCheckoutDatePicker(false);
+    }
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const safeDate = selected > today ? today : selected;
+    setCheckoutDate(safeDate);
+  };
+
   const handleSubmit = async () => {
     if (selectedBoxIds.length === 0) {
       Alert.alert("No box selected", "Please select at least one box.");
@@ -82,9 +104,7 @@ export default function CheckoutScreen() {
 
     console.log("Checking out boxes:", selectedBoxIds, "to customer:", name);
 
-    const results = await Promise.all(
-      selectedBoxIds.map((id) => checkoutBox(id, name)),
-    );
+    const results = await Promise.all(selectedBoxIds.map((id) => checkoutBox(id, name, checkoutDate)));
 
     const failed = results.filter((r) => !r.ok);
     if (failed.length === 0) {
@@ -164,6 +184,23 @@ export default function CheckoutScreen() {
               </Pressable>
             )}
 
+            <Text style={styles.label}>Checkout Date</Text>
+            <Pressable style={styles.dateSelector} onPress={() => setShowCheckoutDatePicker(true)}>
+              <Text style={styles.dateSelectorText}>{formatDateLabel(checkoutDate)}</Text>
+              <Ionicons name="calendar-outline" size={16} color="#42685D" />
+            </Pressable>
+
+            {showCheckoutDatePicker ? (
+              <DateTimePicker
+                value={checkoutDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                maximumDate={new Date()}
+                onValueChange={onCheckoutDateChange}
+                onDismiss={() => setShowCheckoutDatePicker(false)}
+              />
+            ) : null}
+
             <Pressable style={styles.submitButton} onPress={handleSubmit}>
               <Text style={styles.submitButtonText}>Confirm Check-out</Text>
             </Pressable>
@@ -236,6 +273,7 @@ export default function CheckoutScreen() {
         visible={customerModalOpen}
         animationType="fade"
         onRequestClose={() => setCustomerModalOpen(false)}
+        onShow={() => setTimeout(() => customerSearchRef.current?.focus(), 100)}
       >
         <Pressable
           style={styles.modalBackdrop}
@@ -245,12 +283,12 @@ export default function CheckoutScreen() {
             <Text style={styles.modalTitle}>Select Customer</Text>
             <View style={styles.searchInputWrap}>
               <TextInput
+                ref={customerSearchRef}
                 value={customerSearch}
                 onChangeText={setCustomerSearch}
-                placeholder="Search name, phone, email"
+                placeholder="Search name, phone"
                 placeholderTextColor="#7A8F87"
                 style={[styles.input, styles.modalSearch, styles.searchInput]}
-                autoFocus
               />
               {customerSearch ? (
                 <Pressable style={styles.clearButton} onPress={() => setCustomerSearch("")}>
@@ -272,8 +310,7 @@ export default function CheckoutScreen() {
                       setCustomerModalOpen(false);
                     }}
                   >
-                    <Text style={styles.modalItemName}>{c.name}</Text>
-                    <Text style={styles.modalItemSub}>{c.phone}</Text>
+                    <Text style={styles.modalItemName}>{c.name} <Text style={styles.modalItemSub}>({c.phone})</Text></Text>
                   </Pressable>
                 ))
               )}
@@ -428,6 +465,22 @@ const styles = StyleSheet.create({
   customerSelectorPlaceholder: {
     color: "#7A8F87",
     fontSize: 13,
+  },
+  dateSelector: {
+    borderWidth: 1,
+    borderColor: "#C6D6D0",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dateSelectorText: {
+    color: "#1E2A26",
+    fontWeight: "600",
+    fontSize: 14,
   },
   submitButton: {
     marginTop: 4,

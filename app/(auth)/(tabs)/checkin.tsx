@@ -1,4 +1,5 @@
 import { useAppData } from "@/store/AppDataContext";
+import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
@@ -20,12 +21,32 @@ export default function CheckinScreen() {
   const { boxes, checkinBox, getDaysOut, isReady } = useAppData();
   const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
   const [boxSearch, setBoxSearch] = useState("");
+  const [checkinDate, setCheckinDate] = useState(new Date());
+  const [showCheckinDatePicker, setShowCheckinDatePicker] = useState(false);
+
+  const formatDateLabel = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const onCheckinDateChange = (_event: DateTimePickerChangeEvent, selected: Date) => {
+    if (Platform.OS !== "ios") {
+      setShowCheckinDatePicker(false);
+    }
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const safeDate = selected > today ? today : selected;
+    setCheckinDate(safeDate);
+  };
 
   const checkedOutBoxes = useMemo(
     () =>
       boxes
         .filter((box) => box.status === "checked-out")
-        .sort((a, b) => a.id.localeCompare(b.id))
+        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }))
         .filter((box) => {
           const query = boxSearch.trim().toLowerCase();
 
@@ -57,7 +78,7 @@ export default function CheckinScreen() {
       return;
     }
 
-    const results = await Promise.all(selectedBoxIds.map((boxId) => checkinBox(boxId)));
+    const results = await Promise.all(selectedBoxIds.map((boxId) => checkinBox(boxId, checkinDate)));
     const failed = results.filter((result) => !result.ok);
 
     if (failed.length === 0) {
@@ -123,6 +144,23 @@ export default function CheckinScreen() {
                     })
                   )}
                 </View>
+
+                <Text style={styles.label}>Checkin Date</Text>
+                <Pressable style={styles.dateSelector} onPress={() => setShowCheckinDatePicker(true)}>
+                  <Text style={styles.dateSelectorText}>{formatDateLabel(checkinDate)}</Text>
+                  <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                </Pressable>
+
+                {showCheckinDatePicker ? (
+                  <DateTimePicker
+                    value={checkinDate}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    maximumDate={new Date()}
+                    onValueChange={onCheckinDateChange}
+                    onDismiss={() => setShowCheckinDatePicker(false)}
+                  />
+                ) : null}
 
                 <Pressable style={styles.submitButton} onPress={handleReturn}>
                   <Text style={styles.submitButtonText}>Confirm Check-in</Text>
@@ -358,6 +396,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
+  },
+  dateSelector: {
+    borderWidth: 1,
+    borderColor: "#C6D6D0",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dateSelectorText: {
+    color: "#1E2A26",
+    fontWeight: "600",
+    fontSize: 14,
   },
   submitButtonText: {
     color: "#FFFFFF",

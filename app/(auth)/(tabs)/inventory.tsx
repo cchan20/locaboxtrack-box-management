@@ -38,7 +38,7 @@ export default function InventoryScreen() {
     const query = search.trim().toLowerCase();
     const sorted = [...boxes]
       .filter((box) => statusFilters.includes(box.status))
-      .sort((a, b) => a.id.localeCompare(b.id));
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
 
     if (!query) {
       return sorted;

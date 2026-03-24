@@ -11,6 +11,7 @@ import {
   insertCustomer,
   updateCustomerDetails,
   updateCustomerCreditCount,
+  deleteCustomer,
   updateCustomerRiskStatus,
   updateBoxAvailability,
   updateBoxCheckin,
@@ -31,6 +32,7 @@ import {
 type DashboardStats = {
   totalBoxes: number;
   availableCount: number;
+  safeCount: number;
   unavailableCount: number;
   checkedOutCount: number;
   warningCount: number;
@@ -62,8 +64,12 @@ type AppDataContextValue = {
   checkoutBox: (
     boxId: string,
     customerName: string,
+    checkoutDate?: Date,
   ) => Promise<{ ok: boolean; message: string }>;
-  checkinBox: (boxId: string) => Promise<{ ok: boolean; message: string }>;
+  checkinBox: (
+    boxId: string,
+    checkinDate?: Date,
+  ) => Promise<{ ok: boolean; message: string }>;
   setBoxAvailability: (
     boxId: string,
     status: Extract<BoxStatus, "available" | "unavailable">,
@@ -84,6 +90,15 @@ type AppDataContextValue = {
   setCustomerCreditCount: (
     customerId: string,
     creditCount: number,
+  ) => Promise<{ ok: boolean; message: string }>;
+  updateCustomer: (
+    customerId: string,
+    name: string,
+    phone: string,
+    email?: string,
+  ) => Promise<{ ok: boolean; message: string }>;
+  deleteCustomerById: (
+    customerId: string,
   ) => Promise<{ ok: boolean; message: string }>;
 };
 
@@ -169,6 +184,9 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       (box) => box.status === "checked-out",
     );
     const checkedOutCount = checkedOutBoxes.length;
+    const safeCount = checkedOutBoxes.filter(
+      (box) => getDaysOut(box.dateOut) <= 7,
+    ).length;
     const warningCount = checkedOutBoxes.filter((box) => {
       const days = getDaysOut(box.dateOut);
       return days > 7 && days <= 14;
@@ -182,6 +200,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       availableCount,
       unavailableCount,
       checkedOutCount,
+      safeCount,
       warningCount,
       overdueCount,
     };
@@ -190,6 +209,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const checkoutBox: AppDataContextValue["checkoutBox"] = async (
     boxId,
     customerName,
+    checkoutDate,
   ) => {
     const id = normalizeBoxId(boxId);
     const name = customerName.trim();
@@ -213,13 +233,14 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }
 
     const customer = await findCustomerByName(name);
-    await updateBoxCheckout(id, customer?.id ?? null, name);
+    await updateBoxCheckout(id, customer?.id ?? null, name, checkoutDate);
 
     await insertTransaction({
       boxId: id,
       customerId: customer?.id ?? "WALK-IN",
       userId: loginUser?.id ?? 0,
       type: "checkout",
+      date: (checkoutDate ?? new Date()).getTime(),
     });
 
     if (customer?.id) {
@@ -231,7 +252,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     return { ok: true, message: `${id} assigned to ${name}.` };
   };
 
-  const checkinBox: AppDataContextValue["checkinBox"] = async (boxId) => {
+  const checkinBox: AppDataContextValue["checkinBox"] = async (
+    boxId,
+    checkinDate,
+  ) => {
     const id = normalizeBoxId(boxId);
 
     if (!id) {
@@ -254,13 +278,26 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       };
     }
 
-    const daysOut = getDaysOut(box.dateOut);
+    const selectedCheckinDate = checkinDate ?? new Date();
+    const checkoutDateValue = box.dateOut
+      ? new Date(box.dateOut).getTime()
+      : null;
+    const daysOut = checkoutDateValue
+      ? Math.max(
+          0,
+          Math.floor(
+            (selectedCheckinDate.getTime() - checkoutDateValue) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
+      : 0;
 
     await insertTransaction({
       boxId: id,
       customerId: box.customerId ?? "WALK-IN",
       userId: loginUser?.id ?? 0,
       type: "return",
+      date: selectedCheckinDate.getTime(),
     });
 
     await updateBoxCheckin(id);
@@ -506,6 +543,70 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       };
     };
 
+  const updateCustomer: AppDataContextValue["updateCustomer"] = async (
+    customerId,
+    name,
+    phone,
+    email,
+  ) => {
+    const customer = data.customers.find((item) => item.id === customerId);
+
+    if (!customer) {
+      return { ok: false, message: "Customer not found." };
+    }
+
+    const normalizedName = name.trim();
+    const normalizedPhone = phone.trim();
+
+    if (!normalizedName || !normalizedPhone) {
+      return { ok: false, message: "Name and phone are required." };
+    }
+
+    await updateCustomerDetails({
+      customerId,
+      name: normalizedName,
+      phone: normalizedPhone,
+      email: email?.trim() || "-",
+      externalId: customer.externalId,
+    });
+
+    await reloadData();
+
+    return {
+      ok: true,
+      message: `${normalizedName} updated successfully.`,
+    };
+  };
+
+  const deleteCustomerById: AppDataContextValue["deleteCustomerById"] = async (
+    customerId,
+  ) => {
+    const customer = data.customers.find((item) => item.id === customerId);
+
+    if (!customer) {
+      return { ok: false, message: "Customer not found." };
+    }
+
+    const hasLinkedBox = data.boxes.some(
+      (box) => box.customerId === customerId,
+    );
+
+    if (hasLinkedBox) {
+      return {
+        ok: false,
+        message: "Cannot delete customer while linked to a box.",
+      };
+    }
+
+    await deleteCustomer(customerId);
+    await reloadData();
+
+    return {
+      ok: true,
+      message: `${customer.name} deleted successfully.`,
+    };
+  };
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       isReady,
@@ -522,6 +623,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       importCustomers,
       setCustomerRiskStatus,
       setCustomerCreditCount,
+      updateCustomer,
+      deleteCustomerById,
     }),
     [isReady, data.boxes, data.customers, dashboardStats, reloadData],
   );
