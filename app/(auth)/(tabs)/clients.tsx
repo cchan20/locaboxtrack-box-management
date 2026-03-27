@@ -1,4 +1,5 @@
 import { useAppData } from "@/store/AppDataContext";
+import { useAuth } from "@/store/AuthContext";
 import { fetchTransactionsByCustomerId } from "@/database/appDatabase";
 import { TransactionHistoryItem } from "@/types/app";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
@@ -26,6 +27,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function ClientsScreen() {
   const router = useRouter();
   const { customers, boxes, isReady, refreshData, setCustomerRiskStatus, setCustomerCreditCount, deleteCustomerById } = useAppData();
+  const { loginUser } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -457,9 +459,11 @@ export default function ClientsScreen() {
                       <Text style={styles.riskActionButtonText}>Change Credit</Text>
                     </Pressable>
 
-                    <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
-                      <Text style={styles.riskActionButtonText}>Delete Customer</Text>
-                    </Pressable>
+                    {loginUser?.type === "root" ? (
+                      <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
+                        <Text style={styles.riskActionButtonText}>Delete Customer</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                   </>
                 )}

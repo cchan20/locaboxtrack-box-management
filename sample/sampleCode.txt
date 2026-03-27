@@ -134,7 +134,7 @@ const SearchableCustomerInput = ({
   );
 };
 
-export default function LocaBoxTracker() {
+export default function Loca Box Trackerer() {
   // --- AUTH STATE ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginInput, setLoginInput] = useState('');

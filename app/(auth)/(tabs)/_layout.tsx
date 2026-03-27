@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { HeaderOverflowMenu } from "@/ui/HeaderOverflowMenu";
+import { useAuth } from "@/store/AuthContext";
 import { Tabs, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -8,11 +9,18 @@ type CreateRoute = "/(auth)/create-box" | "/(auth)/create-client";
 function HeaderActionsWithCreate({
   label,
   route,
+  rootOnly = false,
 }: {
   label: string;
   route: CreateRoute;
+  rootOnly?: boolean;
 }) {
   const router = useRouter();
+  const { loginUser } = useAuth();
+
+  if (rootOnly && loginUser?.type !== "root") {
+    return <HeaderOverflowMenu />;
+  }
 
   return (
     <View style={styles.headerActionsWrap}>
@@ -73,7 +81,7 @@ export default function TabsLayout() {
         options={{
           title: "Inventory",
           headerRight: () => (
-            <HeaderActionsWithCreate label="Create" route="/(auth)/create-box" />
+            <HeaderActionsWithCreate label="Create" route="/(auth)/create-box" rootOnly />
           ),
           tabBarIcon: ({ color, size }) => <Ionicons name="cube" size={size} color={color} />,
         }}

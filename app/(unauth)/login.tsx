@@ -61,7 +61,7 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.card}>
-            <Text style={styles.title}>LocaBoxTrack Secure</Text>
+            <Text style={styles.title}>Loca Box Tracker Secure</Text>
             <Text style={styles.subtitle}>
               Login with root or user account credentials
             </Text>

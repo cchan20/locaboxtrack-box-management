@@ -1,4 +1,5 @@
 import { useAppData } from "@/store/AppDataContext";
+import { useAuth } from "@/store/AuthContext";
 import { BoxStatus } from "@/types/app";
 import { fetchTransactionsByBoxId } from "@/database/appDatabase";
 import { TransactionHistoryItem } from "@/types/app";
@@ -25,6 +26,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function InventoryScreen() {
   const router = useRouter();
   const { boxes, getDaysOut, isReady, refreshData, setBoxAvailability } = useAppData();
+  const { loginUser } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [statusFilters, setStatusFilters] = useState<BoxStatus[]>(["available", "checked-out"]);
@@ -123,7 +125,7 @@ export default function InventoryScreen() {
     }
 
     return (
-      <Pressable style={styles.emptyState} onPress={openCreateBox}>
+      <Pressable style={styles.emptyState} onPress={loginUser?.type === "root" ? openCreateBox : undefined}>
         <Ionicons name="cube-outline" size={36} color="#0D7A4E" />
         <Text style={styles.emptyTitle}>No boxes yet</Text>
         <Text style={styles.emptyText}>Tap here to create your first box.</Text>
@@ -280,6 +282,7 @@ export default function InventoryScreen() {
                     <Text style={styles.historyButtonText}>View Transactions</Text>
                   </Pressable>
 
+                  {selectedBox.status !== "unavailable" || loginUser?.type === "root" ? (
                   <Pressable
                     style={[
                       styles.availabilityButton,
@@ -298,6 +301,7 @@ export default function InventoryScreen() {
                       {selectedBox.status === "unavailable" ? "Mark as Available" : "Mark as Unavailable"}
                     </Text>
                   </Pressable>
+                  ) : null}
 
                   <View style={styles.statsRow}>
                     <View style={[styles.statCard, { width: statCardWidth }]}>

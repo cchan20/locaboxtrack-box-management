@@ -24,7 +24,7 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.brandWrap}>
-        <Text style={styles.brandName}>LocaBoxTrack</Text>
+        <Text style={styles.brandName}>Loca Box Tracker</Text>
         <Text style={styles.brandSub}>Box Management</Text>
       </View>
       <ActivityIndicator size="large" color="#D8F6E8" />

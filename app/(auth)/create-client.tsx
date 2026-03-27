@@ -1,4 +1,5 @@
 import { useAppData } from "@/store/AppDataContext";
+import { useAuth } from "@/store/AuthContext";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -91,6 +92,7 @@ export default function CreateClientScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ customerId?: string }>();
   const { customers, addCustomer, updateCustomer, importCustomers } = useAppData();
+  const { loginUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -246,7 +248,7 @@ export default function CreateClientScreen() {
           <Text style={styles.createButtonText}>{isEditMode ? "Update Client" : "Create Client"}</Text>
         </Pressable>
 
-        {!isEditMode ? (
+        {!isEditMode && loginUser?.type === "root" ? (
           <Pressable style={styles.importButton} onPress={handleImportClient}>
             <Text style={styles.importButtonText}>{isImporting ? "Importing..." : "Import Client"}</Text>
           </Pressable>
