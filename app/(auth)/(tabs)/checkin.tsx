@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -99,12 +100,26 @@ export default function CheckinScreen() {
           {!isReady ? <Text style={styles.loadingText}>Initializing database...</Text> : null}
 
           <View style={styles.mainContent}>
-            <View style={styles.leftColumn}>
+            <ScrollView
+              style={styles.leftColumn}
+              contentContainerStyle={styles.leftColumnContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formCard}>
                 <Text style={styles.sectionTitle}>Check-in</Text>
 
                 <Text style={styles.label}>Selected Boxes</Text>
-                <View style={styles.tagContainer}>
+                <ScrollView
+                  style={styles.tagScroll}
+                  contentContainerStyle={[
+                    styles.tagContainer,
+                    selectedBoxIds.length === 0 ? styles.tagContainerEmpty : undefined,
+                  ]}
+                  showsVerticalScrollIndicator={selectedBoxIds.length > 0}
+                  nestedScrollEnabled
+                  keyboardShouldPersistTaps="handled"
+                >
                   {selectedBoxIds.length === 0 ? (
                     <Text style={styles.tagPlaceholder}>Tap boxes on the right to select</Text>
                   ) : (
@@ -143,7 +158,7 @@ export default function CheckinScreen() {
                       );
                     })
                   )}
-                </View>
+                </ScrollView>
 
                 <Text style={styles.label}>Checkin Date</Text>
                 <Pressable style={styles.dateSelector} onPress={() => setShowCheckinDatePicker(true)}>
@@ -166,7 +181,7 @@ export default function CheckinScreen() {
                   <Text style={styles.submitButtonText}>Confirm Check-in</Text>
                 </Pressable>
               </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.rightColumn}>
               <View style={styles.searchCard}>
@@ -291,7 +306,9 @@ const styles = StyleSheet.create({
   },
   leftColumn: {
     flex: 1,
-    gap: 12,
+  },
+  leftColumnContent: {
+    paddingBottom: 12,
   },
   rightColumn: {
     flex: 1.4,
@@ -345,12 +362,19 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
     minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  tagContainerEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagScroll: {
     borderWidth: 1,
     borderColor: "#C6D6D0",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
     backgroundColor: "#FAFCFB",
+    maxHeight: 116,
   },
   tagPlaceholder: {
     color: "#7A8F87",

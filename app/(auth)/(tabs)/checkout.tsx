@@ -129,13 +129,27 @@ export default function CheckoutScreen() {
 
           <View style={styles.mainContent}>
         {/* ── LEFT PANEL ─ form ── */}
-        <View style={styles.leftColumn}>
+        <ScrollView
+          style={styles.leftColumn}
+          contentContainerStyle={styles.leftColumnContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.formCard}>
             <Text style={styles.sectionTitle}>Check-out</Text>
 
             {/* Selected Boxes */}
             <Text style={styles.label}>Selected Boxes</Text>
-            <View style={styles.tagContainer}>
+            <ScrollView
+              style={styles.tagScroll}
+              contentContainerStyle={[
+                styles.tagContainer,
+                selectedBoxIds.length === 0 ? styles.tagContainerEmpty : undefined,
+              ]}
+              showsVerticalScrollIndicator={selectedBoxIds.length > 0}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {selectedBoxIds.length === 0 ? (
                 <Text style={styles.tagPlaceholder}>Tap boxes on the right to select</Text>
               ) : (
@@ -146,7 +160,7 @@ export default function CheckoutScreen() {
                   </Pressable>
                 ))
               )}
-            </View>
+            </ScrollView>
 
             {/* Customer */}
             <View style={styles.customerHeader}>
@@ -205,7 +219,7 @@ export default function CheckoutScreen() {
               <Text style={styles.submitButtonText}>Confirm Check-out</Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
 
         {/* ── RIGHT PANEL ─ available boxes ── */}
             <View style={styles.rightColumn}>
@@ -346,7 +360,9 @@ const styles = StyleSheet.create({
   },
   leftColumn: {
     flex: 1,
-    gap: 12,
+  },
+  leftColumnContent: {
+    paddingBottom: 12,
   },
   rightColumn: {
     flex: 1.4,
@@ -400,12 +416,19 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
     minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  tagContainerEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagScroll: {
     borderWidth: 1,
     borderColor: "#C6D6D0",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
     backgroundColor: "#FAFCFB",
+    maxHeight: 116,
   },
   tagPlaceholder: {
     color: "#7A8F87",
