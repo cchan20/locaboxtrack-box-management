@@ -109,7 +109,14 @@ export default function CheckinScreen() {
               <View style={styles.formCard}>
                 <Text style={styles.sectionTitle}>Check-in</Text>
 
-                <Text style={styles.label}>Selected Boxes</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Selected Boxes</Text>
+                  {selectedBoxIds.length > 0 && (
+                    <Pressable onPress={() => setSelectedBoxIds([])}>
+                      <Text style={styles.clearAllText}>Clear All</Text>
+                    </Pressable>
+                  )}
+                </View>
                 <ScrollView
                   style={styles.tagScroll}
                   contentContainerStyle={[
@@ -413,6 +420,16 @@ const styles = StyleSheet.create({
   },
   tagIcon: {
     marginLeft: 2,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  clearAllText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0D7A4E",
   },
   submitButton: {
     marginTop: 4,

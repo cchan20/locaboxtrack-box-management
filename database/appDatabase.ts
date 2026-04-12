@@ -53,12 +53,49 @@ export type RunningNoControlRow = {
   current_number: number;
 };
 
+type SqliteIntegrityCheckRow = {
+  quick_check: string;
+};
+
+type SqliteMasterTableRow = {
+  name: string;
+};
+
+const REQUIRED_DATABASE_TABLES = [
+  "boxes",
+  "customers",
+  "transactions",
+  "users",
+  "running_no_control",
+] as const;
+
 async function getDb() {
   if (!dbPromise) {
     dbPromise = SQLite.openDatabaseAsync("lms.db");
   }
 
   return dbPromise;
+}
+
+async function validateImportedDatabase(database: SQLite.SQLiteDatabase) {
+  const integrityResult = await database.getFirstAsync<SqliteIntegrityCheckRow>("PRAGMA quick_check;");
+
+  if (!integrityResult || integrityResult.quick_check !== "ok") {
+    throw new Error("The selected file is not a valid SQLite database.");
+  }
+
+  const tableRows = await database.getAllAsync<SqliteMasterTableRow>(
+    `SELECT name
+     FROM sqlite_master
+     WHERE type = 'table'
+       AND name NOT LIKE 'sqlite_%';`,
+  );
+  const tableNames = new Set(tableRows.map((row) => row.name));
+  const missingTables = REQUIRED_DATABASE_TABLES.filter((tableName) => !tableNames.has(tableName));
+
+  if (missingTables.length > 0) {
+    throw new Error(`The selected database is missing required tables: ${missingTables.join(", ")}.`);
+  }
 }
 
 function mapBoxRow(row: BoxRow): Box {
@@ -90,6 +127,28 @@ function mapCustomerRow(row: CustomerRow): Customer {
 export async function initializeDatabase() {
   // Drizzle migrations are responsible for schema setup and seed data.
   await getDb();
+}
+
+export async function exportDatabaseSnapshot(): Promise<Uint8Array> {
+  const db = await getDb();
+  return db.serializeAsync();
+}
+
+export async function importDatabaseSnapshot(serializedData: Uint8Array) {
+  const db = await getDb();
+  const importedDb = await SQLite.deserializeDatabaseAsync(serializedData, {
+    useNewConnection: true,
+  });
+
+  try {
+    await validateImportedDatabase(importedDb);
+    await SQLite.backupDatabaseAsync({
+      sourceDatabase: importedDb,
+      destDatabase: db,
+    });
+  } finally {
+    await importedDb.closeAsync();
+  }
 }
 
 export async function fetchBoxes(): Promise<Box[]> {

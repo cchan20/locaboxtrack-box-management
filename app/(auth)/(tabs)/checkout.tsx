@@ -139,7 +139,14 @@ export default function CheckoutScreen() {
             <Text style={styles.sectionTitle}>Check-out</Text>
 
             {/* Selected Boxes */}
-            <Text style={styles.label}>Selected Boxes</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Selected Boxes</Text>
+              {selectedBoxIds.length > 0 && (
+                <Pressable onPress={() => setSelectedBoxIds([])}>
+                  <Text style={styles.clearAllText}>Clear All</Text>
+                </Pressable>
+              )}
+            </View>
             <ScrollView
               style={styles.tagScroll}
               contentContainerStyle={[
@@ -453,6 +460,16 @@ const styles = StyleSheet.create({
   },
   tagIcon: {
     marginLeft: 2,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  clearAllText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0D7A4E",
   },
   customerHeader: {
     flexDirection: "row",
