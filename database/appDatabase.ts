@@ -151,6 +151,16 @@ export async function importDatabaseSnapshot(serializedData: Uint8Array) {
   }
 }
 
+export async function clearAllDatabaseData() {
+  const db = await getDb();
+
+  await db.runAsync("DELETE FROM transactions;");
+  await db.runAsync("DELETE FROM boxes;");
+  await db.runAsync("DELETE FROM customers;");
+  await db.runAsync("DELETE FROM users;");
+  await db.runAsync("DELETE FROM running_no_control;");
+}
+
 export async function fetchBoxes(): Promise<Box[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<BoxRow>("SELECT * FROM boxes ORDER BY id ASC;");

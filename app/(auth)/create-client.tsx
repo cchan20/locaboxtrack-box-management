@@ -74,9 +74,9 @@ const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
     .filter((row, index) => (index === 0 ? !isHeaderRow(row) : true))
     .map((row) => {
       const externalId = extractExternalId(row[0]);
-      const email = toCellText(row[1]);
-      const phone = toCellText(row[2]);
-      const name = toCellText(row[3]);
+      const name = toCellText(row[1]);
+      const email = toCellText(row[2]);
+      const phone = toCellText(row[3]);
 
       return {
         externalId,

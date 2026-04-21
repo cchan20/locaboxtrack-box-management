@@ -1,7 +1,9 @@
 import {
+  clearAllDatabaseData,
   exportDatabaseSnapshot,
   importDatabaseSnapshot,
 } from "@/database/appDatabase";
+import { ROOT_PASSWORD } from "@/constants/auth";
 import { useAppData } from "@/store/AppDataContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -12,10 +14,16 @@ import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -84,6 +92,18 @@ export default function ImportExportScreen() {
   const [lastExportName, setLastExportName] = useState<string | null>(null);
   const [lastExportUri, setLastExportUri] = useState<string | null>(null);
   const [lastImportName, setLastImportName] = useState<string | null>(null);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [clearPassword, setClearPassword] = useState("");
+  const [clearPasswordError, setClearPasswordError] = useState<string | null>(null);
+  const [isClearPasswordHidden, setIsClearPasswordHidden] = useState(true);
+  const [isClearingData, setIsClearingData] = useState(false);
+
+  const closeClearModal = () => {
+    setIsClearModalOpen(false);
+    setClearPassword("");
+    setClearPasswordError(null);
+    setIsClearPasswordHidden(true);
+  };
 
   const handleExportDatabase = async () => {
     try {
@@ -171,6 +191,47 @@ export default function ImportExportScreen() {
     }
   };
 
+  const openClearAllDataModal = () => {
+    setClearPassword("");
+    setClearPasswordError(null);
+    setIsClearPasswordHidden(true);
+    setIsClearModalOpen(true);
+  };
+
+  const handleClearAllData = async () => {
+    const normalizedPassword = clearPassword.trim();
+
+    if (isClearingData) {
+      return;
+    }
+
+    if (!normalizedPassword) {
+      setClearPasswordError("Root password is required.");
+      return;
+    }
+
+    if (normalizedPassword !== ROOT_PASSWORD) {
+      setClearPasswordError("Incorrect root password.");
+      return;
+    }
+
+    try {
+      setClearPasswordError(null);
+      setIsClearingData(true);
+
+      await clearAllDatabaseData();
+      await refreshData();
+
+      closeClearModal();
+      Alert.alert("Data cleared", "All database data has been permanently removed.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to clear the current database.";
+      Alert.alert("Clear failed", message);
+    } finally {
+      setIsClearingData(false);
+    }
+  };
+
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
       <Stack.Screen
@@ -241,7 +302,113 @@ export default function ImportExportScreen() {
           {lastImportName ? <Text style={styles.resultText}>Last imported: {lastImportName}</Text> : null}
           </View>
         </View>
+
+        <View style={[styles.card, styles.dangerCard]}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, styles.dangerIconWrap]}>
+              <Ionicons name="trash-outline" size={20} color="#B42318" />
+            </View>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Permanent Clear All Data</Text>
+              <Text style={styles.sectionDescription}>
+                Permanently remove all boxes, customers, transactions, users, and prefixes from this device.
+              </Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={[styles.clearButton, isClearingData ? styles.actionButtonDisabled : undefined]}
+            onPress={openClearAllDataModal}
+            disabled={isClearingData}
+          >
+            <Text style={styles.clearButtonText}>Permanently Clear All Data</Text>
+          </Pressable>
+
+          <Text style={styles.dangerText}>
+            This action cannot be undone. Root password confirmation is required before the database is wiped.
+          </Text>
+        </View>
       </ScrollView>
+
+      <Modal
+        visible={isClearModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={closeClearModal}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalKeyboardAvoidingView}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Permanently Clear All Data</Text>
+                <Text style={styles.modalText}>
+                  Enter the root password to permanently delete all database data on this device. This cannot be undone.
+                </Text>
+
+                <Text style={styles.inputLabel}>Root Password</Text>
+                <View style={styles.passwordFieldWrap}>
+                  <TextInput
+                    value={clearPassword}
+                    onChangeText={(value) => {
+                      setClearPassword(value);
+                      if (clearPasswordError) {
+                        setClearPasswordError(null);
+                      }
+                    }}
+                    placeholder="Enter root password"
+                    placeholderTextColor="#6B7D76"
+                    secureTextEntry={isClearPasswordHidden}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isClearingData}
+                    style={[
+                      styles.textInput,
+                      styles.modalInput,
+                      clearPasswordError ? styles.inputError : null,
+                    ]}
+                  />
+                  <Pressable
+                    onPress={() => setIsClearPasswordHidden((current) => !current)}
+                    style={styles.passwordToggleButton}
+                    disabled={isClearingData}
+                    accessibilityRole="button"
+                    accessibilityLabel={isClearPasswordHidden ? "Show password" : "Hide password"}
+                  >
+                    <Ionicons
+                      name={isClearPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                      size={19}
+                      color="#0E6045"
+                    />
+                  </Pressable>
+                </View>
+                {clearPasswordError ? <Text style={styles.errorText}>{clearPasswordError}</Text> : null}
+
+                <View style={styles.modalActionsRow}>
+                  <Pressable
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={closeClearModal}
+                    disabled={isClearingData}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.confirmClearButton]}
+                    onPress={handleClearAllData}
+                    disabled={isClearingData}
+                  >
+                    <Text style={styles.confirmClearButtonText}>
+                      {isClearingData ? "Clearing..." : "Clear All Data"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -306,6 +473,9 @@ const styles = StyleSheet.create({
   importIconWrap: {
     backgroundColor: "#FFF2DE",
   },
+  dangerIconWrap: {
+    backgroundColor: "#FDEAE7",
+  },
   sectionCopy: {
     flex: 1,
   },
@@ -348,6 +518,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
   },
+  clearButton: {
+    backgroundColor: "#B42318",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  clearButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 15,
+  },
   noteText: {
     color: "#577066",
     fontSize: 12,
@@ -367,5 +548,110 @@ const styles = StyleSheet.create({
     color: "#6F827B",
     fontSize: 12,
     lineHeight: 18,
+  },
+  dangerCard: {
+    borderColor: "#F2C9C3",
+    backgroundColor: "#FFF8F7",
+  },
+  dangerText: {
+    color: "#9F2D20",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  modalKeyboardAvoidingView: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(16, 35, 28, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E7D4D1",
+    backgroundColor: "#FFFDFC",
+    padding: 16,
+  },
+  modalTitle: {
+    color: "#0D4A37",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  modalText: {
+    color: "#35574A",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  inputLabel: {
+    color: "#35574A",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  passwordFieldWrap: {
+    position: "relative",
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#C7D8D1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
+    color: "#1F1F1F",
+  },
+  modalInput: {
+    paddingRight: 44,
+  },
+  passwordToggleButton: {
+    position: "absolute",
+    right: 10,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  inputError: {
+    borderColor: "#D93025",
+  },
+  errorText: {
+    color: "#D93025",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  modalActionsRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 8,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#E8EFEC",
+  },
+  cancelButtonText: {
+    color: "#35574A",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  confirmClearButton: {
+    backgroundColor: "#B42318",
+  },
+  confirmClearButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

@@ -1,5 +1,6 @@
 import { useAppData } from "@/store/AppDataContext";
 import { useAuth } from "@/store/AuthContext";
+import { ROOT_PASSWORD } from "@/constants/auth";
 import { fetchTransactionsByCustomerId } from "@/database/appDatabase";
 import { TransactionHistoryItem } from "@/types/app";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
@@ -35,6 +36,9 @@ export default function ClientsScreen() {
   const [creditDraft, setCreditDraft] = useState(1);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordError, setDeletePasswordError] = useState<string | null>(null);
+  const [isDeletePasswordHidden, setIsDeletePasswordHidden] = useState(true);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
@@ -91,6 +95,13 @@ export default function ClientsScreen() {
     setIsEditingCredit(false);
     setCreditDraft(1);
   }, [selectedClientId]);
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setDeletePassword("");
+    setDeletePasswordError(null);
+    setIsDeletePasswordHidden(true);
+  };
 
   const openCreateClient = () => {
     router.push("/(auth)/create-client");
@@ -174,6 +185,9 @@ export default function ClientsScreen() {
       return;
     }
 
+    setDeletePassword("");
+    setDeletePasswordError(null);
+    setIsDeletePasswordHidden(true);
     setIsDeleteModalOpen(true);
   };
 
@@ -181,6 +195,20 @@ export default function ClientsScreen() {
     if (!selectedClient || isDeletingCustomer) {
       return;
     }
+
+    const normalizedDeletePassword = deletePassword.trim();
+
+    if (!normalizedDeletePassword) {
+      setDeletePasswordError("Root password is required.");
+      return;
+    }
+
+    if (normalizedDeletePassword !== ROOT_PASSWORD) {
+      setDeletePasswordError("Incorrect root password.");
+      return;
+    }
+
+    setDeletePasswordError(null);
 
     setIsDeletingCustomer(true);
 
@@ -192,7 +220,7 @@ export default function ClientsScreen() {
         return;
       }
 
-      setIsDeleteModalOpen(false);
+      closeDeleteModal();
       setSelectedClientId(null);
       Alert.alert("Success", result.message);
     } finally {
@@ -486,35 +514,80 @@ export default function ClientsScreen() {
         visible={isDeleteModalOpen}
         animationType="fade"
         transparent
-        onRequestClose={() => setIsDeleteModalOpen(false)}
+        onRequestClose={closeDeleteModal}
       >
-        <View style={styles.creditModalOverlay}>
-          <View style={styles.creditModalCard}>
-            <Text style={styles.creditModalTitle}>Delete Customer</Text>
-            <Text style={styles.deleteModalText}>
-              Are you sure you want to delete {selectedClient?.name ?? "this customer"}? This action cannot be undone.
-            </Text>
-
-            <View style={styles.creditEditorActionsRow}>
-              <Pressable
-                style={[styles.creditEditorButton, styles.creditEditorCancelButton]}
-                onPress={() => setIsDeleteModalOpen(false)}
-                disabled={isDeletingCustomer}
-              >
-                <Text style={styles.creditEditorCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.creditEditorButton, styles.deleteModalConfirmButton]}
-                onPress={confirmDeleteCustomer}
-                disabled={isDeletingCustomer}
-              >
-                <Text style={styles.creditEditorSaveText}>
-                  {isDeletingCustomer ? "Deleting..." : "Confirm Delete"}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalKeyboardAvoidingView}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <View style={styles.creditModalOverlay}>
+              <View style={styles.creditModalCard}>
+                <Text style={styles.creditModalTitle}>Delete Customer</Text>
+                <Text style={styles.deleteModalText}>
+                  Are you sure you want to delete {selectedClient?.name ?? "this customer"}? This action cannot be undone.
                 </Text>
-              </Pressable>
+
+                <Text style={styles.creditEditorLabel}>Root Password</Text>
+                <View style={styles.passwordFieldWrap}>
+                  <TextInput
+                    value={deletePassword}
+                    onChangeText={(value) => {
+                      setDeletePassword(value);
+                      if (deletePasswordError) {
+                        setDeletePasswordError(null);
+                      }
+                    }}
+                    placeholder="Enter root password"
+                    placeholderTextColor="#6B7D76"
+                    secureTextEntry={isDeletePasswordHidden}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isDeletingCustomer}
+                    style={[
+                      styles.input,
+                      styles.modalInput,
+                      deletePasswordError ? styles.inputError : null,
+                    ]}
+                  />
+                  <Pressable
+                    onPress={() => setIsDeletePasswordHidden((current) => !current)}
+                    style={styles.passwordToggleButton}
+                    disabled={isDeletingCustomer}
+                    accessibilityRole="button"
+                    accessibilityLabel={isDeletePasswordHidden ? "Show password" : "Hide password"}
+                  >
+                    <Ionicons
+                      name={isDeletePasswordHidden ? "eye-outline" : "eye-off-outline"}
+                      size={19}
+                      color="#0E6045"
+                    />
+                  </Pressable>
+                </View>
+                {deletePasswordError ? <Text style={styles.deleteModalErrorText}>{deletePasswordError}</Text> : null}
+
+                <View style={styles.creditEditorActionsRow}>
+                  <Pressable
+                    style={[styles.creditEditorButton, styles.creditEditorCancelButton]}
+                    onPress={closeDeleteModal}
+                    disabled={isDeletingCustomer}
+                  >
+                    <Text style={styles.creditEditorCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.creditEditorButton, styles.deleteModalConfirmButton]}
+                    onPress={confirmDeleteCustomer}
+                    disabled={isDeletingCustomer}
+                  >
+                    <Text style={styles.creditEditorSaveText}>
+                      {isDeletingCustomer ? "Deleting..." : "Confirm Delete"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal
@@ -850,6 +923,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 16,
   },
+  modalKeyboardAvoidingView: {
+    flex: 1,
+  },
   creditModalCard: {
     width: "100%",
     maxWidth: 360,
@@ -870,6 +946,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 6,
+  },
+  passwordFieldWrap: {
+    position: "relative",
+  },
+  passwordToggleButton: {
+    position: "absolute",
+    right: 10,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  modalInput: {
+    paddingRight: 44,
   },
   creditStepperRow: {
     flexDirection: "row",
@@ -932,6 +1022,12 @@ const styles = StyleSheet.create({
     color: "#35574A",
     fontSize: 13,
     lineHeight: 19,
+    marginBottom: 12,
+  },
+  deleteModalErrorText: {
+    color: "#D93025",
+    fontSize: 12,
+    marginTop: 6,
   },
   deleteModalConfirmButton: {
     backgroundColor: "#BD2323",
@@ -964,6 +1060,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
+    color: "#1F1F1F",
+  },
+  inputError: {
+    borderColor: "#D93025",
   },
   listContent: {
     paddingTop: 2,
