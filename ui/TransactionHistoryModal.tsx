@@ -1,5 +1,6 @@
 import { TransactionHistoryItem } from "@/types/app";
 import { Ionicons } from "@expo/vector-icons";
+import { useCallback } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 type TransactionHistoryModalProps = {
@@ -23,6 +24,41 @@ export function TransactionHistoryModal({
   isLoading,
   onClose,
 }: TransactionHistoryModalProps) {
+  const renderItem = useCallback(
+    ({ item }: { item: TransactionHistoryItem }) => (
+      <View style={styles.itemCardCompact}>
+        <View style={styles.itemHeader}>
+          <View style={styles.leftMeta}>
+            <Text style={styles.metaLabel}>{context === "box" ? "Customer" : "Box"}</Text>
+            <Text style={styles.metaValue} numberOfLines={1}>
+              {context === "box" ? item.customerName ?? item.customerId : item.boxId}
+            </Text>
+          </View>
+
+          <View style={styles.headerRightCol}>
+            <View
+              style={[
+                styles.typeTag,
+                item.type === "checkout" ? styles.checkoutTag : styles.returnTag,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.typeText,
+                  item.type === "checkout" ? styles.checkoutText : styles.returnText,
+                ]}
+              >
+                {item.type === "checkout" ? "Check-out" : "Check-in"}
+              </Text>
+            </View>
+            <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+          </View>
+        </View>
+      </View>
+    ),
+    [context],
+  );
+
   return (
     <Modal
       transparent
@@ -30,6 +66,7 @@ export function TransactionHistoryModal({
       animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
+      hardwareAccelerated
     >
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
@@ -58,6 +95,11 @@ export function TransactionHistoryModal({
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
               showsVerticalScrollIndicator
+              initialNumToRender={12}
+              maxToRenderPerBatch={12}
+              updateCellsBatchingPeriod={50}
+              windowSize={7}
+              removeClippedSubviews
               ListEmptyComponent={
                 <View style={styles.emptyState}>
                   <Ionicons name="receipt-outline" size={28} color="#7A8F87" />
@@ -65,37 +107,7 @@ export function TransactionHistoryModal({
                   <Text style={styles.emptyText}>There is no recorded history for this item yet.</Text>
                 </View>
               }
-              renderItem={({ item }) => (
-                <View style={styles.itemCardCompact}>
-                  <View style={styles.itemHeader}>
-                    <View style={styles.leftMeta}>
-                      <Text style={styles.metaLabel}>{context === "box" ? "Customer" : "Box"}</Text>
-                      <Text style={styles.metaValue} numberOfLines={1}>
-                        {context === "box" ? item.customerName ?? item.customerId : item.boxId}
-                      </Text>
-                    </View>
-
-                    <View style={styles.headerRightCol}>
-                      <View
-                        style={[
-                          styles.typeTag,
-                          item.type === "checkout" ? styles.checkoutTag : styles.returnTag,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.typeText,
-                            item.type === "checkout" ? styles.checkoutText : styles.returnText,
-                          ]}
-                        >
-                          {item.type === "checkout" ? "Check-out" : "Check-in"}
-                        </Text>
-                      </View>
-                      <Text style={styles.dateText}>{formatDate(item.date)}</Text>
-                    </View>
-                  </View>
-                </View>
-              )}
+              renderItem={renderItem}
             />
           )}
         </View>

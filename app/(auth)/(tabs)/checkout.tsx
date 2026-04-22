@@ -238,6 +238,7 @@ export default function CheckoutScreen() {
                     onChangeText={setBoxSearch}
                     placeholder="Search box id"
                     placeholderTextColor="#7A8F87"
+                    keyboardType="number-pad"
                     style={[styles.input, styles.searchInput]}
                   />
                   {boxSearch ? (

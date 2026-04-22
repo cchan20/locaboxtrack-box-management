@@ -199,6 +199,7 @@ export default function CheckinScreen() {
                     onChangeText={setBoxSearch}
                     placeholder="Search box id or customer"
                     placeholderTextColor="#7A8F87"
+                    keyboardType="number-pad"
                     style={[styles.input, styles.searchInput]}
                   />
                   {boxSearch ? (

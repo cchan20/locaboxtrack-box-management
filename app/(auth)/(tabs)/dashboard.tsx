@@ -33,7 +33,7 @@ echarts.use([
 const CHART_HEIGHT = 260;
 
 export default function DashboardScreen() {
-  const { boxes, dashboardStats, getDaysOut, isReady, refreshData } =
+  const { boxes, customers, dashboardStats, getDaysOut, isReady, refreshData } =
     useAppData();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
@@ -49,6 +49,10 @@ export default function DashboardScreen() {
     checkouts: number[];
     checkins: number[];
   }>({ dates: [], checkouts: [], checkins: [] });
+
+  const closeDetailsModal = useCallback(() => {
+    setDetailsModalType(null);
+  }, []);
 
   const checkedOutBoxes = useMemo(
     () =>
@@ -82,6 +86,15 @@ export default function DashboardScreen() {
     [checkedOutBoxes, getDaysOut],
   );
 
+  const customerPhoneById = useMemo(
+    () =>
+      customers.reduce<Record<string, string>>((acc, customer) => {
+        acc[customer.id] = customer.phone;
+        return acc;
+      }, {}),
+    [customers],
+  );
+
   const modalTitle =
     detailsModalType === "safe"
       ? "Safe Boxes (0-7 Days)"
@@ -99,6 +112,28 @@ export default function DashboardScreen() {
         : detailsModalType === "overdue"
           ? overdueBoxes
           : [];
+
+  const renderModalItem = useCallback(
+    ({ item }: { item: (typeof modalBoxes)[number] }) => (
+      <View style={styles.modalItem}>
+        <View style={styles.modalMetaRow}>
+          <Text style={styles.modalMetaLabel}>Box ID</Text>
+          <Text style={styles.modalMetaValue}>{item.id}</Text>
+        </View>
+        <View style={styles.modalMetaRow}>
+          <Text style={styles.modalMetaLabel}>Customer Name</Text>
+          <Text style={styles.modalMetaValue}>
+            {(item.customerName ?? "-") + " / " + (item.customerId ? (customerPhoneById[item.customerId] ?? "-") : "-")}
+          </Text>
+        </View>
+        <View style={styles.modalMetaRow}>
+          <Text style={styles.modalMetaLabel}>Days Out</Text>
+          <Text style={styles.modalMetaValue}>{getDaysOut(item.dateOut)}</Text>
+        </View>
+      </View>
+    ),
+    [customerPhoneById, getDaysOut],
+  );
 
   const loadChartData = useCallback(async () => {
     const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -264,16 +299,13 @@ export default function DashboardScreen() {
         visible={detailsModalType !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setDetailsModalType(null)}
+        onRequestClose={closeDetailsModal}
+        statusBarTranslucent
+        hardwareAccelerated
       >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setDetailsModalType(null)}
-        >
-          <Pressable
-            style={styles.modalCard}
-            onPress={(event) => event.stopPropagation()}
-          >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeDetailsModal} />
+          <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{modalTitle}</Text>
 
             {modalBoxes.length === 0 ? (
@@ -284,38 +316,28 @@ export default function DashboardScreen() {
               <FlatList
                 data={modalBoxes}
                 keyExtractor={(item) => item.id}
+                style={styles.modalList}
                 contentContainerStyle={styles.modalListContent}
-                renderItem={({ item }) => (
-                  <View style={styles.modalItem}>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Box ID</Text>
-                      <Text style={styles.modalMetaValue}>{item.id}</Text>
-                    </View>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Customer Name</Text>
-                      <Text style={styles.modalMetaValue}>
-                        {item.customerName ?? "-"}
-                      </Text>
-                    </View>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Days Out</Text>
-                      <Text style={styles.modalMetaValue}>
-                        {getDaysOut(item.dateOut)}
-                      </Text>
-                    </View>
-                  </View>
-                )}
+                renderItem={renderModalItem}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                windowSize={7}
+                removeClippedSubviews
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
               />
             )}
 
             <Pressable
               style={styles.modalCloseButton}
-              onPress={() => setDetailsModalType(null)}
+              onPress={closeDetailsModal}
             >
               <Text style={styles.modalCloseButtonText}>Close</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -433,6 +455,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: "#0B3D2E",
+  },
+  modalList: {
+    flexGrow: 0,
   },
   modalListContent: {
     gap: 8,
