@@ -3,6 +3,7 @@ import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-communi
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Keyboard,
@@ -23,6 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function CheckoutScreen() {
   const { boxes, customers, checkoutBox, isReady } = useAppData();
   const WALK_IN_CUSTOMER_NAME = "Walk-In User";
+  const MAX_SELECTED_BOXES = 10;
 
   // Left panel state
   const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
@@ -32,6 +34,7 @@ export default function CheckoutScreen() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [checkoutDate, setCheckoutDate] = useState(new Date());
   const [showCheckoutDatePicker, setShowCheckoutDatePicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const customerSearchRef = useRef<import("react-native").TextInput>(null);
 
@@ -58,16 +61,45 @@ export default function CheckoutScreen() {
   }, [customers, customerSearch]);
 
   const toggleBox = (boxId: string) => {
-    setSelectedBoxIds((prev) =>
-      prev.includes(boxId) ? prev.filter((id) => id !== boxId) : [...prev, boxId],
-    );
+    if (isSubmitting) {
+      return;
+    }
+
+    let shouldClearSearch = false;
+
+    setSelectedBoxIds((prev) => {
+      if (prev.includes(boxId)) {
+        return prev.filter((id) => id !== boxId);
+      }
+
+      if (prev.length >= MAX_SELECTED_BOXES) {
+        Alert.alert("Selection limit", `You can only check out up to ${MAX_SELECTED_BOXES} boxes at one time.`);
+        return prev;
+      }
+
+      shouldClearSearch = true;
+      return [...prev, boxId];
+    });
+
+    if (shouldClearSearch) {
+      setBoxSearch("");
+      Keyboard.dismiss(); // Force close the keyboard
+    }
   };
 
   const removeBox = (boxId: string) => {
+    if (isSubmitting) {
+      return;
+    }
+
     setSelectedBoxIds((prev) => prev.filter((id) => id !== boxId));
   };
 
   const handleWalkInToggle = (value: boolean) => {
+    if (isSubmitting) {
+      return;
+    }
+
     setIsWalkIn(value);
     setSelectedCustomer(null);
   };
@@ -91,8 +123,17 @@ export default function CheckoutScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     if (selectedBoxIds.length === 0) {
       Alert.alert("No box selected", "Please select at least one box.");
+      return;
+    }
+
+    if (selectedBoxIds.length > MAX_SELECTED_BOXES) {
+      Alert.alert("Selection limit", `You can only check out up to ${MAX_SELECTED_BOXES} boxes at one time.`);
       return;
     }
 
@@ -104,15 +145,21 @@ export default function CheckoutScreen() {
 
     console.log("Checking out boxes:", selectedBoxIds, "to customer:", name);
 
-    const results = await Promise.all(selectedBoxIds.map((id) => checkoutBox(id, name, checkoutDate)));
+    setIsSubmitting(true);
 
-    const failed = results.filter((r) => !r.ok);
-    if (failed.length === 0) {
-      Alert.alert("Success", `${selectedBoxIds.length} box(es) checked out to ${name}.`);
-      setSelectedBoxIds([]);
-      setSelectedCustomer(null);
-    } else {
-      Alert.alert("Partial error", failed.map((r) => r.message).join("\n"));
+    try {
+      const results = await Promise.all(selectedBoxIds.map((id) => checkoutBox(id, name, checkoutDate)));
+
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length === 0) {
+        Alert.alert("Success", `${selectedBoxIds.length} box(es) checked out to ${name}.`);
+        setSelectedBoxIds([]);
+        setSelectedCustomer(null);
+      } else {
+        Alert.alert("Partial error", failed.map((r) => r.message).join("\n"));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -123,11 +170,12 @@ export default function CheckoutScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {!isReady ? (
-            <Text style={styles.loadingText}>Initializing database...</Text>
-          ) : null}
+          <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.contentWrap}>
+            {!isReady ? (
+              <Text style={styles.loadingText}>Initializing database...</Text>
+            ) : null}
 
-          <View style={styles.mainContent}>
+            <View style={styles.mainContent}>
         {/* ── LEFT PANEL ─ form ── */}
         <ScrollView
           style={styles.leftColumn}
@@ -142,7 +190,7 @@ export default function CheckoutScreen() {
             <View style={styles.labelRow}>
               <Text style={styles.label}>Selected Boxes</Text>
               {selectedBoxIds.length > 0 && (
-                <Pressable onPress={() => setSelectedBoxIds([])}>
+                <Pressable disabled={isSubmitting} onPress={() => setSelectedBoxIds([])}>
                   <Text style={styles.clearAllText}>Clear All</Text>
                 </Pressable>
               )}
@@ -161,7 +209,7 @@ export default function CheckoutScreen() {
                 <Text style={styles.tagPlaceholder}>Tap boxes on the right to select</Text>
               ) : (
                 selectedBoxIds.map((id) => (
-                  <Pressable key={id} style={styles.tag} onPress={() => removeBox(id)}>
+                  <Pressable disabled={isSubmitting} key={id} style={styles.tag} onPress={() => removeBox(id)}>
                     <Text style={styles.tagText}>{id.replace("BOX-", "")}</Text>
                     <Ionicons name="close" size={12} color="#0B5D44" style={styles.tagIcon} />
                   </Pressable>
@@ -175,6 +223,7 @@ export default function CheckoutScreen() {
               <View style={styles.walkInRow}>
                 <Text style={styles.walkInLabel}>Walk-in</Text>
                 <Switch
+                  disabled={isSubmitting}
                   value={isWalkIn}
                   onValueChange={handleWalkInToggle}
                   trackColor={{ false: "#C7D8D1", true: "#0D7A4E" }}
@@ -191,6 +240,7 @@ export default function CheckoutScreen() {
               />
             ) : (
               <Pressable
+                disabled={isSubmitting}
                 style={styles.customerSelector}
                 onPress={() => setCustomerModalOpen(true)}
               >
@@ -206,7 +256,11 @@ export default function CheckoutScreen() {
             )}
 
             <Text style={styles.label}>Checkout Date</Text>
-            <Pressable style={styles.dateSelector} onPress={() => setShowCheckoutDatePicker(true)}>
+            <Pressable
+              disabled={isSubmitting}
+              style={styles.dateSelector}
+              onPress={() => setShowCheckoutDatePicker(true)}
+            >
               <Text style={styles.dateSelectorText}>{formatDateLabel(checkoutDate)}</Text>
               <Ionicons name="calendar-outline" size={16} color="#42685D" />
             </Pressable>
@@ -222,7 +276,11 @@ export default function CheckoutScreen() {
               />
             ) : null}
 
-            <Pressable style={styles.submitButton} onPress={handleSubmit}>
+            <Pressable
+              disabled={isSubmitting}
+              style={[styles.submitButton, isSubmitting ? styles.submitButtonDisabled : undefined]}
+              onPress={handleSubmit}
+            >
               <Text style={styles.submitButtonText}>Confirm Check-out</Text>
             </Pressable>
           </View>
@@ -236,13 +294,14 @@ export default function CheckoutScreen() {
                   <TextInput
                     value={boxSearch}
                     onChangeText={setBoxSearch}
+                    editable={!isSubmitting}
                     placeholder="Search box id"
                     placeholderTextColor="#7A8F87"
                     keyboardType="number-pad"
                     style={[styles.input, styles.searchInput]}
                   />
                   {boxSearch ? (
-                    <Pressable style={styles.clearButton} onPress={() => setBoxSearch("")}>
+                    <Pressable disabled={isSubmitting} style={styles.clearButton} onPress={() => setBoxSearch("")}>
                       <Ionicons name="close-circle" size={18} color="#7A8F87" />
                     </Pressable>
                   ) : null}
@@ -267,6 +326,7 @@ export default function CheckoutScreen() {
                     const isSelected = selectedBoxIds.includes(item.id);
                     return (
                       <Pressable
+                        disabled={isSubmitting}
                         onPress={() => toggleBox(item.id)}
                         style={[styles.boxChip, isSelected ? styles.boxChipActive : undefined]}
                       >
@@ -285,7 +345,18 @@ export default function CheckoutScreen() {
                 />
               </View>
             </View>
+            </View>
           </View>
+
+          {isSubmitting ? (
+            <View style={styles.loadingOverlay}>
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="large" color="#0D7A4E" />
+                <Text style={styles.loadingOverlayTitle}>Processing check-out...</Text>
+                <Text style={styles.loadingOverlayText}>Please wait until all selected boxes are updated.</Text>
+              </View>
+            </View>
+          ) : null}
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
 
@@ -298,6 +369,7 @@ export default function CheckoutScreen() {
         onShow={() => setTimeout(() => customerSearchRef.current?.focus(), 100)}
       >
         <Pressable
+          disabled={isSubmitting}
           style={styles.modalBackdrop}
           onPress={() => setCustomerModalOpen(false)}
         >
@@ -308,12 +380,13 @@ export default function CheckoutScreen() {
                 ref={customerSearchRef}
                 value={customerSearch}
                 onChangeText={setCustomerSearch}
+                editable={!isSubmitting}
                 placeholder="Search name, phone"
                 placeholderTextColor="#7A8F87"
                 style={[styles.input, styles.modalSearch, styles.searchInput]}
               />
               {customerSearch ? (
-                <Pressable style={styles.clearButton} onPress={() => setCustomerSearch("")}>
+                <Pressable disabled={isSubmitting} style={styles.clearButton} onPress={() => setCustomerSearch("")}>
                   <Ionicons name="close-circle" size={18} color="#7A8F87" />
                 </Pressable>
               ) : null}
@@ -324,6 +397,7 @@ export default function CheckoutScreen() {
               ) : (
                 filteredCustomers.map((c) => (
                   <Pressable
+                    disabled={isSubmitting}
                     key={c.id}
                     style={styles.modalItem}
                     onPress={() => {
@@ -352,6 +426,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   keyboardView: {
+    flex: 1,
+  },
+  contentWrap: {
     flex: 1,
   },
   loadingText: {
@@ -530,6 +607,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
   submitButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
@@ -636,5 +716,35 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: "#5C7269",
     fontSize: 12,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(245,248,247,0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loadingCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#DDEBE6",
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignItems: "center",
+    gap: 10,
+  },
+  loadingOverlayTitle: {
+    color: "#0B3D2E",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  loadingOverlayText: {
+    color: "#527168",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });

@@ -282,24 +282,29 @@ export default function ClientsScreen() {
 
               <View style={styles.listCard}>
                 <FlatList
-                  data={filtered}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.listContent}
-                  keyboardShouldPersistTaps="handled"
-                  ListEmptyComponent={renderEmptyState}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={[styles.clientItem, selectedClientId === item.id ? styles.selectedItem : null]}
-                      onPress={() => openClientDetails(item.id)}
-                    >
-                      <View style={styles.clientIdentityRow}>
-                        <View>
-                          <View style={styles.clientNameRow}>
-                            <Text style={styles.clientName}>{item.name}</Text>
-                            {item.riskStatus === "medium" ? <View style={[styles.riskDot, styles.mediumDot]} /> : null}
-                            {item.riskStatus === "high" ? <View style={[styles.riskDot, styles.highDot]} /> : null}
-                          </View>
-                          <Text style={styles.clientSub}>{item.phone}</Text>
+                    data={filtered}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.listContent}
+                    keyboardShouldPersistTaps="handled"
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={12}
+                    updateCellsBatchingPeriod={50}
+                    windowSize={7}
+                    removeClippedSubviews
+                    ListEmptyComponent={renderEmptyState}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        style={[styles.clientItem, selectedClientId === item.id ? styles.selectedItem : null]}
+                        onPress={() => openClientDetails(item.id)}
+                      >
+                        <View style={styles.clientIdentityRow}>
+                          <View>
+                            <View style={styles.clientNameRow}>
+                              <Text style={styles.clientName}>{item.name}</Text>
+                              {item.riskStatus === "medium" ? <View style={[styles.riskDot, styles.mediumDot]} /> : null}
+                              {item.riskStatus === "high" ? <View style={[styles.riskDot, styles.highDot]} /> : null}
+                            </View>
+                            <Text style={styles.clientSub}>{item.phone}</Text>
                           <Text style={styles.clientSub}>{item.email}</Text>
                         </View>
                       </View>

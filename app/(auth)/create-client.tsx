@@ -58,7 +58,12 @@ const isHeaderRow = (row: unknown[]): boolean => {
   const third = toCellText(row[2]).toLowerCase();
   const fourth = toCellText(row[3]).toLowerCase();
 
-  return first === "id" && second === "email" && third === "phone" && fourth === "name";
+  return (
+    first === "id".toLowerCase() &&
+    second === "email".toLowerCase() &&
+    third === "phone".toLowerCase() &&
+    fourth === "name".toLowerCase()
+  );
 };
 
 const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
@@ -69,14 +74,26 @@ const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
     blankrows: false,
   });
 
+  if (rawRows.length === 0) {
+    throw new Error("The sheet is empty.");
+  }
+
+  // Verify header row
+  const headerRow = rawRows[0];
+  if (!isHeaderRow(headerRow)) {
+    throw new Error(
+      "Invalid header row. The first four columns must be 'id', 'email', 'phone', and 'name'.",
+    );
+  }
+
   return rawRows
+    .slice(1) // Skip the header row
     .filter((row) => row.slice(0, 4).some((value) => toCellText(value) !== ""))
-    .filter((row, index) => (index === 0 ? !isHeaderRow(row) : true))
     .map((row) => {
       const externalId = extractExternalId(row[0]);
-      const name = toCellText(row[1]);
-      const email = toCellText(row[2]);
-      const phone = toCellText(row[3]);
+      const name = toCellText(row[3]);
+      const email = toCellText(row[1]);
+      const phone = toCellText(row[2]);
 
       return {
         externalId,
@@ -85,7 +102,19 @@ const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
         name,
       };
     })
-    .filter((row) => row.externalId && row.phone && row.name);
+    .filter((row) => {
+      // Ensure id and name are present
+      if (!row.externalId || !row.name) {
+        return false;
+      }
+
+      // Ensure at least one of phone or email is present
+      if (!row.phone && !row.email) {
+        return false;
+      }
+
+      return true;
+    });
 };
 
 export default function CreateClientScreen() {

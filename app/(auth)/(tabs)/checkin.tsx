@@ -3,6 +3,7 @@ import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-communi
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Keyboard,
@@ -20,10 +21,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckinScreen() {
   const { boxes, checkinBox, getDaysOut, isReady } = useAppData();
+  const MAX_SELECTED_BOXES = 10;
   const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
   const [boxSearch, setBoxSearch] = useState("");
   const [checkinDate, setCheckinDate] = useState(new Date());
   const [showCheckinDatePicker, setShowCheckinDatePicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatDateLabel = (value: Date) => {
     const year = value.getFullYear();
@@ -64,29 +67,70 @@ export default function CheckinScreen() {
   );
 
   const toggleBox = (boxId: string) => {
-    setSelectedBoxIds((prev) =>
-      prev.includes(boxId) ? prev.filter((id) => id !== boxId) : [...prev, boxId],
-    );
+    if (isSubmitting) {
+      return;
+    }
+
+    let shouldClearSearch = false;
+
+    setSelectedBoxIds((prev) => {
+      if (prev.includes(boxId)) {
+        shouldClearSearch = true;
+        return prev.filter((id) => id !== boxId);
+      }
+
+      if (prev.length >= MAX_SELECTED_BOXES) {
+        Alert.alert("Selection limit", `You can only check in up to ${MAX_SELECTED_BOXES} boxes at one time.`);
+        return prev;
+      }
+
+      shouldClearSearch = true;
+      return [...prev, boxId];
+    });
+
+    if (shouldClearSearch) {
+      setBoxSearch(""); // Clear the search field
+      Keyboard.dismiss(); // Dismiss the keyboard
+    }
   };
 
   const removeBox = (boxId: string) => {
+    if (isSubmitting) {
+      return;
+    }
+
     setSelectedBoxIds((prev) => prev.filter((id) => id !== boxId));
   };
 
   const handleReturn = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     if (selectedBoxIds.length === 0) {
       Alert.alert("No box selected", "Please select at least one box.");
       return;
     }
 
-    const results = await Promise.all(selectedBoxIds.map((boxId) => checkinBox(boxId, checkinDate)));
-    const failed = results.filter((result) => !result.ok);
+    if (selectedBoxIds.length > MAX_SELECTED_BOXES) {
+      Alert.alert("Selection limit", `You can only check in up to ${MAX_SELECTED_BOXES} boxes at one time.`);
+      return;
+    }
 
-    if (failed.length === 0) {
-      Alert.alert("Success", `${selectedBoxIds.length} box(es) checked in successfully.`);
-      setSelectedBoxIds([]);
-    } else {
-      Alert.alert("Partial error", failed.map((result) => result.message).join("\n"));
+    setIsSubmitting(true);
+
+    try {
+      const results = await Promise.all(selectedBoxIds.map((boxId) => checkinBox(boxId, checkinDate)));
+      const failed = results.filter((result) => !result.ok);
+
+      if (failed.length === 0) {
+        Alert.alert("Success", `${selectedBoxIds.length} box(es) checked in successfully.`);
+        setSelectedBoxIds([]);
+      } else {
+        Alert.alert("Partial error", failed.map((result) => result.message).join("\n"));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -97,9 +141,10 @@ export default function CheckinScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {!isReady ? <Text style={styles.loadingText}>Initializing database...</Text> : null}
+          <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.contentWrap}>
+            {!isReady ? <Text style={styles.loadingText}>Initializing database...</Text> : null}
 
-          <View style={styles.mainContent}>
+            <View style={styles.mainContent}>
             <ScrollView
               style={styles.leftColumn}
               contentContainerStyle={styles.leftColumnContent}
@@ -112,7 +157,7 @@ export default function CheckinScreen() {
                 <View style={styles.labelRow}>
                   <Text style={styles.label}>Selected Boxes</Text>
                   {selectedBoxIds.length > 0 && (
-                    <Pressable onPress={() => setSelectedBoxIds([])}>
+                    <Pressable disabled={isSubmitting} onPress={() => setSelectedBoxIds([])}>
                       <Text style={styles.clearAllText}>Clear All</Text>
                     </Pressable>
                   )}
@@ -139,6 +184,7 @@ export default function CheckinScreen() {
                       return (
                         <Pressable
                           key={id}
+                          disabled={isSubmitting}
                           style={[
                             styles.tag,
                             isWarning ? styles.tagWarning : undefined,
@@ -168,7 +214,11 @@ export default function CheckinScreen() {
                 </ScrollView>
 
                 <Text style={styles.label}>Checkin Date</Text>
-                <Pressable style={styles.dateSelector} onPress={() => setShowCheckinDatePicker(true)}>
+                <Pressable
+                  disabled={isSubmitting}
+                  style={styles.dateSelector}
+                  onPress={() => setShowCheckinDatePicker(true)}
+                >
                   <Text style={styles.dateSelectorText}>{formatDateLabel(checkinDate)}</Text>
                   <Ionicons name="calendar-outline" size={16} color="#42685D" />
                 </Pressable>
@@ -184,7 +234,11 @@ export default function CheckinScreen() {
                   />
                 ) : null}
 
-                <Pressable style={styles.submitButton} onPress={handleReturn}>
+                <Pressable
+                  disabled={isSubmitting}
+                  style={[styles.submitButton, isSubmitting ? styles.submitButtonDisabled : undefined]}
+                  onPress={handleReturn}
+                >
                   <Text style={styles.submitButtonText}>Confirm Check-in</Text>
                 </Pressable>
               </View>
@@ -197,13 +251,14 @@ export default function CheckinScreen() {
                   <TextInput
                     value={boxSearch}
                     onChangeText={setBoxSearch}
+                    editable={!isSubmitting}
                     placeholder="Search box id or customer"
                     placeholderTextColor="#7A8F87"
                     keyboardType="number-pad"
                     style={[styles.input, styles.searchInput]}
                   />
                   {boxSearch ? (
-                    <Pressable style={styles.clearButton} onPress={() => setBoxSearch("")}>
+                    <Pressable disabled={isSubmitting} style={styles.clearButton} onPress={() => setBoxSearch("")}>
                       <Ionicons name="close-circle" size={18} color="#7A8F87" />
                     </Pressable>
                   ) : null}
@@ -233,6 +288,7 @@ export default function CheckinScreen() {
 
                     return (
                       <Pressable
+                        disabled={isSubmitting}
                         onPress={() => toggleBox(item.id)}
                         style={[
                           styles.inventoryCard,
@@ -283,7 +339,18 @@ export default function CheckinScreen() {
                 />
               </View>
             </View>
+            </View>
           </View>
+
+          {isSubmitting ? (
+            <View style={styles.loadingOverlay}>
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="large" color="#0D7A4E" />
+                <Text style={styles.loadingOverlayTitle}>Processing check-in...</Text>
+                <Text style={styles.loadingOverlayText}>Please wait until all selected boxes are updated.</Text>
+              </View>
+            </View>
+          ) : null}
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </SafeAreaView>
@@ -298,6 +365,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   keyboardView: {
+    flex: 1,
+  },
+  contentWrap: {
     flex: 1,
   },
   loadingText: {
@@ -439,6 +509,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
   dateSelector: {
     borderWidth: 1,
     borderColor: "#C6D6D0",
@@ -561,5 +634,35 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: "center",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(245,248,247,0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loadingCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#DDEBE6",
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignItems: "center",
+    gap: 10,
+  },
+  loadingOverlayTitle: {
+    color: "#0B3D2E",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  loadingOverlayText: {
+    color: "#527168",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });
