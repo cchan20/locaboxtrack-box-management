@@ -1,3 +1,4 @@
+import { TRANSACTION_HISTORY_LIMIT } from "@/database/appDatabase";
 import { TransactionHistoryItem } from "@/types/app";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback } from "react";
@@ -74,7 +75,9 @@ export function TransactionHistoryModal({
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>{title}</Text>
-              <Text style={styles.subtitle}>Latest transactions first</Text>
+              <Text style={styles.subtitle}>
+                Latest {TRANSACTION_HISTORY_LIMIT} transactions
+              </Text>
             </View>
             <Pressable style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={18} color="#36584D" />

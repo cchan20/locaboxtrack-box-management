@@ -1,3 +1,4 @@
+import { fetchCustomerById } from "@/database/appDatabase";
 import { useAppData } from "@/store/AppDataContext";
 import { useAuth } from "@/store/AuthContext";
 import * as DocumentPicker from "expo-document-picker";
@@ -120,7 +121,7 @@ const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
 export default function CreateClientScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ customerId?: string }>();
-  const { customers, addCustomer, updateCustomer, importCustomers } = useAppData();
+  const { addCustomer, updateCustomer, importCustomers } = useAppData();
   const { loginUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -135,26 +136,31 @@ export default function CreateClientScreen() {
     return String(params.customerId);
   }, [params.customerId]);
 
-  const editingCustomer = useMemo(
-    () => (editingCustomerId ? customers.find((item) => item.id === editingCustomerId) ?? null : null),
-    [customers, editingCustomerId],
-  );
-
   const isEditMode = editingCustomerId !== null;
 
   useEffect(() => {
-    if (!isEditMode) {
+    if (!editingCustomerId) {
       return;
     }
 
-    if (!editingCustomer) {
-      return;
-    }
+    let cancelled = false;
 
-    setName(editingCustomer.name);
-    setPhone(editingCustomer.phone);
-    setEmail(editingCustomer.email === "-" ? "" : editingCustomer.email);
-  }, [isEditMode, editingCustomer]);
+    const loadCustomer = async () => {
+      const customer = await fetchCustomerById(editingCustomerId);
+      if (cancelled || !customer) {
+        return;
+      }
+
+      setName(customer.name);
+      setPhone(customer.phone);
+      setEmail(customer.email === "-" ? "" : customer.email);
+    };
+
+    void loadCustomer();
+    return () => {
+      cancelled = true;
+    };
+  }, [editingCustomerId]);
 
   const handleCreateClient = async () => {
     if (isEditMode) {

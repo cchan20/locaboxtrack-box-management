@@ -1,7 +1,11 @@
+import { fetchCheckedOutBoxes } from "@/database/appDatabase";
 import { useAppData } from "@/store/AppDataContext";
+import { Box } from "@/types/app";
+import { getDaysOut } from "@/utils/dates";
 import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,13 +24,31 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckinScreen() {
-  const { boxes, checkinBox, getDaysOut, isReady } = useAppData();
+  const { checkinBox, refreshData, isReady, dataVersion } = useAppData();
   const MAX_SELECTED_BOXES = 10;
-  const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
+  const [selectedBoxes, setSelectedBoxes] = useState<Box[]>([]);
+  const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
   const [boxSearch, setBoxSearch] = useState("");
   const [checkinDate, setCheckinDate] = useState(new Date());
   const [showCheckinDatePicker, setShowCheckinDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedBoxIds = selectedBoxes.map((box) => box.id);
+
+  const loadCheckedOutBoxes = useCallback(async () => {
+    const rows = await fetchCheckedOutBoxes(boxSearch);
+    setCheckedOutBoxes(rows);
+  }, [boxSearch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isReady) {
+        return;
+      }
+
+      void loadCheckedOutBoxes();
+    }, [isReady, dataVersion, loadCheckedOutBoxes]),
+  );
 
   const formatDateLabel = (value: Date) => {
     const year = value.getFullYear();
@@ -46,37 +68,17 @@ export default function CheckinScreen() {
     setCheckinDate(safeDate);
   };
 
-  const checkedOutBoxes = useMemo(
-    () =>
-      boxes
-        .filter((box) => box.status === "checked-out")
-        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }))
-        .filter((box) => {
-          const query = boxSearch.trim().toLowerCase();
-
-          if (!query) {
-            return true;
-          }
-
-          return (
-            box.id.toLowerCase().includes(query) ||
-            (box.customerName ?? "").toLowerCase().includes(query)
-          );
-        }),
-    [boxes, boxSearch],
-  );
-
-  const toggleBox = (boxId: string) => {
+  const toggleBox = (box: Box) => {
     if (isSubmitting) {
       return;
     }
 
     let shouldClearSearch = false;
 
-    setSelectedBoxIds((prev) => {
-      if (prev.includes(boxId)) {
+    setSelectedBoxes((prev) => {
+      if (prev.some((item) => item.id === box.id)) {
         shouldClearSearch = true;
-        return prev.filter((id) => id !== boxId);
+        return prev.filter((item) => item.id !== box.id);
       }
 
       if (prev.length >= MAX_SELECTED_BOXES) {
@@ -85,7 +87,7 @@ export default function CheckinScreen() {
       }
 
       shouldClearSearch = true;
-      return [...prev, boxId];
+      return [...prev, box];
     });
 
     if (shouldClearSearch) {
@@ -99,7 +101,7 @@ export default function CheckinScreen() {
       return;
     }
 
-    setSelectedBoxIds((prev) => prev.filter((id) => id !== boxId));
+    setSelectedBoxes((prev) => prev.filter((item) => item.id !== boxId));
   };
 
   const handleReturn = async () => {
@@ -120,12 +122,17 @@ export default function CheckinScreen() {
     setIsSubmitting(true);
 
     try {
-      const results = await Promise.all(selectedBoxIds.map((boxId) => checkinBox(boxId, checkinDate)));
+      const results: { ok: boolean; message: string }[] = [];
+      for (const boxId of selectedBoxIds) {
+        results.push(await checkinBox(boxId, checkinDate, { skipNotify: true }));
+      }
+      await refreshData();
+
       const failed = results.filter((result) => !result.ok);
 
       if (failed.length === 0) {
         Alert.alert("Success", `${selectedBoxIds.length} box(es) checked in successfully.`);
-        setSelectedBoxIds([]);
+        setSelectedBoxes([]);
       } else {
         Alert.alert("Partial error", failed.map((result) => result.message).join("\n"));
       }
@@ -156,8 +163,8 @@ export default function CheckinScreen() {
 
                 <View style={styles.labelRow}>
                   <Text style={styles.label}>Selected Boxes</Text>
-                  {selectedBoxIds.length > 0 && (
-                    <Pressable disabled={isSubmitting} onPress={() => setSelectedBoxIds([])}>
+                  {selectedBoxes.length > 0 && (
+                    <Pressable disabled={isSubmitting} onPress={() => setSelectedBoxes([])}>
                       <Text style={styles.clearAllText}>Clear All</Text>
                     </Pressable>
                   )}
@@ -166,31 +173,30 @@ export default function CheckinScreen() {
                   style={styles.tagScroll}
                   contentContainerStyle={[
                     styles.tagContainer,
-                    selectedBoxIds.length === 0 ? styles.tagContainerEmpty : undefined,
+                    selectedBoxes.length === 0 ? styles.tagContainerEmpty : undefined,
                   ]}
-                  showsVerticalScrollIndicator={selectedBoxIds.length > 0}
+                  showsVerticalScrollIndicator={selectedBoxes.length > 0}
                   nestedScrollEnabled
                   keyboardShouldPersistTaps="handled"
                 >
-                  {selectedBoxIds.length === 0 ? (
+                  {selectedBoxes.length === 0 ? (
                     <Text style={styles.tagPlaceholder}>Tap boxes on the right to select</Text>
                   ) : (
-                    selectedBoxIds.map((id) => {
-                      const box = boxes.find((item) => item.id === id);
-                      const daysOut = getDaysOut(box?.dateOut ?? null);
+                    selectedBoxes.map((box) => {
+                      const daysOut = getDaysOut(box.dateOut);
                       const isWarning = daysOut > 7 && daysOut <= 14;
                       const isOverdue = daysOut > 14;
 
                       return (
                         <Pressable
-                          key={id}
+                          key={box.id}
                           disabled={isSubmitting}
                           style={[
                             styles.tag,
                             isWarning ? styles.tagWarning : undefined,
                             isOverdue ? styles.tagOverdue : undefined,
                           ]}
-                          onPress={() => removeBox(id)}
+                          onPress={() => removeBox(box.id)}
                         >
                           <Text
                             style={[
@@ -199,7 +205,7 @@ export default function CheckinScreen() {
                               isOverdue ? styles.tagTextOverdue : undefined,
                             ]}
                           >
-                            {id.replace("BOX-", "")}
+                            {box.id.replace("BOX-", "")}
                           </Text>
                           <Ionicons
                             name="close"
@@ -273,6 +279,10 @@ export default function CheckinScreen() {
                   contentContainerStyle={styles.boxList}
                   columnWrapperStyle={styles.boxRow}
                   keyboardShouldPersistTaps="handled"
+                  initialNumToRender={18}
+                  maxToRenderPerBatch={18}
+                  windowSize={7}
+                  removeClippedSubviews
                   ListEmptyComponent={
                     <View style={styles.emptyState}>
                       <Ionicons name="archive-outline" size={28} color="#7A8F87" />
@@ -289,7 +299,7 @@ export default function CheckinScreen() {
                     return (
                       <Pressable
                         disabled={isSubmitting}
-                        onPress={() => toggleBox(item.id)}
+                        onPress={() => toggleBox(item)}
                         style={[
                           styles.inventoryCard,
                           isWarning ? styles.inventoryCardWarning : undefined,

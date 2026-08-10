@@ -1,5 +1,12 @@
-import { fetchTransactionsSince } from "@/database/appDatabase";
+import {
+  CheckedOutBoxDetails,
+  DashboardStats,
+  fetchCheckedOutBoxDetails,
+  fetchDashboardStats,
+  fetchTransactionsSince,
+} from "@/database/appDatabase";
 import { useAppData } from "@/store/AppDataContext";
+import { getDaysOut } from "@/utils/dates";
 import * as echarts from "echarts/core";
 import { BarChart } from "echarts/charts";
 import {
@@ -32,9 +39,18 @@ echarts.use([
 
 const CHART_HEIGHT = 260;
 
+const EMPTY_STATS: DashboardStats = {
+  totalBoxes: 0,
+  availableCount: 0,
+  safeCount: 0,
+  unavailableCount: 0,
+  checkedOutCount: 0,
+  warningCount: 0,
+  overdueCount: 0,
+};
+
 export default function DashboardScreen() {
-  const { boxes, customers, dashboardStats, getDaysOut, isReady, refreshData } =
-    useAppData();
+  const { isReady, dataVersion } = useAppData();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
@@ -42,6 +58,8 @@ export default function DashboardScreen() {
   const [detailsModalType, setDetailsModalType] = useState<
     "total-out" | "safe" | "warning" | "overdue" | null
   >(null);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_STATS);
+  const [checkedOutBoxes, setCheckedOutBoxes] = useState<CheckedOutBoxDetails[]>([]);
 
   const chartRef = useRef<any>(null);
   const [chartData, setChartData] = useState<{
@@ -54,22 +72,9 @@ export default function DashboardScreen() {
     setDetailsModalType(null);
   }, []);
 
-  const checkedOutBoxes = useMemo(
-    () =>
-      boxes
-        .filter((box) => box.status === "checked-out")
-        .sort((a, b) =>
-          a.id.localeCompare(b.id, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          }),
-        ),
-    [boxes],
-  );
-
   const safeBoxes = useMemo(
     () => checkedOutBoxes.filter((box) => getDaysOut(box.dateOut) <= 7),
-    [checkedOutBoxes, getDaysOut],
+    [checkedOutBoxes],
   );
 
   const warningBoxes = useMemo(
@@ -78,21 +83,12 @@ export default function DashboardScreen() {
         const daysOut = getDaysOut(box.dateOut);
         return daysOut > 7 && daysOut <= 14;
       }),
-    [checkedOutBoxes, getDaysOut],
+    [checkedOutBoxes],
   );
 
   const overdueBoxes = useMemo(
     () => checkedOutBoxes.filter((box) => getDaysOut(box.dateOut) > 14),
-    [checkedOutBoxes, getDaysOut],
-  );
-
-  const customerPhoneById = useMemo(
-    () =>
-      customers.reduce<Record<string, string>>((acc, customer) => {
-        acc[customer.id] = customer.phone;
-        return acc;
-      }, {}),
-    [customers],
+    [checkedOutBoxes],
   );
 
   const modalTitle =
@@ -114,7 +110,7 @@ export default function DashboardScreen() {
           : [];
 
   const renderModalItem = useCallback(
-    ({ item }: { item: (typeof modalBoxes)[number] }) => (
+    ({ item }: { item: CheckedOutBoxDetails }) => (
       <View style={styles.modalItem}>
         <View style={styles.modalMetaRow}>
           <Text style={styles.modalMetaLabel}>Box ID</Text>
@@ -123,7 +119,7 @@ export default function DashboardScreen() {
         <View style={styles.modalMetaRow}>
           <Text style={styles.modalMetaLabel}>Customer Name</Text>
           <Text style={styles.modalMetaValue}>
-            {(item.customerName ?? "-") + " / " + (item.customerId ? (customerPhoneById[item.customerId] ?? "-") : "-")}
+            {(item.customerName ?? "-") + " / " + (item.customerPhone ?? "-")}
           </Text>
         </View>
         <View style={styles.modalMetaRow}>
@@ -132,12 +128,16 @@ export default function DashboardScreen() {
         </View>
       </View>
     ),
-    [customerPhoneById, getDaysOut],
+    [],
   );
 
-  const loadChartData = useCallback(async () => {
-    const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    const transactions = await fetchTransactionsSince(since);
+  const loadDashboard = useCallback(async () => {
+    const [stats, checkedOut, transactions] = await Promise.all([
+      fetchDashboardStats(),
+      fetchCheckedOutBoxDetails(),
+      fetchTransactionsSince(Date.now() - 14 * 24 * 60 * 60 * 1000),
+    ]);
+
     const days = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
       return {
@@ -160,6 +160,8 @@ export default function DashboardScreen() {
       }
     }
 
+    setDashboardStats(stats);
+    setCheckedOutBoxes(checkedOut);
     setChartData({
       dates: days.map((d) => d.label),
       checkouts: days.map((d) => checkoutMap[d.key] ?? 0),
@@ -173,9 +175,8 @@ export default function DashboardScreen() {
         return;
       }
 
-      refreshData();
-      loadChartData();
-    }, [isReady, loadChartData, refreshData]),
+      void loadDashboard();
+    }, [isReady, dataVersion, loadDashboard]),
   );
 
   useEffect(() => {

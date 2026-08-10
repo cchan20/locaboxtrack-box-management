@@ -1,13 +1,13 @@
 import {
-  fetchBoxes,
-  fetchCustomers,
+  customerHasLinkedBoxes,
+  fetchBoxById,
+  fetchCustomerById,
   findCustomerByExternalId,
   findCustomerByName,
   incrementCustomerReturned,
   incrementCustomerTaken,
   initializeDatabase,
   insertTransaction,
-  insertBox,
   insertCustomer,
   updateCustomerDetails,
   updateCustomerCreditCount,
@@ -17,7 +17,7 @@ import {
   updateBoxCheckin,
   updateBoxCheckout,
 } from "../database/appDatabase";
-import { Box, BoxStatus, Customer } from "@/types/app";
+import { BoxStatus, Customer } from "@/types/app";
 import { useAuth } from "@/store/AuthContext";
 import {
   createContext,
@@ -28,16 +28,6 @@ import {
   useMemo,
   useState,
 } from "react";
-
-type DashboardStats = {
-  totalBoxes: number;
-  availableCount: number;
-  safeCount: number;
-  unavailableCount: number;
-  checkedOutCount: number;
-  warningCount: number;
-  overdueCount: number;
-};
 
 type ImportedCustomerInput = {
   externalId: string;
@@ -54,27 +44,31 @@ type ImportCustomersResult = {
   skipped: number;
 };
 
+type MutationOptions = {
+  /** When true, skips bumping dataVersion (caller should notify once after a batch). */
+  skipNotify?: boolean;
+};
+
 type AppDataContextValue = {
   isReady: boolean;
-  boxes: Box[];
-  customers: Customer[];
+  /** Increments after mutations so screens can re-query SQLite. */
+  dataVersion: number;
   refreshData: () => Promise<void>;
-  dashboardStats: DashboardStats;
-  getDaysOut: (dateString: string | null) => number;
   checkoutBox: (
     boxId: string,
     customerName: string,
     checkoutDate?: Date,
+    options?: MutationOptions,
   ) => Promise<{ ok: boolean; message: string }>;
   checkinBox: (
     boxId: string,
     checkinDate?: Date,
+    options?: MutationOptions,
   ) => Promise<{ ok: boolean; message: string }>;
   setBoxAvailability: (
     boxId: string,
     status: Extract<BoxStatus, "available" | "unavailable">,
   ) => Promise<{ ok: boolean; message: string }>;
-  addBox: (boxId: string) => Promise<{ ok: boolean; message: string }>;
   addCustomer: (
     name: string,
     phone: string,
@@ -139,77 +133,52 @@ const createCustomerId = (): string =>
 
 export function AppDataProvider({ children }: PropsWithChildren) {
   const { loginUser } = useAuth();
-  const [data, setData] = useState<{ boxes: Box[]; customers: Customer[] }>({
-    boxes: [],
-    customers: [],
-  });
   const [isReady, setIsReady] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
 
-  const getDaysOut = (dateString: string | null): number => {
-    if (!dateString) {
-      return 0;
-    }
-
-    const diff = Date.now() - new Date(dateString).getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
-  };
-
-  const reloadData = useCallback(async () => {
-    const [boxes, customers] = await Promise.all([
-      fetchBoxes(),
-      fetchCustomers(),
-    ]);
-    setData({ boxes, customers });
+  const refreshData = useCallback(async () => {
+    setDataVersion((version) => version + 1);
   }, []);
 
+  const notifyUnlessSkipped = useCallback(
+    async (options?: MutationOptions) => {
+      if (!options?.skipNotify) {
+        await refreshData();
+      }
+    },
+    [refreshData],
+  );
+
   useEffect(() => {
+    let cancelled = false;
+
     const boot = async () => {
       await initializeDatabase();
-      await reloadData();
-      setIsReady(true);
+      if (!cancelled) {
+        setIsReady(true);
+      }
     };
 
-    boot();
-  }, [reloadData]);
-
-  const dashboardStats = useMemo<DashboardStats>(() => {
-    const totalBoxes = data.boxes.length;
-    const availableCount = data.boxes.filter(
-      (box) => box.status === "available",
-    ).length;
-    const unavailableCount = data.boxes.filter(
-      (box) => box.status === "unavailable",
-    ).length;
-    const checkedOutBoxes = data.boxes.filter(
-      (box) => box.status === "checked-out",
-    );
-    const checkedOutCount = checkedOutBoxes.length;
-    const safeCount = checkedOutBoxes.filter(
-      (box) => getDaysOut(box.dateOut) <= 7,
-    ).length;
-    const warningCount = checkedOutBoxes.filter((box) => {
-      const days = getDaysOut(box.dateOut);
-      return days > 7 && days <= 14;
-    }).length;
-    const overdueCount = checkedOutBoxes.filter(
-      (box) => getDaysOut(box.dateOut) > 14,
-    ).length;
-
-    return {
-      totalBoxes,
-      availableCount,
-      unavailableCount,
-      checkedOutCount,
-      safeCount,
-      warningCount,
-      overdueCount,
+    void boot();
+    return () => {
+      cancelled = true;
     };
-  }, [data.boxes]);
+  }, []);
+
+  // Nudge screens to re-query after login; they hold no global table mirrors.
+  useEffect(() => {
+    if (!isReady || !loginUser) {
+      return;
+    }
+
+    setDataVersion((version) => version + 1);
+  }, [isReady, loginUser]);
 
   const checkoutBox: AppDataContextValue["checkoutBox"] = async (
     boxId,
     customerName,
     checkoutDate,
+    options,
   ) => {
     const id = normalizeBoxId(boxId);
     const name = customerName.trim();
@@ -218,7 +187,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       return { ok: false, message: "Box and customer are required." };
     }
 
-    const box = data.boxes.find((item) => item.id === id);
+    const box = await fetchBoxById(id);
 
     if (!box) {
       return { ok: false, message: "Box not found." };
@@ -247,7 +216,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       await incrementCustomerTaken(customer.id);
     }
 
-    await reloadData();
+    await notifyUnlessSkipped(options);
 
     return { ok: true, message: `${id} assigned to ${name}.` };
   };
@@ -255,6 +224,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const checkinBox: AppDataContextValue["checkinBox"] = async (
     boxId,
     checkinDate,
+    options,
   ) => {
     const id = normalizeBoxId(boxId);
 
@@ -262,7 +232,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       return { ok: false, message: "Box ID is required." };
     }
 
-    const box = data.boxes.find((item) => item.id === id);
+    const box = await fetchBoxById(id);
 
     if (!box) {
       return { ok: false, message: "Box not found." };
@@ -305,7 +275,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       await incrementCustomerReturned(box.customerId, daysOut > 14);
     }
 
-    await reloadData();
+    await notifyUnlessSkipped(options);
 
     return {
       ok: true,
@@ -316,46 +286,16 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     };
   };
 
-  const addBox: AppDataContextValue["addBox"] = async (boxId) => {
-    const id = normalizeBoxId(boxId);
-
-    if (!id) {
-      return { ok: false, message: "Please enter a box ID." };
-    }
-
-    if (data.boxes.some((box) => box.id === id)) {
-      return { ok: false, message: "Box already exists." };
-    }
-
-    await insertBox({
-      id,
-      status: "available",
-      customerId: null,
-      customerName: null,
-      dateOut: null,
-    });
-
-    await reloadData();
-
-    return { ok: true, message: `${id} added.` };
-  };
-
   const setBoxAvailability: AppDataContextValue["setBoxAvailability"] = async (
     boxId,
     status,
   ) => {
     const id = normalizeBoxId(boxId);
-    const box = data.boxes.find((item) => item.id === id);
+    const box = await fetchBoxById(id);
 
     if (!box) {
       return { ok: false, message: "Box not found." };
     }
-
-    // if (box.status === "checked-out") {
-    //   console.log(`Attempt to change availability of checked-out box ${id} to ${status} - operation not allowed.`);
-
-    //   return { ok: false, message: "Checked-out boxes cannot be changed to unavailable." };
-    // }
 
     if (box.status === status) {
       return { ok: true, message: `Box is already ${status}.` };
@@ -371,7 +311,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     if (box.status === "unavailable" && status === "available") {
       if (box.customerId && box.customerName) {
         await updateBoxAvailability(id, "checked-out");
-        await reloadData();
+        await refreshData();
         return {
           ok: true,
           message: `${id} marked checked-out.`,
@@ -380,7 +320,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }
 
     await updateBoxAvailability(id, status);
-    await reloadData();
+    await refreshData();
 
     return {
       ok: true,
@@ -417,7 +357,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       riskStatus: "low",
     });
 
-    await reloadData();
+    await refreshData();
 
     return { ok: true, message: `${normalizedName} added.` };
   };
@@ -440,9 +380,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
         continue;
       }
 
-      const existingCustomer =
-        data.customers.find((item) => item.externalId === externalId) ??
-        (await findCustomerByExternalId(externalId));
+      const existingCustomer = await findCustomerByExternalId(externalId);
 
       if (!existingCustomer) {
         await insertCustomer({
@@ -483,7 +421,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       updated += 1;
     }
 
-    await reloadData();
+    await refreshData();
 
     return {
       ok: true,
@@ -496,7 +434,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 
   const setCustomerRiskStatus: AppDataContextValue["setCustomerRiskStatus"] =
     async (customerId, riskStatus) => {
-      const customer = data.customers.find((item) => item.id === customerId);
+      const customer = await fetchCustomerById(customerId);
 
       if (!customer) {
         return { ok: false, message: "Customer not found." };
@@ -507,7 +445,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       }
 
       await updateCustomerRiskStatus(customerId, riskStatus);
-      await reloadData();
+      await refreshData();
 
       return {
         ok: true,
@@ -517,7 +455,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 
   const setCustomerCreditCount: AppDataContextValue["setCustomerCreditCount"] =
     async (customerId, creditCount) => {
-      const customer = data.customers.find((item) => item.id === customerId);
+      const customer = await fetchCustomerById(customerId);
 
       if (!customer) {
         return { ok: false, message: "Customer not found." };
@@ -535,7 +473,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       }
 
       await updateCustomerCreditCount(customerId, creditCount);
-      await reloadData();
+      await refreshData();
 
       return {
         ok: true,
@@ -549,7 +487,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     phone,
     email,
   ) => {
-    const customer = data.customers.find((item) => item.id === customerId);
+    const customer = await fetchCustomerById(customerId);
 
     if (!customer) {
       return { ok: false, message: "Customer not found." };
@@ -570,7 +508,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       externalId: customer.externalId,
     });
 
-    await reloadData();
+    await refreshData();
 
     return {
       ok: true,
@@ -581,17 +519,13 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const deleteCustomerById: AppDataContextValue["deleteCustomerById"] = async (
     customerId,
   ) => {
-    const customer = data.customers.find((item) => item.id === customerId);
+    const customer = await fetchCustomerById(customerId);
 
     if (!customer) {
       return { ok: false, message: "Customer not found." };
     }
 
-    const hasLinkedBox = data.boxes.some(
-      (box) => box.customerId === customerId,
-    );
-
-    if (hasLinkedBox) {
+    if (await customerHasLinkedBoxes(customerId)) {
       return {
         ok: false,
         message: "Cannot delete customer while linked to a box.",
@@ -599,7 +533,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }
 
     await deleteCustomer(customerId);
-    await reloadData();
+    await refreshData();
 
     return {
       ok: true,
@@ -610,15 +544,11 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const value = useMemo<AppDataContextValue>(
     () => ({
       isReady,
-      boxes: data.boxes,
-      customers: data.customers,
-      refreshData: reloadData,
-      dashboardStats,
-      getDaysOut,
+      dataVersion,
+      refreshData,
       checkoutBox,
       checkinBox,
       setBoxAvailability,
-      addBox,
       addCustomer,
       importCustomers,
       setCustomerRiskStatus,
@@ -626,7 +556,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       updateCustomer,
       deleteCustomerById,
     }),
-    [isReady, data.boxes, data.customers, dashboardStats, reloadData],
+    // loginUser is read by mutation closures (checkout/check-in user id).
+    [isReady, dataVersion, refreshData, loginUser],
   );
 
   return (

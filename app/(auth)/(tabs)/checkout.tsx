@@ -1,7 +1,10 @@
+import { fetchAvailableBoxes, searchCustomers } from "@/database/appDatabase";
 import { useAppData } from "@/store/AppDataContext";
+import { Box, Customer } from "@/types/app";
 import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,9 +25,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckoutScreen() {
-  const { boxes, customers, checkoutBox, isReady } = useAppData();
+  const { checkoutBox, refreshData, isReady, dataVersion } = useAppData();
   const WALK_IN_CUSTOMER_NAME = "Walk-In User";
   const MAX_SELECTED_BOXES = 10;
+  const customerFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Left panel state
   const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
@@ -35,30 +39,49 @@ export default function CheckoutScreen() {
   const [checkoutDate, setCheckoutDate] = useState(new Date());
   const [showCheckoutDatePicker, setShowCheckoutDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [availableBoxes, setAvailableBoxes] = useState<Box[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
 
   const customerSearchRef = useRef<import("react-native").TextInput>(null);
+
+  useEffect(() => {
+    return () => {
+      if (customerFocusTimeoutRef.current) {
+        clearTimeout(customerFocusTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Right panel state
   const [boxSearch, setBoxSearch] = useState("");
 
-  const availableBoxes = useMemo(() => {
-    const available = boxes
-      .filter((box) => box.status === "available")
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
-    const query = boxSearch.trim().toLowerCase();
-    if (!query) return available;
-    return available.filter((box) => box.id.toLowerCase().includes(query));
-  }, [boxes, boxSearch]);
+  const loadAvailableBoxes = useCallback(async () => {
+    const rows = await fetchAvailableBoxes(boxSearch);
+    setAvailableBoxes(rows);
+  }, [boxSearch]);
 
-  const filteredCustomers = useMemo(() => {
-    const query = customerSearch.trim().toLowerCase();
-    if (!query) return customers;
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(query) ||
-        c.phone.includes(query),
-    );
-  }, [customers, customerSearch]);
+  const loadCustomers = useCallback(async () => {
+    const rows = await searchCustomers(customerSearch);
+    setFilteredCustomers(rows);
+  }, [customerSearch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isReady) {
+        return;
+      }
+
+      void loadAvailableBoxes();
+    }, [isReady, dataVersion, loadAvailableBoxes]),
+  );
+
+  useEffect(() => {
+    if (!isReady || !customerModalOpen) {
+      return;
+    }
+
+    void loadCustomers();
+  }, [isReady, customerModalOpen, loadCustomers]);
 
   const toggleBox = (boxId: string) => {
     if (isSubmitting) {
@@ -148,7 +171,11 @@ export default function CheckoutScreen() {
     setIsSubmitting(true);
 
     try {
-      const results = await Promise.all(selectedBoxIds.map((id) => checkoutBox(id, name, checkoutDate)));
+      const results: { ok: boolean; message: string }[] = [];
+      for (const id of selectedBoxIds) {
+        results.push(await checkoutBox(id, name, checkoutDate, { skipNotify: true }));
+      }
+      await refreshData();
 
       const failed = results.filter((r) => !r.ok);
       if (failed.length === 0) {
@@ -161,6 +188,12 @@ export default function CheckoutScreen() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const closeCustomerModal = () => {
+    setCustomerModalOpen(false);
+    setCustomerSearch("");
+    setFilteredCustomers([]);
   };
 
   return (
@@ -316,6 +349,10 @@ export default function CheckoutScreen() {
                   contentContainerStyle={styles.boxList}
                   columnWrapperStyle={styles.boxRow}
                   keyboardShouldPersistTaps="handled"
+                  initialNumToRender={24}
+                  maxToRenderPerBatch={24}
+                  windowSize={7}
+                  removeClippedSubviews
                   ListEmptyComponent={
                     <View style={styles.emptyState}>
                       <Ionicons name="cube-outline" size={28} color="#7A8F87" />
@@ -365,14 +402,28 @@ export default function CheckoutScreen() {
         transparent
         visible={customerModalOpen}
         animationType="fade"
-        onRequestClose={() => setCustomerModalOpen(false)}
-        onShow={() => setTimeout(() => customerSearchRef.current?.focus(), 100)}
+        onRequestClose={closeCustomerModal}
+        onShow={() => {
+          if (customerFocusTimeoutRef.current) {
+            clearTimeout(customerFocusTimeoutRef.current);
+          }
+          customerFocusTimeoutRef.current = setTimeout(() => {
+            customerSearchRef.current?.focus();
+          }, 100);
+        }}
+        onDismiss={() => {
+          if (customerFocusTimeoutRef.current) {
+            clearTimeout(customerFocusTimeoutRef.current);
+            customerFocusTimeoutRef.current = null;
+          }
+        }}
       >
-        <Pressable
-          disabled={isSubmitting}
-          style={styles.modalBackdrop}
-          onPress={() => setCustomerModalOpen(false)}
-        >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            disabled={isSubmitting}
+            style={StyleSheet.absoluteFill}
+            onPress={closeCustomerModal}
+          />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Select Customer</Text>
             <View style={styles.searchInputWrap}>
@@ -391,28 +442,33 @@ export default function CheckoutScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <ScrollView style={styles.modalList}>
-              {filteredCustomers.length === 0 ? (
-                <Text style={styles.emptyText}>No customers found.</Text>
-              ) : (
-                filteredCustomers.map((c) => (
-                  <Pressable
-                    disabled={isSubmitting}
-                    key={c.id}
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSelectedCustomer({ id: c.id, name: c.name });
-                      setCustomerSearch("");
-                      setCustomerModalOpen(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemName}>{c.name} <Text style={styles.modalItemSub}>({c.phone})</Text></Text>
-                  </Pressable>
-                ))
+            <FlatList
+              style={styles.modalList}
+              data={filteredCustomers}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
+              windowSize={7}
+              removeClippedSubviews
+              ListEmptyComponent={<Text style={styles.emptyText}>No customers found.</Text>}
+              renderItem={({ item: c }) => (
+                <Pressable
+                  disabled={isSubmitting}
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedCustomer({ id: c.id, name: c.name });
+                    closeCustomerModal();
+                  }}
+                >
+                  <Text style={styles.modalItemName}>
+                    {c.name} <Text style={styles.modalItemSub}>({c.phone})</Text>
+                  </Text>
+                </Pressable>
               )}
-            </ScrollView>
+            />
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </SafeAreaView>
   );

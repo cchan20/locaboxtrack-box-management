@@ -1,5 +1,20 @@
 import { Box, BoxStatus, Customer, TransactionHistoryItem, TransactionType } from "@/types/app";
+import { getDaysOut } from "@/utils/dates";
 import * as SQLite from "expo-sqlite";
+
+export type DashboardStats = {
+  totalBoxes: number;
+  availableCount: number;
+  safeCount: number;
+  unavailableCount: number;
+  checkedOutCount: number;
+  warningCount: number;
+  overdueCount: number;
+};
+
+export type CheckedOutBoxDetails = Box & {
+  customerPhone: string | null;
+};
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -124,6 +139,12 @@ function mapCustomerRow(row: CustomerRow): Customer {
   };
 }
 
+function sortBoxesById<T extends { id: string }>(boxes: T[]): T[] {
+  return [...boxes].sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }),
+  );
+}
+
 export async function initializeDatabase() {
   // Drizzle migrations are responsible for schema setup and seed data.
   await getDb();
@@ -164,13 +185,221 @@ export async function clearAllDatabaseData() {
 export async function fetchBoxes(): Promise<Box[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<BoxRow>("SELECT * FROM boxes ORDER BY id ASC;");
-  return rows.map(mapBoxRow);
+  return sortBoxesById(rows.map(mapBoxRow));
 }
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<CustomerRow>("SELECT * FROM customers ORDER BY name ASC;");
   return rows.map(mapCustomerRow);
+}
+
+export async function fetchBoxById(boxId: string): Promise<Box | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<BoxRow>(
+    "SELECT * FROM boxes WHERE id = ? LIMIT 1;",
+    boxId,
+  );
+  return row ? mapBoxRow(row) : null;
+}
+
+export async function fetchBoxesByIds(boxIds: string[]): Promise<Box[]> {
+  if (boxIds.length === 0) {
+    return [];
+  }
+
+  const db = await getDb();
+  const placeholders = boxIds.map(() => "?").join(", ");
+  const rows = await db.getAllAsync<BoxRow>(
+    `SELECT * FROM boxes WHERE id IN (${placeholders});`,
+    ...boxIds,
+  );
+  return sortBoxesById(rows.map(mapBoxRow));
+}
+
+export async function fetchBoxesFiltered(options: {
+  statuses?: BoxStatus[];
+  search?: string;
+}): Promise<Box[]> {
+  const db = await getDb();
+  const statuses = options.statuses?.length ? options.statuses : null;
+  const search = options.search?.trim() ?? "";
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (statuses) {
+    clauses.push(`status IN (${statuses.map(() => "?").join(", ")})`);
+    params.push(...statuses);
+  }
+
+  if (search) {
+    clauses.push("lower(id) LIKE lower(?)");
+    params.push(`%${search}%`);
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const rows = await db.getAllAsync<BoxRow>(
+    `SELECT * FROM boxes ${where};`,
+    ...params,
+  );
+  return sortBoxesById(rows.map(mapBoxRow));
+}
+
+export async function fetchAvailableBoxes(search?: string): Promise<Box[]> {
+  return fetchBoxesFiltered({ statuses: ["available"], search });
+}
+
+export async function fetchCheckedOutBoxes(search?: string): Promise<Box[]> {
+  const db = await getDb();
+  const query = search?.trim() ?? "";
+  const params: string[] = [];
+  let where = "WHERE status = 'checked-out'";
+
+  if (query) {
+    where += " AND (lower(id) LIKE lower(?) OR lower(COALESCE(customer_name, '')) LIKE lower(?))";
+    const pattern = `%${query}%`;
+    params.push(pattern, pattern);
+  }
+
+  const rows = await db.getAllAsync<BoxRow>(
+    `SELECT * FROM boxes ${where};`,
+    ...params,
+  );
+  return sortBoxesById(rows.map(mapBoxRow));
+}
+
+export async function fetchCheckedOutBoxesByCustomerId(customerId: string): Promise<Box[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<BoxRow>(
+    `SELECT * FROM boxes
+     WHERE status = 'checked-out' AND customer_id = ?;`,
+    customerId,
+  );
+  return sortBoxesById(rows.map(mapBoxRow));
+}
+
+export async function fetchCheckedOutBoxDetails(): Promise<CheckedOutBoxDetails[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<BoxRow & { customer_phone: string | null }>(
+    `SELECT b.*, c.phone AS customer_phone
+     FROM boxes b
+     LEFT JOIN customers c ON c.id = b.customer_id
+     WHERE b.status = 'checked-out';`,
+  );
+
+  return sortBoxesById(
+    rows.map((row) => ({
+      ...mapBoxRow(row),
+      customerPhone: row.customer_phone,
+    })),
+  );
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  const db = await getDb();
+  const statusRows = await db.getAllAsync<{ status: BoxStatus; count: number }>(
+    `SELECT status, COUNT(*) AS count
+     FROM boxes
+     GROUP BY status;`,
+  );
+  const dateOutRows = await db.getAllAsync<{ date_out: string | null }>(
+    `SELECT date_out FROM boxes WHERE status = 'checked-out';`,
+  );
+
+  const counts: Record<BoxStatus, number> = {
+    available: 0,
+    "checked-out": 0,
+    unavailable: 0,
+  };
+
+  for (const row of statusRows) {
+    counts[row.status] = row.count;
+  }
+
+  let safeCount = 0;
+  let warningCount = 0;
+  let overdueCount = 0;
+
+  for (const row of dateOutRows) {
+    const days = getDaysOut(row.date_out);
+    if (days <= 7) {
+      safeCount += 1;
+    } else if (days <= 14) {
+      warningCount += 1;
+    } else {
+      overdueCount += 1;
+    }
+  }
+
+  return {
+    totalBoxes: counts.available + counts["checked-out"] + counts.unavailable,
+    availableCount: counts.available,
+    unavailableCount: counts.unavailable,
+    checkedOutCount: counts["checked-out"],
+    safeCount,
+    warningCount,
+    overdueCount,
+  };
+}
+
+export async function fetchCustomerById(customerId: string): Promise<Customer | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<CustomerRow>(
+    "SELECT * FROM customers WHERE id = ? LIMIT 1;",
+    customerId,
+  );
+  return row ? mapCustomerRow(row) : null;
+}
+
+export async function fetchCustomersFiltered(search?: string): Promise<Customer[]> {
+  const db = await getDb();
+  const query = search?.trim() ?? "";
+  const params: string[] = [];
+  let where = "";
+
+  if (query) {
+    where =
+      "WHERE lower(name) LIKE lower(?) OR phone LIKE ? OR lower(email) LIKE lower(?)";
+    const pattern = `%${query}%`;
+    params.push(pattern, pattern, pattern);
+  }
+
+  const rows = await db.getAllAsync<CustomerRow>(
+    `SELECT *
+     FROM customers
+     ${where}
+     ORDER BY (credit_count - current_taken) ASC, name ASC;`,
+    ...params,
+  );
+  return rows.map(mapCustomerRow);
+}
+
+export async function searchCustomers(search?: string): Promise<Customer[]> {
+  const db = await getDb();
+  const query = search?.trim() ?? "";
+  const params: string[] = [];
+  let where = "";
+
+  if (query) {
+    where = "WHERE lower(name) LIKE lower(?) OR phone LIKE ?";
+    const pattern = `%${query}%`;
+    params.push(pattern, pattern);
+  }
+
+  const rows = await db.getAllAsync<CustomerRow>(
+    `SELECT * FROM customers ${where} ORDER BY name ASC;`,
+    ...params,
+  );
+  return rows.map(mapCustomerRow);
+}
+
+export async function customerHasLinkedBoxes(customerId: string): Promise<boolean> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ id: string }>(
+    "SELECT id FROM boxes WHERE customer_id = ? LIMIT 1;",
+    customerId,
+  );
+  return Boolean(row);
 }
 
 export async function findCustomerByName(name: string): Promise<Customer | null> {
@@ -344,29 +573,42 @@ function mapTransactionHistoryRow(row: TransactionHistoryRow): TransactionHistor
   };
 }
 
-export async function fetchTransactionsByBoxId(boxId: string): Promise<TransactionHistoryItem[]> {
+/** Default cap for history modals to avoid loading unbounded rows into RAM. */
+export const TRANSACTION_HISTORY_LIMIT = 100;
+
+export async function fetchTransactionsByBoxId(
+  boxId: string,
+  limit: number = TRANSACTION_HISTORY_LIMIT,
+): Promise<TransactionHistoryItem[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<TransactionHistoryRow>(
     `SELECT t.*, c.name AS customer_name
      FROM transactions t
      LEFT JOIN customers c ON c.id = t.customer_id
      WHERE t.box_id = ?
-     ORDER BY t.date DESC;`,
+     ORDER BY t.date DESC
+     LIMIT ?;`,
     boxId,
+    limit,
   );
 
   return rows.map(mapTransactionHistoryRow);
 }
 
-export async function fetchTransactionsByCustomerId(customerId: string): Promise<TransactionHistoryItem[]> {
+export async function fetchTransactionsByCustomerId(
+  customerId: string,
+  limit: number = TRANSACTION_HISTORY_LIMIT,
+): Promise<TransactionHistoryItem[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<TransactionHistoryRow>(
     `SELECT t.*, c.name AS customer_name
      FROM transactions t
      LEFT JOIN customers c ON c.id = t.customer_id
      WHERE t.customer_id = ?
-     ORDER BY t.date DESC;`,
+     ORDER BY t.date DESC
+     LIMIT ?;`,
     customerId,
+    limit,
   );
 
   return rows.map(mapTransactionHistoryRow);

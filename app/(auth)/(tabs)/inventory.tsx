@@ -1,12 +1,16 @@
 import { useAppData } from "@/store/AppDataContext";
 import { useAuth } from "@/store/AuthContext";
-import { BoxStatus } from "@/types/app";
-import { fetchTransactionsByBoxId } from "@/database/appDatabase";
-import { TransactionHistoryItem } from "@/types/app";
+import { Box, BoxStatus, TransactionHistoryItem } from "@/types/app";
+import {
+  fetchBoxById,
+  fetchBoxesFiltered,
+  fetchTransactionsByBoxId,
+} from "@/database/appDatabase";
+import { getDaysOut } from "@/utils/dates";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   FlatList,
   Keyboard,
@@ -25,48 +29,56 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function InventoryScreen() {
   const router = useRouter();
-  const { boxes, getDaysOut, isReady, refreshData, setBoxAvailability } = useAppData();
+  const { isReady, dataVersion, setBoxAvailability } = useAppData();
   const { loginUser } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [statusFilters, setStatusFilters] = useState<BoxStatus[]>(["available", "checked-out"]);
+  const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [selectedBox, setSelectedBox] = useState<Box | null>(null);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
-  const filteredBoxes = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const sorted = [...boxes]
-      .filter((box) => statusFilters.includes(box.status))
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
+  const loadInventory = useCallback(async () => {
+    const rows = await fetchBoxesFiltered({
+      statuses: statusFilters,
+      search,
+    });
+    setBoxes(rows);
 
-    if (!query) {
-      return sorted;
+    if (!selectedBoxId) {
+      setSelectedBox(null);
+      return;
     }
 
-    return sorted.filter((box) => box.id.toLowerCase().includes(query));
-  }, [boxes, search, statusFilters]);
-
-  const selectedBox = useMemo(
-    () => (selectedBoxId ? boxes.find((box) => box.id === selectedBoxId) ?? null : null),
-    [boxes, selectedBoxId],
-  );
+    const detail = await fetchBoxById(selectedBoxId);
+    setSelectedBox(detail);
+    if (!detail) {
+      setSelectedBoxId(null);
+    }
+  }, [search, selectedBoxId, statusFilters]);
 
   useFocusEffect(
     useCallback(() => {
-      if (isReady) {
-        refreshData();
+      if (!isReady) {
+        return;
       }
-    }, [isReady, refreshData]),
+
+      void loadInventory();
+    }, [isReady, dataVersion, loadInventory]),
   );
 
   const openCreateBox = () => {
     router.push("/(auth)/create-box");
   };
 
-  const openBoxDetails = (boxId: string) => setSelectedBoxId(boxId);
+  const openBoxDetails = (box: Box) => {
+    setSelectedBoxId(box.id);
+    setSelectedBox(box);
+  };
 
   const openTransactions = async () => {
     if (!selectedBox) {
@@ -185,10 +197,14 @@ export default function InventoryScreen() {
 
               <View style={styles.listCard}>
                 <FlatList
-                  data={filteredBoxes}
+                  data={boxes}
                   keyExtractor={(item) => item.id}
                   contentContainerStyle={styles.listContent}
                   keyboardShouldPersistTaps="handled"
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={12}
+                  windowSize={7}
+                  removeClippedSubviews
                   ListEmptyComponent={renderEmptyState}
                   renderItem={({ item }) => {
                     const daysOut = getDaysOut(item.dateOut);
@@ -198,7 +214,7 @@ export default function InventoryScreen() {
                     return (
                       <Pressable
                         style={[styles.row, selectedBoxId === item.id ? styles.selectedRow : null]}
-                        onPress={() => openBoxDetails(item.id)}
+                        onPress={() => openBoxDetails(item)}
                       >
                         <View>
                           <Text style={styles.boxId}>{item.id}</Text>
@@ -380,7 +396,10 @@ export default function InventoryScreen() {
         context="box"
         transactions={transactions}
         isLoading={transactionsLoading}
-        onClose={() => setTransactionsModalOpen(false)}
+        onClose={() => {
+          setTransactionsModalOpen(false);
+          setTransactions([]);
+        }}
       />
     </SafeAreaView>
   );

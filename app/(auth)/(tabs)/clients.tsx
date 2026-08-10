@@ -1,12 +1,18 @@
 import { useAppData } from "@/store/AppDataContext";
 import { useAuth } from "@/store/AuthContext";
 import { ROOT_PASSWORD } from "@/constants/auth";
-import { fetchTransactionsByCustomerId } from "@/database/appDatabase";
-import { TransactionHistoryItem } from "@/types/app";
+import {
+  customerHasLinkedBoxes,
+  fetchCheckedOutBoxesByCustomerId,
+  fetchCustomerById,
+  fetchCustomersFiltered,
+  fetchTransactionsByCustomerId,
+} from "@/database/appDatabase";
+import { Box, Customer, TransactionHistoryItem } from "@/types/app";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -27,11 +33,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ClientsScreen() {
   const router = useRouter();
-  const { customers, boxes, isReady, refreshData, setCustomerRiskStatus, setCustomerCreditCount, deleteCustomerById } = useAppData();
+  const {
+    isReady,
+    dataVersion,
+    setCustomerRiskStatus,
+    setCustomerCreditCount,
+    deleteCustomerById,
+  } = useAppData();
   const { loginUser } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
+  const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
   const [isEditingCredit, setIsEditingCredit] = useState(false);
   const [creditDraft, setCreditDraft] = useState(1);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -44,52 +59,38 @@ export default function ClientsScreen() {
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
-  const sortByRemainingCredit = (a: typeof customers[number], b: typeof customers[number]) => {
-    const remainingA = a.creditCount - a.currentTaken;
-    const remainingB = b.creditCount - b.currentTaken;
-    if (remainingA !== remainingB) return remainingA - remainingB;
-    return a.name.localeCompare(b.name);
-  };
+  const loadClients = useCallback(async () => {
+    const rows = await fetchCustomersFiltered(search);
+    setCustomers(rows);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) {
-      return [...customers].sort(sortByRemainingCredit);
+    if (!selectedClientId) {
+      setSelectedClient(null);
+      setCheckedOutBoxes([]);
+      return;
     }
 
-    return customers
-      .filter(
-        (customer) =>
-          customer.name.toLowerCase().includes(query) ||
-          customer.phone.includes(query) ||
-          customer.email.toLowerCase().includes(query),
-      )
-      .sort(sortByRemainingCredit);
-  }, [customers, search]);
+    const [detail, linkedBoxes] = await Promise.all([
+      fetchCustomerById(selectedClientId),
+      fetchCheckedOutBoxesByCustomerId(selectedClientId),
+    ]);
+
+    setSelectedClient(detail);
+    setCheckedOutBoxes(linkedBoxes);
+
+    if (!detail) {
+      setSelectedClientId(null);
+    }
+  }, [search, selectedClientId]);
 
   useFocusEffect(
     useCallback(() => {
-      if (isReady) {
-        refreshData();
+      if (!isReady) {
+        return;
       }
-    }, [isReady, refreshData]),
+
+      void loadClients();
+    }, [isReady, dataVersion, loadClients]),
   );
-
-  const selectedClient = useMemo(
-    () => (selectedClientId ? customers.find((c) => c.id === selectedClientId) ?? null : null),
-    [customers, selectedClientId],
-  );
-
-  const checkedOutBoxes = useMemo(() => {
-    if (!selectedClient) {
-      return [];
-    }
-
-    return boxes
-      .filter((box) => box.status === "checked-out" && box.customerId === selectedClient.id)
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
-  }, [boxes, selectedClient]);
 
   useEffect(() => {
     setIsEditingCredit(false);
@@ -118,7 +119,10 @@ export default function ClientsScreen() {
     });
   };
 
-  const openClientDetails = (clientId: string) => setSelectedClientId(clientId);
+  const openClientDetails = (client: Customer) => {
+    setSelectedClientId(client.id);
+    setSelectedClient(client);
+  };
 
   const openTransactions = async () => {
     if (!selectedClient) {
@@ -173,14 +177,12 @@ export default function ClientsScreen() {
     setIsEditingCredit(false);
   };
 
-  const openDeleteCustomerConfirm = () => {
+  const openDeleteCustomerConfirm = async () => {
     if (!selectedClient) {
       return;
     }
 
-    const hasLinkedBox = boxes.some((box) => box.customerId === selectedClient.id);
-
-    if (hasLinkedBox) {
+    if (await customerHasLinkedBoxes(selectedClient.id)) {
       Alert.alert("Cannot delete customer", "This customer is currently linked to one or more boxes.");
       return;
     }
@@ -282,7 +284,7 @@ export default function ClientsScreen() {
 
               <View style={styles.listCard}>
                 <FlatList
-                    data={filtered}
+                    data={customers}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     keyboardShouldPersistTaps="handled"
@@ -295,7 +297,7 @@ export default function ClientsScreen() {
                     renderItem={({ item }) => (
                       <Pressable
                         style={[styles.clientItem, selectedClientId === item.id ? styles.selectedItem : null]}
-                        onPress={() => openClientDetails(item.id)}
+                        onPress={() => openClientDetails(item)}
                       >
                         <View style={styles.clientIdentityRow}>
                           <View>
@@ -512,7 +514,10 @@ export default function ClientsScreen() {
         context="client"
         transactions={transactions}
         isLoading={transactionsLoading}
-        onClose={() => setTransactionsModalOpen(false)}
+        onClose={() => {
+          setTransactionsModalOpen(false);
+          setTransactions([]);
+        }}
       />
 
       <Modal
