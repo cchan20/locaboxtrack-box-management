@@ -47,7 +47,10 @@
           "supportsOpeningDocumentsInPlace": true,
           "enableFileSharing": true
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

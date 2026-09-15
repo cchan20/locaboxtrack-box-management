@@ -1,11 +1,9 @@
-import {
-  fetchUsers,
-  initializeDatabase,
-  UserRow,
-} from "@/database/appDatabase";
+import { useAppDispatch } from "@/store/hooks";
+import { getUsers } from "@/store/slices/userSlice";
+import { User } from "@/types/app";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   FlatList,
@@ -18,40 +16,37 @@ import {
 
 export default function UserManagementScreen() {
   const router = useRouter();
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [isReady, setIsReady] = useState(false);
+  const dispatch = useAppDispatch();
+  const [users, setUsers] = useState<User[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const loadUsers = useCallback(async () => {
-    const rows = await fetchUsers();
-    setUsers(rows);
-  }, []);
-
-  useEffect(() => {
-    const boot = async () => {
-      await initializeDatabase();
-      await loadUsers();
-      setIsReady(true);
-    };
-
-    boot();
-  }, [loadUsers]);
+    setIsFetching(true);
+    try {
+      const response = await dispatch(getUsers()).unwrap();
+      setUsers(response.data);
+      setIsSuccess(true);
+    } catch {
+      setUsers([]);
+      setIsSuccess(false);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [dispatch]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
-      loadUsers();
-    }, [isReady, loadUsers]),
+      void loadUsers();
+    }, [loadUsers]),
   );
 
   const openCreate = () => {
     router.push("/(auth)/user-form");
   };
 
-  const openEdit = (userId: number) => {
-    router.push({ pathname: "/(auth)/user-form", params: { id: String(userId) } });
+  const openEdit = (userId: string) => {
+    router.push({ pathname: "/(auth)/user-form", params: { id: userId } });
   };
 
   return (
@@ -71,11 +66,11 @@ export default function UserManagementScreen() {
         }}
       />
 
-      {!isReady ? <Text style={styles.loadingText}>Loading users...</Text> : null}
+      {isFetching && !isSuccess ? <Text style={styles.loadingText}>Loading users...</Text> : null}
 
       <View style={styles.card}>
         <Text style={styles.title}>User List</Text>
-        {!users.length && isReady ? (
+        {!users.length && isSuccess ? (
           <Pressable style={styles.emptyState} onPress={openCreate}>
             <Ionicons name="person-add" size={34} color="#0D7A4E" />
             <Text style={styles.emptyTitle}>No users yet</Text>
@@ -84,14 +79,16 @@ export default function UserManagementScreen() {
         ) : null}
         <FlatList
           data={users}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
             <Pressable style={styles.listRow} onPress={() => openEdit(item.id)}>
               <View style={styles.listInfo}>
                 <Text style={styles.userName}>{item.name}</Text>
                 <Text style={styles.userMeta}>@{item.username}</Text>
-                <Text style={styles.userMeta}>Status: {item.status}</Text>
+                <Text style={styles.userMeta}>
+                  Role: {item.role} · Status: {item.status}
+                </Text>
               </View>
 
               <Ionicons name="chevron-forward" size={18} color="#7A8F87" />

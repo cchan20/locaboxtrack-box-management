@@ -1,10 +1,12 @@
+import { useAppDispatch } from "@/store/hooks";
 import {
   createUser,
   deleteUser,
-  fetchUserById,
-  initializeDatabase,
+  getUserById,
   updateUser,
-} from "@/database/appDatabase";
+} from "@/store/slices/userSlice";
+import { UserRole } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -25,14 +27,14 @@ import {
 
 export default function UserFormScreen() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingUserId = useMemo(() => {
     if (!params.id) {
       return null;
     }
 
-    const parsed = Number(params.id);
-    return Number.isFinite(parsed) ? parsed : null;
+    return String(params.id);
   }, [params.id]);
 
   const [isReady, setIsReady] = useState(false);
@@ -40,35 +42,50 @@ export default function UserFormScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [role, setRole] = useState<UserRole>("STAFF");
   const [status, setStatus] = useState("active");
   const [isPasswordHidden, setIsPasswordHidden] = useState(true);
 
   const isEditMode = editingUserId !== null;
 
   useEffect(() => {
+    let cancelled = false;
+
     const boot = async () => {
-      await initializeDatabase();
-
       if (editingUserId) {
-        const user = await fetchUserById(editingUserId);
+        try {
+          const response = await dispatch(getUserById(editingUserId)).unwrap();
 
-        if (!user) {
-          Alert.alert("Not found", "User not found.", [
-            { text: "OK", onPress: () => router.back() },
-          ]);
+          if (cancelled) {
+            return;
+          }
+
+          setUsername(response.data.username);
+          setName(response.data.name);
+          setRole(response.data.role);
+          setStatus(response.data.status);
+          setIsReady(true);
+        } catch {
+          if (!cancelled) {
+            Alert.alert("Not found", "User not found.", [
+              { text: "OK", onPress: () => router.back() },
+            ]);
+          }
           return;
         }
-
-        setUsername(user.username);
-        setName(user.name);
-        setStatus(user.status);
       }
 
-      setIsReady(true);
+      if (!cancelled) {
+        setIsReady(true);
+      }
     };
 
-    boot();
-  }, [editingUserId, router]);
+    void boot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, editingUserId, router]);
 
   const handleSave = async () => {
     const normalizedUsername = username.trim();
@@ -103,28 +120,31 @@ export default function UserFormScreen() {
 
     try {
       if (editingUserId) {
-        await updateUser(editingUserId, {
-          username: normalizedUsername,
-          name: normalizedName,
-          status,
-          password: normalizedPassword || undefined,
-        });
+        await dispatch(
+          updateUser({
+            id: editingUserId,
+            username: normalizedUsername,
+            name: normalizedName,
+            role,
+            status,
+            password: normalizedPassword || undefined,
+          }),
+        ).unwrap();
       } else {
-        console.log("Creating user with:", { normalizedUsername, normalizedName, status });
-        
-        await createUser({
-          username: normalizedUsername,
-          password: normalizedPassword,
-          name: normalizedName,
-          status,
-        });
-        console.log("User created successfully");
-        
+        await dispatch(
+          createUser({
+            username: normalizedUsername,
+            password: normalizedPassword,
+            name: normalizedName,
+            role,
+            status,
+          }),
+        ).unwrap();
       }
 
       router.back();
-    } catch {
-      Alert.alert("Error", "Unable to save user. Username might already exist.");
+    } catch (error) {
+      Alert.alert("Error", getErrorMessage(error, "Unable to save user. Username might already exist."));
     }
   };
 
@@ -139,8 +159,12 @@ export default function UserFormScreen() {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          await deleteUser(editingUserId);
-          router.back();
+          try {
+            await dispatch(deleteUser(editingUserId)).unwrap();
+            router.back();
+          } catch (error) {
+            Alert.alert("Error", getErrorMessage(error));
+          }
         },
       },
     ]);
@@ -169,92 +193,125 @@ export default function UserFormScreen() {
             <View style={styles.card}>
               {!isReady ? <Text style={styles.loadingText}>Loading user...</Text> : null}
 
-          <TextInput
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Username"
-            placeholderTextColor="#6B7D76"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
+              <TextInput
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Username"
+                placeholderTextColor="#6B7D76"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
 
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Display name"
-            placeholderTextColor="#6B7D76"
-            style={styles.input}
-          />
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Display name"
+                placeholderTextColor="#6B7D76"
+                style={styles.input}
+              />
 
-          <View style={styles.passwordWrap}>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder={isEditMode ? "Password (optional to keep current)" : "Password"}
-              placeholderTextColor="#6B7D76"
-              secureTextEntry={isPasswordHidden}
-              style={[styles.input, styles.passwordInput]}
-            />
-            <Pressable
-              onPress={() => setIsPasswordHidden((current) => !current)}
-              style={styles.passwordToggleButton}
-            >
-              <Ionicons name={isPasswordHidden ? "eye-outline" : "eye-off-outline"} size={19} color="#0E6045" />
-            </Pressable>
-          </View>
-
-          <View style={styles.passwordWrap}>
-            <TextInput
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder={isEditMode ? "Confirm Password (only if changing)" : "Confirm Password"}
-              placeholderTextColor="#6B7D76"
-              secureTextEntry={isPasswordHidden}
-              style={[styles.input, styles.passwordInput]}
-            />
-          </View>
-
-          <View style={styles.segmentRow}>
-            <Text style={styles.segmentLabel}>Status</Text>
-            <View style={styles.segmentButtons}>
-              <Pressable
-                onPress={() => setStatus("active")}
-                style={[styles.segmentButton, status === "active" ? styles.segmentButtonActive : undefined]}
-              >
-                <Text
-                  style={[
-                    styles.segmentButtonText,
-                    status === "active" ? styles.segmentButtonTextActive : undefined,
-                  ]}
+              <View style={styles.passwordWrap}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={isEditMode ? "Password (optional to keep current)" : "Password"}
+                  placeholderTextColor="#6B7D76"
+                  secureTextEntry={isPasswordHidden}
+                  style={[styles.input, styles.passwordInput]}
+                />
+                <Pressable
+                  onPress={() => setIsPasswordHidden((current) => !current)}
+                  style={styles.passwordToggleButton}
                 >
-                  Active
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setStatus("inactive")}
-                style={[styles.segmentButton, status === "inactive" ? styles.segmentButtonActive : undefined]}
-              >
-                <Text
-                  style={[
-                    styles.segmentButtonText,
-                    status === "inactive" ? styles.segmentButtonTextActive : undefined,
-                  ]}
-                >
-                  Inactive
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+                  <Ionicons
+                    name={isPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                    size={19}
+                    color="#0E6045"
+                  />
+                </Pressable>
+              </View>
 
-          <View style={styles.formActions}>
-            <Pressable style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>{isEditMode ? "Update User" : "Create User"}</Text>
-            </Pressable>
-            {/* <Pressable style={styles.cancelButton} onPress={() => router.back()}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable> */}
-          </View>
+              <View style={styles.passwordWrap}>
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder={isEditMode ? "Confirm Password (only if changing)" : "Confirm Password"}
+                  placeholderTextColor="#6B7D76"
+                  secureTextEntry={isPasswordHidden}
+                  style={[styles.input, styles.passwordInput]}
+                />
+              </View>
+
+              <View style={styles.segmentRow}>
+                <Text style={styles.segmentLabel}>Role</Text>
+                <View style={styles.segmentButtons}>
+                  <Pressable
+                    onPress={() => setRole("STAFF")}
+                    style={[styles.segmentButton, role === "STAFF" ? styles.segmentButtonActive : undefined]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        role === "STAFF" ? styles.segmentButtonTextActive : undefined,
+                      ]}
+                    >
+                      Staff
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setRole("ADMIN")}
+                    style={[styles.segmentButton, role === "ADMIN" ? styles.segmentButtonActive : undefined]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        role === "ADMIN" ? styles.segmentButtonTextActive : undefined,
+                      ]}
+                    >
+                      Admin
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.segmentRow}>
+                <Text style={styles.segmentLabel}>Status</Text>
+                <View style={styles.segmentButtons}>
+                  <Pressable
+                    onPress={() => setStatus("active")}
+                    style={[styles.segmentButton, status === "active" ? styles.segmentButtonActive : undefined]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        status === "active" ? styles.segmentButtonTextActive : undefined,
+                      ]}
+                    >
+                      Active
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setStatus("inactive")}
+                    style={[styles.segmentButton, status === "inactive" ? styles.segmentButtonActive : undefined]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        status === "inactive" ? styles.segmentButtonTextActive : undefined,
+                      ]}
+                    >
+                      Inactive
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.formActions}>
+                <Pressable style={styles.saveButton} onPress={handleSave}>
+                  <Text style={styles.saveButtonText}>{isEditMode ? "Update User" : "Create User"}</Text>
+                </Pressable>
+              </View>
 
               {isEditMode ? (
                 <Pressable style={styles.deleteButton} onPress={handleDelete}>
@@ -369,17 +426,6 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  cancelButton: {
-    borderWidth: 1,
-    borderColor: "#CBD8D3",
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  cancelButtonText: {
-    color: "#3F5951",
     fontWeight: "700",
   },
   deleteButton: {

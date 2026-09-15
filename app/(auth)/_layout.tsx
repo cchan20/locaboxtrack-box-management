@@ -1,13 +1,13 @@
-import { useAuth } from "@/store/AuthContext";
+import { useAuth } from "@/store/useAuth";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 
-const ROOT_ONLY_ROUTES = new Set(["user-management", "user-form", "import-export", "box-setting"]);
+const ADMIN_ONLY_ROUTES = new Set(["user-management", "user-form", "box-setting"]);
 
 export default function AuthLayout() {
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, loginUser } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -17,10 +17,10 @@ export default function AuthLayout() {
 
     const activeRoute = segments[segments.length - 1];
 
-    if (activeRoute && ROOT_ONLY_ROUTES.has(activeRoute) && loginUser?.type !== "root") {
+    if (activeRoute && ADMIN_ONLY_ROUTES.has(activeRoute) && !isAdmin) {
       router.replace("/(auth)/(tabs)/dashboard");
     }
-  }, [isAuthenticated, loginUser?.type, router, segments]);
+  }, [isAuthenticated, isAdmin, router, segments]);
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: "none" }}>
@@ -39,15 +39,6 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Create User",
-          headerStyle: { backgroundColor: "#0B5D44" },
-          headerTintColor: "#FFFFFF",
-        }}
-      />
-      <Stack.Screen
-        name="(options)/import-export"
-        options={{
-          headerShown: true,
-          title: "Import/Export Data",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}

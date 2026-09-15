@@ -1,12 +1,13 @@
-import { fetchCustomerById } from "@/database/appDatabase";
-import { useAppData } from "@/store/AppDataContext";
-import { useAuth } from "@/store/AuthContext";
-import * as DocumentPicker from "expo-document-picker";
-import { File } from "expo-file-system";
+import { useAppDispatch } from "@/store/hooks";
+import {
+  createCustomer,
+  getCustomerById,
+  updateCustomer,
+} from "@/store/slices/customerSlice";
+import { getErrorMessage } from "@/utils/apiError";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as XLSX from "xlsx";
 import {
   Alert,
   Keyboard,
@@ -20,113 +21,13 @@ import {
   View,
 } from "react-native";
 
-type ParsedImportRow = {
-  externalId: string;
-  email?: string;
-  phone: string;
-  name: string;
-};
-
-const IMPORT_MIME_TYPES = [
-  "text/csv",
-  "application/csv",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-];
-
-const toCellText = (value: unknown): string => {
-  if (value == null) {
-    return "";
-  }
-
-  return String(value).trim();
-};
-
-const extractExternalId = (rawValue: unknown): string => {
-  const text = toCellText(rawValue);
-
-  if (!text) {
-    return "";
-  }
-
-  const parts = text.split("_").map((part) => part.trim()).filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : text;
-};
-
-const isHeaderRow = (row: unknown[]): boolean => {
-  const first = toCellText(row[0]).toLowerCase();
-  const second = toCellText(row[1]).toLowerCase();
-  const third = toCellText(row[2]).toLowerCase();
-  const fourth = toCellText(row[3]).toLowerCase();
-
-  return (
-    first === "id".toLowerCase() &&
-    second === "email".toLowerCase() &&
-    third === "phone".toLowerCase() &&
-    fourth === "name".toLowerCase()
-  );
-};
-
-const parseImportRows = (sheet: XLSX.WorkSheet): ParsedImportRow[] => {
-  const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-    blankrows: false,
-  });
-
-  if (rawRows.length === 0) {
-    throw new Error("The sheet is empty.");
-  }
-
-  // Verify header row
-  const headerRow = rawRows[0];
-  if (!isHeaderRow(headerRow)) {
-    throw new Error(
-      "Invalid header row. The first four columns must be 'id', 'email', 'phone', and 'name'.",
-    );
-  }
-
-  return rawRows
-    .slice(1) // Skip the header row
-    .filter((row) => row.slice(0, 4).some((value) => toCellText(value) !== ""))
-    .map((row) => {
-      const externalId = extractExternalId(row[0]);
-      const name = toCellText(row[3]);
-      const email = toCellText(row[1]);
-      const phone = toCellText(row[2]);
-
-      return {
-        externalId,
-        email: email || undefined,
-        phone,
-        name,
-      };
-    })
-    .filter((row) => {
-      // Ensure id and name are present
-      if (!row.externalId || !row.name) {
-        return false;
-      }
-
-      // Ensure at least one of phone or email is present
-      if (!row.phone && !row.email) {
-        return false;
-      }
-
-      return true;
-    });
-};
-
 export default function CreateClientScreen() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const params = useLocalSearchParams<{ customerId?: string }>();
-  const { addCustomer, updateCustomer, importCustomers } = useAppData();
-  const { loginUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [isImporting, setIsImporting] = useState(false);
 
   const editingCustomerId = useMemo(() => {
     if (!params.customerId) {
@@ -146,96 +47,69 @@ export default function CreateClientScreen() {
     let cancelled = false;
 
     const loadCustomer = async () => {
-      const customer = await fetchCustomerById(editingCustomerId);
-      if (cancelled || !customer) {
-        return;
-      }
+      try {
+        const response = await dispatch(getCustomerById(editingCustomerId)).unwrap();
+        if (cancelled) {
+          return;
+        }
 
-      setName(customer.name);
-      setPhone(customer.phone);
-      setEmail(customer.email === "-" ? "" : customer.email);
+        setName(response.data.name);
+        setPhone(response.data.phone);
+        setEmail(response.data.email === "-" ? "" : response.data.email);
+      } catch {
+        if (!cancelled) {
+          Alert.alert("Not found", "Customer not found.");
+        }
+      }
     };
 
     void loadCustomer();
     return () => {
       cancelled = true;
     };
-  }, [editingCustomerId]);
+  }, [dispatch, editingCustomerId]);
 
   const handleCreateClient = async () => {
-    if (isEditMode) {
-      if (!editingCustomerId) {
-        Alert.alert("Unable to update client", "Missing customer information.");
-        return;
-      }
+    const normalizedName = name.trim();
+    const normalizedPhone = phone.trim();
+    const normalizedEmail = email.trim();
 
-      const result = await updateCustomer(editingCustomerId, name, phone, email);
-
-      if (result.ok) {
-        router.back();
-        return;
-      }
-
-      Alert.alert("Unable to update client", result.message);
+    if (!normalizedName || !normalizedPhone) {
+      Alert.alert("Missing info", "Name and phone are required.");
       return;
     }
 
-    const result = await addCustomer(name, phone, email);
-
-    if (result.ok) {
-      router.back();
-      return;
-    }
-
-    Alert.alert("Unable to create client", result.message);
-  };
-
-  const handleImportClient = async () => {
     try {
-      setIsImporting(true);
+      if (isEditMode) {
+        if (!editingCustomerId) {
+          Alert.alert("Unable to update client", "Missing customer information.");
+          return;
+        }
 
-      const result = await DocumentPicker.getDocumentAsync({
-        type: IMPORT_MIME_TYPES,
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-
-      if (result.canceled || !result.assets[0]) {
-        return;
+        await dispatch(
+          updateCustomer({
+            id: editingCustomerId,
+            name: normalizedName,
+            phone: normalizedPhone,
+            email: normalizedEmail || "-",
+          }),
+        ).unwrap();
+      } else {
+        await dispatch(
+          createCustomer({
+            name: normalizedName,
+            phone: normalizedPhone,
+            email: normalizedEmail || "-",
+          }),
+        ).unwrap();
       }
 
-      const asset = result.assets[0];
-      const fileBase64 = await new File(asset.uri).base64();
-
-      if (!fileBase64) {
-        throw new Error("Unable to read the selected file.");
-      }
-
-      const workbook = XLSX.read(fileBase64, { type: "base64" });
-      const firstSheetName = workbook.SheetNames[0];
-
-      if (!firstSheetName) {
-        Alert.alert("Import failed 2", "The selected file does not contain any sheets or rows.");
-        return;
-      }
-
-      const parsedRows = parseImportRows(workbook.Sheets[firstSheetName]);
-
-      if (parsedRows.length === 0) {
-        Alert.alert(
-          "Import failed 3",
-          "No valid rows found. Make sure the first four columns are id, email, phone, and name.",
-        );
-        return;
-      }
-
-      const importResult = await importCustomers(parsedRows);
-      Alert.alert("Import complete", importResult.message);
+      router.back();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to import the selected file.";
-      Alert.alert("Import failed 1", message);
-    } finally {
-      setIsImporting(false);
+      Alert.alert(
+        isEditMode ? "Unable to update client" : "Unable to create client",
+        getErrorMessage(error),
+      );
     }
   };
 
@@ -252,42 +126,38 @@ export default function CreateClientScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Client Info</Text>
+            <Text style={styles.sectionTitle}>Client Info</Text>
 
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="Name"
-          placeholderTextColor="#6B7D76"
-          style={styles.input}
-        />
-        <TextInput
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="Phone"
-          placeholderTextColor="#6B7D76"
-          keyboardType="number-pad"
-          style={styles.input}
-        />
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Email (optional)"
-          placeholderTextColor="#6B7D76"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-        />
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Name"
+              placeholderTextColor="#6B7D76"
+              style={styles.input}
+            />
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Phone"
+              placeholderTextColor="#6B7D76"
+              keyboardType="number-pad"
+              style={styles.input}
+            />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email (optional)"
+              placeholderTextColor="#6B7D76"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
 
-        <Pressable style={styles.createButton} onPress={handleCreateClient}>
-          <Text style={styles.createButtonText}>{isEditMode ? "Update Client" : "Create Client"}</Text>
-        </Pressable>
-
-        {!isEditMode && loginUser?.type === "root" ? (
-          <Pressable style={styles.importButton} onPress={handleImportClient}>
-            <Text style={styles.importButtonText}>{isImporting ? "Importing..." : "Import Client"}</Text>
-          </Pressable>
-        ) : null}
+            <Pressable style={styles.createButton} onPress={handleCreateClient}>
+              <Text style={styles.createButtonText}>
+                {isEditMode ? "Update Client" : "Create Client"}
+              </Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
@@ -336,18 +206,6 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  importButton: {
-    borderWidth: 1,
-    borderColor: "#BFD7CE",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    backgroundColor: "#EEF7F3",
-  },
-  importButtonText: {
-    color: "#0E6045",
     fontWeight: "700",
   },
 });

@@ -1,4 +1,4 @@
-import { useAuth } from "@/store/AuthContext";
+import { useAuth } from "@/store/useAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, loginError } = useAuth();
+  const { login, loginError, clearError } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordHidden, setIsPasswordHidden] = useState(true);
@@ -63,7 +63,7 @@ export default function LoginScreen() {
           <View style={styles.card}>
             <Text style={styles.title}>Loca Box Tracker Secure</Text>
             <Text style={styles.subtitle}>
-              Login with root or user account credentials
+              Login with admin or staff account credentials
             </Text>
 
             <TextInput
@@ -72,6 +72,9 @@ export default function LoginScreen() {
                 setUsername(value);
                 if (showValidationError) {
                   setShowValidationError(false);
+                }
+                if (loginError) {
+                  clearError();
                 }
               }}
               style={[styles.input, hasError ? styles.inputError : undefined]}
@@ -91,6 +94,9 @@ export default function LoginScreen() {
                   setPassword(value);
                   if (showValidationError) {
                     setShowValidationError(false);
+                  }
+                  if (loginError) {
+                    clearError();
                   }
                 }}
                 style={[
@@ -144,7 +150,7 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
 
-            <Text style={styles.hintText}>Root account: username root</Text>
+            <Text style={styles.hintText}>Use your admin account credentials to sign in</Text>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>

@@ -1,11 +1,13 @@
-import { fetchCheckedOutBoxes } from "@/database/appDatabase";
-import { useAppData } from "@/store/AppDataContext";
+import { useAppDispatch } from "@/store/hooks";
+import { checkinBox, getCheckedOutBoxes } from "@/store/slices/boxSlice";
 import { Box } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
+import { normalizeBoxId } from "@/utils/boxId";
 import { getDaysOut } from "@/utils/dates";
 import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +26,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckinScreen() {
-  const { checkinBox, refreshData, isReady, dataVersion } = useAppData();
+  const dispatch = useAppDispatch();
   const MAX_SELECTED_BOXES = 10;
   const [selectedBoxes, setSelectedBoxes] = useState<Box[]>([]);
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
@@ -36,19 +38,23 @@ export default function CheckinScreen() {
   const selectedBoxIds = selectedBoxes.map((box) => box.id);
 
   const loadCheckedOutBoxes = useCallback(async () => {
-    const rows = await fetchCheckedOutBoxes(boxSearch);
-    setCheckedOutBoxes(rows);
-  }, [boxSearch]);
+    try {
+      const response = await dispatch(getCheckedOutBoxes(boxSearch)).unwrap();
+      setCheckedOutBoxes(response.data);
+    } catch {
+      setCheckedOutBoxes([]);
+    }
+  }, [boxSearch, dispatch]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
       void loadCheckedOutBoxes();
-    }, [isReady, dataVersion, loadCheckedOutBoxes]),
+    }, [loadCheckedOutBoxes]),
   );
+
+  useEffect(() => {
+    void loadCheckedOutBoxes();
+  }, [loadCheckedOutBoxes]);
 
   const formatDateLabel = (value: Date) => {
     const year = value.getFullYear();
@@ -122,11 +128,24 @@ export default function CheckinScreen() {
     setIsSubmitting(true);
 
     try {
+      const checkinDateIso = checkinDate.toISOString();
       const results: { ok: boolean; message: string }[] = [];
+
       for (const boxId of selectedBoxIds) {
-        results.push(await checkinBox(boxId, checkinDate, { skipNotify: true }));
+        try {
+          await dispatch(
+            checkinBox({
+              boxId: normalizeBoxId(boxId),
+              checkinDate: checkinDateIso,
+            }),
+          ).unwrap();
+          results.push({ ok: true, message: "" });
+        } catch (error) {
+          results.push({ ok: false, message: getErrorMessage(error) });
+        }
       }
-      await refreshData();
+
+      void loadCheckedOutBoxes();
 
       const failed = results.filter((result) => !result.ok);
 
@@ -149,8 +168,6 @@ export default function CheckinScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.contentWrap}>
-            {!isReady ? <Text style={styles.loadingText}>Initializing database...</Text> : null}
-
             <View style={styles.mainContent}>
             <ScrollView
               style={styles.leftColumn}
@@ -646,7 +663,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(245,248,247,0.78)",
     alignItems: "center",
     justifyContent: "center",

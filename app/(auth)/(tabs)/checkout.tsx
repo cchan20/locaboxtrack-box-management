@@ -1,6 +1,9 @@
-import { fetchAvailableBoxes, searchCustomers } from "@/database/appDatabase";
-import { useAppData } from "@/store/AppDataContext";
+import { useAppDispatch } from "@/store/hooks";
+import { checkoutBox, getAvailableBoxes } from "@/store/slices/boxSlice";
+import { getCustomers } from "@/store/slices/customerSlice";
 import { Box, Customer } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
+import { normalizeBoxId } from "@/utils/boxId";
 import DateTimePicker, { DateTimePickerChangeEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -25,7 +28,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckoutScreen() {
-  const { checkoutBox, refreshData, isReady, dataVersion } = useAppData();
+  const dispatch = useAppDispatch();
   const WALK_IN_CUSTOMER_NAME = "Walk-In User";
   const MAX_SELECTED_BOXES = 10;
   const customerFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,32 +59,40 @@ export default function CheckoutScreen() {
   const [boxSearch, setBoxSearch] = useState("");
 
   const loadAvailableBoxes = useCallback(async () => {
-    const rows = await fetchAvailableBoxes(boxSearch);
-    setAvailableBoxes(rows);
-  }, [boxSearch]);
+    try {
+      const response = await dispatch(getAvailableBoxes(boxSearch)).unwrap();
+      setAvailableBoxes(response.data);
+    } catch {
+      setAvailableBoxes([]);
+    }
+  }, [boxSearch, dispatch]);
 
   const loadCustomers = useCallback(async () => {
-    const rows = await searchCustomers(customerSearch);
-    setFilteredCustomers(rows);
-  }, [customerSearch]);
+    try {
+      const response = await dispatch(getCustomers(customerSearch)).unwrap();
+      setFilteredCustomers(response.data);
+    } catch {
+      setFilteredCustomers([]);
+    }
+  }, [customerSearch, dispatch]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
       void loadAvailableBoxes();
-    }, [isReady, dataVersion, loadAvailableBoxes]),
+    }, [loadAvailableBoxes]),
   );
 
   useEffect(() => {
-    if (!isReady || !customerModalOpen) {
+    void loadAvailableBoxes();
+  }, [loadAvailableBoxes]);
+
+  useEffect(() => {
+    if (!customerModalOpen) {
       return;
     }
 
     void loadCustomers();
-  }, [isReady, customerModalOpen, loadCustomers]);
+  }, [customerModalOpen, loadCustomers]);
 
   const toggleBox = (boxId: string) => {
     if (isSubmitting) {
@@ -171,11 +182,26 @@ export default function CheckoutScreen() {
     setIsSubmitting(true);
 
     try {
+      const checkoutDateIso = checkoutDate.toISOString();
       const results: { ok: boolean; message: string }[] = [];
+
       for (const id of selectedBoxIds) {
-        results.push(await checkoutBox(id, name, checkoutDate, { skipNotify: true }));
+        const boxId = normalizeBoxId(id);
+        try {
+          await dispatch(
+            checkoutBox({
+              boxId,
+              customerName: name,
+              checkoutDate: checkoutDateIso,
+            }),
+          ).unwrap();
+          results.push({ ok: true, message: "" });
+        } catch (error) {
+          results.push({ ok: false, message: getErrorMessage(error) });
+        }
       }
-      await refreshData();
+
+      void loadAvailableBoxes();
 
       const failed = results.filter((r) => !r.ok);
       if (failed.length === 0) {
@@ -204,10 +230,6 @@ export default function CheckoutScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.contentWrap}>
-            {!isReady ? (
-              <Text style={styles.loadingText}>Initializing database...</Text>
-            ) : null}
-
             <View style={styles.mainContent}>
         {/* ── LEFT PANEL ─ form ── */}
         <ScrollView
@@ -774,7 +796,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(245,248,247,0.78)",
     alignItems: "center",
     justifyContent: "center",

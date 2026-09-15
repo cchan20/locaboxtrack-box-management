@@ -1,17 +1,21 @@
-import { useAppData } from "@/store/AppDataContext";
-import { useAuth } from "@/store/AuthContext";
-import { Box, BoxStatus, TransactionHistoryItem } from "@/types/app";
+import { TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
+import { useAppDispatch } from "@/store/hooks";
 import {
-  fetchBoxById,
-  fetchBoxesFiltered,
-  fetchTransactionsByBoxId,
-} from "@/database/appDatabase";
+  getBoxById,
+  getBoxes,
+  setBoxAvailability,
+} from "@/store/slices/boxSlice";
+import { getTransactionsByBox } from "@/store/slices/transactionSlice";
+import { useAuth } from "@/store/useAuth";
+import { Box, BoxStatus, TransactionHistoryItem } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
 import { getDaysOut } from "@/utils/dates";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -29,8 +33,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function InventoryScreen() {
   const router = useRouter();
-  const { isReady, dataVersion, setBoxAvailability } = useAppData();
-  const { loginUser } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [statusFilters, setStatusFilters] = useState<BoxStatus[]>(["available", "checked-out"]);
@@ -43,33 +47,36 @@ export default function InventoryScreen() {
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
   const loadInventory = useCallback(async () => {
-    const rows = await fetchBoxesFiltered({
-      statuses: statusFilters,
-      search,
-    });
-    setBoxes(rows);
+    try {
+      const response = await dispatch(getBoxes({ status: statusFilters, search })).unwrap();
+      setBoxes(response.data);
+    } catch {
+      setBoxes([]);
+    }
 
     if (!selectedBoxId) {
       setSelectedBox(null);
       return;
     }
 
-    const detail = await fetchBoxById(selectedBoxId);
-    setSelectedBox(detail);
-    if (!detail) {
+    try {
+      const detailResponse = await dispatch(getBoxById(selectedBoxId)).unwrap();
+      setSelectedBox(detailResponse.data);
+    } catch {
+      setSelectedBox(null);
       setSelectedBoxId(null);
     }
-  }, [search, selectedBoxId, statusFilters]);
+  }, [dispatch, search, selectedBoxId, statusFilters]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
       void loadInventory();
-    }, [isReady, dataVersion, loadInventory]),
+    }, [loadInventory]),
   );
+
+  useEffect(() => {
+    void loadInventory();
+  }, [loadInventory]);
 
   const openCreateBox = () => {
     router.push("/(auth)/create-box");
@@ -89,8 +96,15 @@ export default function InventoryScreen() {
     setTransactionsLoading(true);
 
     try {
-      const items = await fetchTransactionsByBoxId(selectedBox.id);
-      setTransactions(items);
+      const response = await dispatch(
+        getTransactionsByBox({
+          boxId: selectedBox.id,
+          limit: TRANSACTION_HISTORY_LIMIT,
+        }),
+      ).unwrap();
+      setTransactions(response.data);
+    } catch {
+      setTransactions([]);
     } finally {
       setTransactionsLoading(false);
     }
@@ -102,7 +116,19 @@ export default function InventoryScreen() {
     }
 
     const nextStatus = selectedBox.status === "unavailable" ? "available" : "unavailable";
-    await setBoxAvailability(selectedBox.id, nextStatus);
+
+    try {
+      const response = await dispatch(
+        setBoxAvailability({
+          boxId: selectedBox.id,
+          status: nextStatus,
+        }),
+      ).unwrap();
+      setSelectedBox(response.data);
+      void loadInventory();
+    } catch (error) {
+      Alert.alert("Error", getErrorMessage(error));
+    }
   };
 
   const toggleStatusFilter = (status: BoxStatus) => {
@@ -122,10 +148,6 @@ export default function InventoryScreen() {
   const renderEmptyState = () => {
     const query = search.trim();
 
-    if (!isReady) {
-      return null;
-    }
-
     if (query) {
       return (
         <View style={styles.emptyState}>
@@ -137,7 +159,7 @@ export default function InventoryScreen() {
     }
 
     return (
-      <Pressable style={styles.emptyState} onPress={loginUser?.type === "root" ? openCreateBox : undefined}>
+      <Pressable style={styles.emptyState} onPress={isAdmin ? openCreateBox : undefined}>
         <Ionicons name="cube-outline" size={36} color="#0D7A4E" />
         <Text style={styles.emptyTitle}>No boxes yet</Text>
         <Text style={styles.emptyText}>Tap here to create your first box.</Text>
@@ -152,8 +174,6 @@ export default function InventoryScreen() {
           style={styles.keyboardAvoidingView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {!isReady ? <Text style={styles.loadingText}>Initializing database...</Text> : null}
-
           <View style={styles.mainContent}>
             <View style={styles.leftColumn}>
               <View style={styles.filterCard}>
@@ -298,7 +318,7 @@ export default function InventoryScreen() {
                     <Text style={styles.historyButtonText}>View Transactions</Text>
                   </Pressable>
 
-                  {selectedBox.status !== "unavailable" || loginUser?.type === "root" ? (
+                  {selectedBox.status !== "unavailable" || isAdmin ? (
                   <Pressable
                     style={[
                       styles.availabilityButton,

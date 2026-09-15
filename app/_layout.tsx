@@ -1,40 +1,34 @@
-import { AppDataProvider } from "@/store/AppDataContext";
-import { AuthProvider } from "@/store/AuthContext";
-import { drizzle } from 'drizzle-orm/expo-sqlite';
+import { persistor, store } from "@/store";
 import { Stack } from "expo-router";
-import { openDatabaseSync, SQLiteProvider } from "expo-sqlite";
-import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
+import { ActivityIndicator, View } from "react-native";
+import { Provider } from "react-redux";
+import { PersistGate } from "redux-persist/integration/react";
 
-import migrations from "@/drizzle/migrations/migrations";
-import { Suspense } from "react";
-import { ActivityIndicator } from "react-native";
-export const DATABASE_NAME = "lms.db";
+function PersistLoading() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#0B5D44",
+      }}
+    >
+      <ActivityIndicator size="large" color="#D8F6E8" />
+    </View>
+  );
+}
 
 export default function RootLayout() {
-  const expoDb = openDatabaseSync(DATABASE_NAME);
-  const db = drizzle(expoDb);
-  const { success, error } = useMigrations(db, migrations);
-
-  console.log("Migration status:", { success, error });
-  
-
   return (
-    <Suspense fallback={<ActivityIndicator size="large" />}>
-      <SQLiteProvider
-        databaseName={DATABASE_NAME}
-        options={{ enableChangeListener: true }}
-        useSuspense
-      >
-        <AuthProvider>
-          <AppDataProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(unauth)" />
-              <Stack.Screen name="(auth)" />
-            </Stack>
-          </AppDataProvider>
-        </AuthProvider>
-      </SQLiteProvider>
-    </Suspense>
+    <Provider store={store}>
+      <PersistGate loading={<PersistLoading />} persistor={persistor}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(unauth)" />
+          <Stack.Screen name="(auth)" />
+        </Stack>
+      </PersistGate>
+    </Provider>
   );
 }

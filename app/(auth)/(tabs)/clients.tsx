@@ -1,14 +1,17 @@
-import { useAppData } from "@/store/AppDataContext";
-import { useAuth } from "@/store/AuthContext";
-import { ROOT_PASSWORD } from "@/constants/auth";
+import { TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
+import { useAppDispatch } from "@/store/hooks";
+import { getCheckedOutBoxes } from "@/store/slices/boxSlice";
 import {
-  customerHasLinkedBoxes,
-  fetchCheckedOutBoxesByCustomerId,
-  fetchCustomerById,
-  fetchCustomersFiltered,
-  fetchTransactionsByCustomerId,
-} from "@/database/appDatabase";
+  deleteCustomer,
+  getCustomerById,
+  getCustomers,
+  setCustomerCreditCount,
+  setCustomerRiskStatus,
+} from "@/store/slices/customerSlice";
+import { getTransactionsByCustomer } from "@/store/slices/transactionSlice";
+import { useAuth } from "@/store/useAuth";
 import { Box, Customer, TransactionHistoryItem } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -33,14 +36,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ClientsScreen() {
   const router = useRouter();
-  const {
-    isReady,
-    dataVersion,
-    setCustomerRiskStatus,
-    setCustomerCreditCount,
-    deleteCustomerById,
-  } = useAppData();
-  const { loginUser } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -49,19 +46,18 @@ export default function ClientsScreen() {
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
   const [isEditingCredit, setIsEditingCredit] = useState(false);
   const [creditDraft, setCreditDraft] = useState(1);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deletePasswordError, setDeletePasswordError] = useState<string | null>(null);
-  const [isDeletePasswordHidden, setIsDeletePasswordHidden] = useState(true);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
   const loadClients = useCallback(async () => {
-    const rows = await fetchCustomersFiltered(search);
-    setCustomers(rows);
+    try {
+      const response = await dispatch(getCustomers(search)).unwrap();
+      setCustomers(response.data);
+    } catch {
+      setCustomers([]);
+    }
 
     if (!selectedClientId) {
       setSelectedClient(null);
@@ -69,40 +65,37 @@ export default function ClientsScreen() {
       return;
     }
 
-    const [detail, linkedBoxes] = await Promise.all([
-      fetchCustomerById(selectedClientId),
-      fetchCheckedOutBoxesByCustomerId(selectedClientId),
-    ]);
+    try {
+      const [detailResponse, allCheckedOutResponse] = await Promise.all([
+        dispatch(getCustomerById(selectedClientId)).unwrap(),
+        dispatch(getCheckedOutBoxes()).unwrap(),
+      ]);
 
-    setSelectedClient(detail);
-    setCheckedOutBoxes(linkedBoxes);
-
-    if (!detail) {
+      setSelectedClient(detailResponse.data);
+      setCheckedOutBoxes(
+        allCheckedOutResponse.data.filter((box) => box.customerId === selectedClientId),
+      );
+    } catch {
+      setSelectedClient(null);
+      setCheckedOutBoxes([]);
       setSelectedClientId(null);
     }
-  }, [search, selectedClientId]);
+  }, [dispatch, search, selectedClientId]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
       void loadClients();
-    }, [isReady, dataVersion, loadClients]),
+    }, [loadClients]),
   );
+
+  useEffect(() => {
+    void loadClients();
+  }, [loadClients]);
 
   useEffect(() => {
     setIsEditingCredit(false);
     setCreditDraft(1);
   }, [selectedClientId]);
-
-  const closeDeleteModal = () => {
-    setIsDeleteModalOpen(false);
-    setDeletePassword("");
-    setDeletePasswordError(null);
-    setIsDeletePasswordHidden(true);
-  };
 
   const openCreateClient = () => {
     router.push("/(auth)/create-client");
@@ -133,8 +126,15 @@ export default function ClientsScreen() {
     setTransactionsLoading(true);
 
     try {
-      const items = await fetchTransactionsByCustomerId(selectedClient.id);
-      setTransactions(items);
+      const response = await dispatch(
+        getTransactionsByCustomer({
+          customerId: selectedClient.id,
+          limit: TRANSACTION_HISTORY_LIMIT,
+        }),
+      ).unwrap();
+      setTransactions(response.data);
+    } catch {
+      setTransactions([]);
     } finally {
       setTransactionsLoading(false);
     }
@@ -145,8 +145,19 @@ export default function ClientsScreen() {
       return;
     }
 
-    const result = await setCustomerRiskStatus(selectedClient.id, riskStatus);
-    Alert.alert(result.ok ? "Success" : "Error", result.message);
+    try {
+      const response = await dispatch(
+        setCustomerRiskStatus({
+          id: selectedClient.id,
+          riskStatus,
+        }),
+      ).unwrap();
+      setSelectedClient(response.data);
+      void loadClients();
+      Alert.alert("Success", "Risk status updated.");
+    } catch (error) {
+      Alert.alert("Error", getErrorMessage(error));
+    }
   };
 
   const openChangeCredit = () => {
@@ -168,13 +179,28 @@ export default function ClientsScreen() {
       return;
     }
 
-    const result = await setCustomerCreditCount(selectedClient.id, creditDraft);
-    if (!result.ok) {
-      Alert.alert("Error", result.message);
-      return;
+    try {
+      const response = await dispatch(
+        setCustomerCreditCount({
+          id: selectedClient.id,
+          creditCount: creditDraft,
+        }),
+      ).unwrap();
+      setSelectedClient(response.data);
+      void loadClients();
+      setIsEditingCredit(false);
+    } catch (error) {
+      Alert.alert("Error", getErrorMessage(error));
     }
+  };
 
-    setIsEditingCredit(false);
+  const customerHasLinkedBoxes = async (customerId: string) => {
+    try {
+      const response = await dispatch(getCheckedOutBoxes()).unwrap();
+      return response.data.some((box) => box.customerId === customerId);
+    } catch {
+      return true;
+    }
   };
 
   const openDeleteCustomerConfirm = async () => {
@@ -187,55 +213,32 @@ export default function ClientsScreen() {
       return;
     }
 
-    setDeletePassword("");
-    setDeletePasswordError(null);
-    setIsDeletePasswordHidden(true);
-    setIsDeleteModalOpen(true);
-  };
-
-  const confirmDeleteCustomer = async () => {
-    if (!selectedClient || isDeletingCustomer) {
-      return;
-    }
-
-    const normalizedDeletePassword = deletePassword.trim();
-
-    if (!normalizedDeletePassword) {
-      setDeletePasswordError("Root password is required.");
-      return;
-    }
-
-    if (normalizedDeletePassword !== ROOT_PASSWORD) {
-      setDeletePasswordError("Incorrect root password.");
-      return;
-    }
-
-    setDeletePasswordError(null);
-
-    setIsDeletingCustomer(true);
-
-    try {
-      const result = await deleteCustomerById(selectedClient.id);
-
-      if (!result.ok) {
-        Alert.alert("Error", result.message);
-        return;
-      }
-
-      closeDeleteModal();
-      setSelectedClientId(null);
-      Alert.alert("Success", result.message);
-    } finally {
-      setIsDeletingCustomer(false);
-    }
+    Alert.alert(
+      "Delete Customer",
+      `Are you sure you want to delete ${selectedClient.name}? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await dispatch(deleteCustomer(selectedClient.id)).unwrap();
+              setSelectedClientId(null);
+              setSelectedClient(null);
+              void loadClients();
+              Alert.alert("Success", "Customer deleted.");
+            } catch (error) {
+              Alert.alert("Error", getErrorMessage(error));
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderEmptyState = () => {
     const query = search.trim();
-
-    if (!isReady) {
-      return null;
-    }
 
     if (query) {
       return (
@@ -265,10 +268,6 @@ export default function ClientsScreen() {
           style={styles.keyboardAvoidingView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {!isReady ? (
-            <Text style={styles.loadingText}>Initializing database...</Text>
-          ) : null}
-
           <View style={styles.mainContent}>
             <View style={styles.leftColumn}>
               <View style={styles.filterCard}>
@@ -494,7 +493,7 @@ export default function ClientsScreen() {
                       <Text style={styles.riskActionButtonText}>Change Credit</Text>
                     </Pressable>
 
-                    {loginUser?.type === "root" ? (
+                    {isAdmin ? (
                       <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
                         <Text style={styles.riskActionButtonText}>Delete Customer</Text>
                       </Pressable>
@@ -519,86 +518,6 @@ export default function ClientsScreen() {
           setTransactions([]);
         }}
       />
-
-      <Modal
-        visible={isDeleteModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={closeDeleteModal}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <KeyboardAvoidingView
-            style={styles.modalKeyboardAvoidingView}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-          >
-            <View style={styles.creditModalOverlay}>
-              <View style={styles.creditModalCard}>
-                <Text style={styles.creditModalTitle}>Delete Customer</Text>
-                <Text style={styles.deleteModalText}>
-                  Are you sure you want to delete {selectedClient?.name ?? "this customer"}? This action cannot be undone.
-                </Text>
-
-                <Text style={styles.creditEditorLabel}>Root Password</Text>
-                <View style={styles.passwordFieldWrap}>
-                  <TextInput
-                    value={deletePassword}
-                    onChangeText={(value) => {
-                      setDeletePassword(value);
-                      if (deletePasswordError) {
-                        setDeletePasswordError(null);
-                      }
-                    }}
-                    placeholder="Enter root password"
-                    placeholderTextColor="#6B7D76"
-                    secureTextEntry={isDeletePasswordHidden}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!isDeletingCustomer}
-                    style={[
-                      styles.input,
-                      styles.modalInput,
-                      deletePasswordError ? styles.inputError : null,
-                    ]}
-                  />
-                  <Pressable
-                    onPress={() => setIsDeletePasswordHidden((current) => !current)}
-                    style={styles.passwordToggleButton}
-                    disabled={isDeletingCustomer}
-                    accessibilityRole="button"
-                    accessibilityLabel={isDeletePasswordHidden ? "Show password" : "Hide password"}
-                  >
-                    <Ionicons
-                      name={isDeletePasswordHidden ? "eye-outline" : "eye-off-outline"}
-                      size={19}
-                      color="#0E6045"
-                    />
-                  </Pressable>
-                </View>
-                {deletePasswordError ? <Text style={styles.deleteModalErrorText}>{deletePasswordError}</Text> : null}
-
-                <View style={styles.creditEditorActionsRow}>
-                  <Pressable
-                    style={[styles.creditEditorButton, styles.creditEditorCancelButton]}
-                    onPress={closeDeleteModal}
-                    disabled={isDeletingCustomer}
-                  >
-                    <Text style={styles.creditEditorCancelText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.creditEditorButton, styles.deleteModalConfirmButton]}
-                    onPress={confirmDeleteCustomer}
-                    disabled={isDeletingCustomer}
-                  >
-                    <Text style={styles.creditEditorSaveText}>
-                      {isDeletingCustomer ? "Deleting..." : "Confirm Delete"}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
-      </Modal>
 
       <Modal
         visible={isEditingCredit}

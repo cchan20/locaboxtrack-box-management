@@ -1,50 +1,50 @@
-# Welcome to your Expo app 👋
+# Loca Box Tracker (lease-management-app)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo React Native client for the Loca Box lease workflow. Data is stored in the
+cloud via **loca-box-backend** (Go + MongoDB). The app uses **Redux Toolkit**
+(`createAsyncThunk` + `axiosInstance`) for auth and all API calls.
 
-## Get started
+## Prerequisites
 
-1. Install dependencies
+1. Run [loca-box-backend](../loca-box-backend) locally (default port `8081` in that project's `.env`).
+2. Node.js + Yarn (or npm).
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+yarn install
+cp .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Set `EXPO_PUBLIC_API_BASE_URL` if needed:
 
-## Learn more
+| Environment | Typical URL |
+|-------------|-------------|
+| iOS simulator | `http://localhost:8081` |
+| Android emulator | `http://10.0.2.2:8081` |
+| Physical device | `http://<your-lan-ip>:8081` |
 
-To learn more about developing your project with Expo, look at the following resources:
+If unset, the app picks iOS → `localhost:8081`, Android → `10.0.2.2:8081`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Run
 
-## Join the community
+```bash
+yarn start
+# or
+yarn ios
+yarn android
+```
 
-Join our community of developers creating universal apps.
+## Auth
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Sign in with a backend user (`POST /api/v1/auth/login`). The bootstrap admin is
+configured on the server via `ROOT_USERNAME` / `ROOT_PASSWORD` (default username
+`root`). Admin users (`role: ADMIN`) can manage users, prefixes, and create boxes.
+
+## Architecture notes
+
+- `store/slices/*` — domain slices with `createAsyncThunk` handlers calling `/api/v1/*`
+- `store/utility/axiosInstance.ts` — shared axios client (auth header, base URL)
+- `store/slices/authSlice.ts` — JWT + logged-in user (persisted via redux-persist + AsyncStorage)
+- `store/useAuth.ts` — auth helpers for screens
+- Local SQLite, Drizzle, and Import/Export were removed in favor of the cloud API

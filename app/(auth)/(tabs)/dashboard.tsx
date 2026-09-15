@@ -1,11 +1,8 @@
-import {
-  CheckedOutBoxDetails,
-  DashboardStats,
-  fetchCheckedOutBoxDetails,
-  fetchDashboardStats,
-  fetchTransactionsSince,
-} from "@/database/appDatabase";
-import { useAppData } from "@/store/AppDataContext";
+import { useAppDispatch } from "@/store/hooks";
+import { getCheckedOutBoxDetails } from "@/store/slices/boxSlice";
+import { getDashboardStats } from "@/store/slices/dashboardSlice";
+import { getTransactionsSince } from "@/store/slices/transactionSlice";
+import { CheckedOutBoxDetails, DashboardStats } from "@/types/app";
 import { getDaysOut } from "@/utils/dates";
 import * as echarts from "echarts/core";
 import { BarChart } from "echarts/charts";
@@ -50,7 +47,7 @@ const EMPTY_STATS: DashboardStats = {
 };
 
 export default function DashboardScreen() {
-  const { isReady, dataVersion } = useAppData();
+  const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
@@ -132,51 +129,56 @@ export default function DashboardScreen() {
   );
 
   const loadDashboard = useCallback(async () => {
-    const [stats, checkedOut, transactions] = await Promise.all([
-      fetchDashboardStats(),
-      fetchCheckedOutBoxDetails(),
-      fetchTransactionsSince(Date.now() - 14 * 24 * 60 * 60 * 1000),
-    ]);
+    try {
+      const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const [statsResponse, checkedOutResponse, transactionsResponse] =
+        await Promise.all([
+          dispatch(getDashboardStats()).unwrap(),
+          dispatch(getCheckedOutBoxDetails()).unwrap(),
+          dispatch(getTransactionsSince(since)).unwrap(),
+        ]);
+      const stats = statsResponse.data;
+      const checkedOut = checkedOutResponse.data;
+      const transactions = transactionsResponse.data;
 
-    const days = Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
-      return {
-        label: `${d.getMonth() + 1}/${d.getDate()}`,
-        key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
-      };
-    });
+      const days = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
+        return {
+          label: `${d.getMonth() + 1}/${d.getDate()}`,
+          key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
+        };
+      });
 
-    const checkoutMap: Record<string, number> = {};
-    const checkinMap: Record<string, number> = {};
+      const checkoutMap: Record<string, number> = {};
+      const checkinMap: Record<string, number> = {};
 
-    for (const tx of transactions) {
-      const d = new Date(tx.date);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      for (const tx of transactions) {
+        const d = new Date(tx.date);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-      if (tx.type === "checkout") {
-        checkoutMap[key] = (checkoutMap[key] ?? 0) + 1;
-      } else {
-        checkinMap[key] = (checkinMap[key] ?? 0) + 1;
+        if (tx.type === "checkout") {
+          checkoutMap[key] = (checkoutMap[key] ?? 0) + 1;
+        } else {
+          checkinMap[key] = (checkinMap[key] ?? 0) + 1;
+        }
       }
-    }
 
-    setDashboardStats(stats);
-    setCheckedOutBoxes(checkedOut);
-    setChartData({
-      dates: days.map((d) => d.label),
-      checkouts: days.map((d) => checkoutMap[d.key] ?? 0),
-      checkins: days.map((d) => checkinMap[d.key] ?? 0),
-    });
-  }, []);
+      setDashboardStats(stats);
+      setCheckedOutBoxes(checkedOut);
+      setChartData({
+        dates: days.map((d) => d.label),
+        checkouts: days.map((d) => checkoutMap[d.key] ?? 0),
+        checkins: days.map((d) => checkinMap[d.key] ?? 0),
+      });
+    } catch (error) {
+      console.warn("Failed to load dashboard:", error);
+    }
+  }, [dispatch]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!isReady) {
-        return;
-      }
-
       void loadDashboard();
-    }, [isReady, dataVersion, loadDashboard]),
+    }, [loadDashboard]),
   );
 
   useEffect(() => {

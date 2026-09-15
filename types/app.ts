@@ -8,6 +8,10 @@ export type Box = {
   dateOut: string | null;
 };
 
+export type CheckedOutBoxDetails = Box & {
+  customerPhone: string | null;
+};
+
 export type Customer = {
   id: string;
   name: string;
@@ -25,13 +29,40 @@ export type Customer = {
 export type TransactionType = "checkout" | "return";
 
 export type TransactionHistoryItem = {
-  id: number;
+  id: string;
   boxId: string;
   customerId: string;
   customerName: string | null;
-  userId: number;
+  userId: string;
   type: TransactionType;
-  date: number;
+  date: string;
+};
+
+export type UserRole = "ADMIN" | "STAFF";
+
+export type User = {
+  id: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RunningNoControl = {
+  id: string;
+  currentNumber: number;
+};
+
+export type DashboardStats = {
+  totalBoxes: number;
+  availableCount: number;
+  safeCount: number;
+  unavailableCount: number;
+  checkedOutCount: number;
+  warningCount: number;
+  overdueCount: number;
 };
 
 export type NotificationType = "success" | "error" | "warning";
@@ -39,4 +70,18 @@ export type NotificationType = "success" | "error" | "warning";
 export type Notification = {
   message: string;
   type: NotificationType;
+};
+
+export type LoginResponse = {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    name: string;
+    role: UserRole;
+  };
+};
+
+export type AuthUser = LoginResponse["user"] & {
+  status: string;
 };

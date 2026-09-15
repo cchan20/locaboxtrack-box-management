@@ -1,4 +1,4 @@
-import { TRANSACTION_HISTORY_LIMIT } from "@/database/appDatabase";
+import { TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
 import { TransactionHistoryItem } from "@/types/app";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback } from "react";
@@ -13,8 +13,8 @@ type TransactionHistoryModalProps = {
   onClose: () => void;
 };
 
-function formatDate(timestamp: number) {
-  return new Date(timestamp).toLocaleDateString();
+function formatDate(isoDate: string) {
+  return new Date(isoDate).toLocaleDateString();
 }
 
 export function TransactionHistoryModal({

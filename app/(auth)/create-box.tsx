@@ -1,13 +1,10 @@
-import {
-  createBoxesFromPrefix,
-  fetchPrefixes,
-  initializeDatabase,
-  RunningNoControlRow,
-} from "@/database/appDatabase";
-import { useAppData } from "@/store/AppDataContext";
+import { useAppDispatch } from "@/store/hooks";
+import { generateBoxes, getPrefixes } from "@/store/slices/prefixSlice";
+import { RunningNoControl } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Alert,
@@ -25,14 +22,32 @@ import {
 
 export default function CreateBoxScreen() {
   const router = useRouter();
-  const { refreshData } = useAppData();
+  const dispatch = useAppDispatch();
+  const [prefixes, setPrefixes] = useState<RunningNoControl[]>([]);
+  const [isPrefixesLoading, setIsPrefixesLoading] = useState(false);
 
-  const [prefixes, setPrefixes] = useState<RunningNoControlRow[]>([]);
   const [selectedPrefixId, setSelectedPrefixId] = useState("");
   const [quantityText, setQuantityText] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [isReady, setIsReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadPrefixes = useCallback(async () => {
+    setIsPrefixesLoading(true);
+    try {
+      const response = await dispatch(getPrefixes()).unwrap();
+      setPrefixes(response.data);
+    } catch {
+      setPrefixes([]);
+    } finally {
+      setIsPrefixesLoading(false);
+    }
+  }, [dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPrefixes();
+    }, [loadPrefixes]),
+  );
 
   const selectedPrefix = useMemo(
     () => prefixes.find((item) => item.id === selectedPrefixId) ?? null,
@@ -40,16 +55,10 @@ export default function CreateBoxScreen() {
   );
 
   useEffect(() => {
-    const boot = async () => {
-      await initializeDatabase();
-      const rows = await fetchPrefixes();
-      setPrefixes(rows);
-      setSelectedPrefixId(rows[0]?.id ?? "");
-      setIsReady(true);
-    };
-
-    boot();
-  }, []);
+    if (prefixes.length > 0) {
+      setSelectedPrefixId((current) => current || prefixes[0]?.id || "");
+    }
+  }, [prefixes]);
 
   const handleCreate = async () => {
     const quantity = Number(quantityText.trim());
@@ -67,19 +76,18 @@ export default function CreateBoxScreen() {
     setIsSubmitting(true);
 
     try {
-      const result = await createBoxesFromPrefix(selectedPrefixId, quantity);
-      await refreshData();
+      const response = await dispatch(
+        generateBoxes({ prefixId: selectedPrefixId, count: quantity }),
+      ).unwrap();
+      const result = response.data;
 
       Alert.alert(
         "Success",
         `${result.createdCount} box(es) created. ${selectedPrefixId} current number is now ${result.lastNumber}.`,
         [{ text: "OK", onPress: () => router.back() }],
       );
-    } catch {
-      Alert.alert(
-        "Unable to create boxes",
-        "Creation failed. Prefix may be missing, or generated IDs may already exist.",
-      );
+    } catch (error) {
+      Alert.alert("Unable to create boxes", getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -97,37 +105,39 @@ export default function CreateBoxScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {!isReady ? <Text style={styles.loadingText}>Loading box prefixes...</Text> : null}
+          {isPrefixesLoading ? <Text style={styles.loadingText}>Loading box prefixes...</Text> : null}
 
           <View style={styles.card}>
-        <Text style={styles.label}>Box Prefix</Text>
-        <Pressable style={styles.selectorButton} onPress={() => setPickerOpen(true)}>
-          <View>
-            <Text style={styles.selectorTitle}>{selectedPrefix?.id || "Select a prefix"}</Text>
-            <Text style={styles.selectorSubtext}>
-              Current Number: {selectedPrefix?.current_number ?? "-"}
-            </Text>
-          </View>
-          <Ionicons name="chevron-down" size={18} color="#42685D" />
-        </Pressable>
+            <Text style={styles.label}>Box Prefix</Text>
+            <Pressable style={styles.selectorButton} onPress={() => setPickerOpen(true)}>
+              <View>
+                <Text style={styles.selectorTitle}>{selectedPrefix?.id || "Select a prefix"}</Text>
+                <Text style={styles.selectorSubtext}>
+                  Current Number: {selectedPrefix?.currentNumber ?? "-"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color="#42685D" />
+            </Pressable>
 
-        <Text style={styles.label}>Number of Boxes</Text>
-        <TextInput
-          value={quantityText}
-          onChangeText={setQuantityText}
-          placeholder="e.g. 10"
-          placeholderTextColor="#6B7D76"
-          keyboardType="number-pad"
-          style={styles.input}
-        />
+            <Text style={styles.label}>Number of Boxes</Text>
+            <TextInput
+              value={quantityText}
+              onChangeText={setQuantityText}
+              placeholder="e.g. 10"
+              placeholderTextColor="#6B7D76"
+              keyboardType="number-pad"
+              style={styles.input}
+            />
 
-        <Pressable
-          style={[styles.createButton, isSubmitting ? styles.createButtonDisabled : undefined]}
-          onPress={handleCreate}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.createButtonText}>{isSubmitting ? "Creating..." : "Create Boxes"}</Text>
-        </Pressable>
+            <Pressable
+              style={[styles.createButton, isSubmitting ? styles.createButtonDisabled : undefined]}
+              onPress={handleCreate}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.createButtonText}>
+                {isSubmitting ? "Creating..." : "Create Boxes"}
+              </Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
@@ -151,7 +161,7 @@ export default function CreateBoxScreen() {
                 }}
               >
                 <Text style={styles.modalItemTitle}>{item.id}</Text>
-                <Text style={styles.modalItemSub}>Current Number: {item.current_number}</Text>
+                <Text style={styles.modalItemSub}>Current Number: {item.currentNumber}</Text>
               </Pressable>
             ))}
             {!prefixes.length ? <Text style={styles.emptyText}>No box prefixes found.</Text> : null}

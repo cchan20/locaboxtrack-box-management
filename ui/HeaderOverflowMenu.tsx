@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/store/AuthContext";
+import { useAuth } from "@/store/useAuth";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -7,23 +7,21 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } fro
 type MenuOption = {
   key: string;
   label: string;
-  route?: "/(auth)/(options)/user-management" | "/(auth)/(options)/import-export" | "/(auth)/(options)/box-setting";
+  route?: "/(auth)/(options)/user-management" | "/(auth)/(options)/box-setting";
   isLogout?: boolean;
 };
 
 const MENU_OPTIONS: MenuOption[] = [
   { key: "user-management", label: "User Management", route: "/(auth)/(options)/user-management" },
-  { key: "import-export", label: "Import/Export Data", route: "/(auth)/(options)/import-export" },
   { key: "box-setting", label: "Box Setting", route: "/(auth)/(options)/box-setting" },
   { key: "logout", label: "Logout", isLogout: true },
 ];
 
 export function HeaderOverflowMenu() {
   const router = useRouter();
-  const { loginUser, logout } = useAuth();
+  const { isAdmin, logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const isRootUser = loginUser?.type === "root";
-  const visibleOptions = isRootUser
+  const visibleOptions = isAdmin
     ? MENU_OPTIONS
     : MENU_OPTIONS.filter((option) => option.isLogout);
 

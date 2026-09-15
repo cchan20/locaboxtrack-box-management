@@ -1,11 +1,13 @@
+import { useAppDispatch } from "@/store/hooks";
 import {
-  addPrefix,
+  createPrefix,
   deletePrefix,
-  fetchPrefixes,
-  initializeDatabase,
-  RunningNoControlRow,
-} from "@/database/appDatabase";
-import { useEffect, useState } from "react";
+  getPrefixes,
+} from "@/store/slices/prefixSlice";
+import { RunningNoControl } from "@/types/app";
+import { getErrorMessage } from "@/utils/apiError";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Alert,
@@ -18,24 +20,28 @@ import {
 } from "react-native";
 
 export default function BoxSettingScreen() {
-  const [items, setItems] = useState<RunningNoControlRow[]>([]);
+  const dispatch = useAppDispatch();
+  const [items, setItems] = useState<RunningNoControl[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
   const [prefix, setPrefix] = useState("");
-  const [isReady, setIsReady] = useState(false);
 
-  const loadPrefixes = async () => {
-    const rows = await fetchPrefixes();
-    setItems(rows);
-  };
+  const loadPrefixes = useCallback(async () => {
+    setIsFetching(true);
+    try {
+      const response = await dispatch(getPrefixes()).unwrap();
+      setItems(response.data);
+    } catch {
+      setItems([]);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [dispatch]);
 
-  useEffect(() => {
-    const boot = async () => {
-      await initializeDatabase();
-      await loadPrefixes();
-      setIsReady(true);
-    };
-
-    boot();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void loadPrefixes();
+    }, [loadPrefixes]),
+  );
 
   const handleAdd = async () => {
     const value = prefix.trim().toUpperCase();
@@ -46,23 +52,27 @@ export default function BoxSettingScreen() {
     }
 
     try {
-      await addPrefix(value);
+      await dispatch(createPrefix({ prefix: value })).unwrap();
       setPrefix("");
       await loadPrefixes();
-    } catch {
-      Alert.alert("Unable to add", "Prefix may already exist.");
+    } catch (error) {
+      Alert.alert("Unable to add", getErrorMessage(error, "Prefix may already exist."));
     }
   };
 
-  const handleDelete = (item: RunningNoControlRow) => {
+  const handleDelete = (item: RunningNoControl) => {
     Alert.alert("Delete Prefix", `Delete prefix ${item.id}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          await deletePrefix(item.id);
-          await loadPrefixes();
+          try {
+            await dispatch(deletePrefix(item.id)).unwrap();
+            await loadPrefixes();
+          } catch (error) {
+            Alert.alert("Unable to delete", getErrorMessage(error));
+          }
         },
       },
     ]);
@@ -70,12 +80,14 @@ export default function BoxSettingScreen() {
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
-      {!isReady ? <Text style={styles.loadingText}>Loading prefixes...</Text> : null}
+      {isFetching && items.length === 0 ? (
+        <Text style={styles.loadingText}>Loading prefixes...</Text>
+      ) : null}
 
       <View style={styles.panelRow}>
         <View style={[styles.card, styles.leftCard]}>
           <Text style={styles.title}>Box Setting</Text>
-          <Text style={styles.subtitle}>Manage prefix list from running_no_control table.</Text>
+          <Text style={styles.subtitle}>Manage box ID prefixes and running numbers.</Text>
 
           <View style={styles.addRow}>
             <TextInput
@@ -103,7 +115,7 @@ export default function BoxSettingScreen() {
               <View style={styles.row}>
                 <View>
                   <Text style={styles.prefixText}>{item.id}</Text>
-                  <Text style={styles.numberText}>Current Number: {item.current_number}</Text>
+                  <Text style={styles.numberText}>Current Number: {item.currentNumber}</Text>
                 </View>
                 <Pressable style={styles.deleteButton} onPress={() => handleDelete(item)}>
                   <Text style={styles.deleteButtonText}>Delete</Text>
