@@ -1,4 +1,4 @@
-import { TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
+import { BOX_PAGE_SIZE, TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
 import { useAppDispatch } from "@/store/hooks";
 import {
   getBoxById,
@@ -13,8 +13,9 @@ import { getDaysOut } from "@/utils/dates";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Keyboard,
@@ -37,23 +38,123 @@ export default function InventoryScreen() {
   const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilters, setStatusFilters] = useState<BoxStatus[]>(["available", "checked-out"]);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
+  const listRequestIdRef = useRef(0);
+  const pageRef = useRef(1);
+  const hasMoreRef = useRef(true);
+  const listLoadingRef = useRef(false);
+  const loadingMoreRef = useRef(false);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
-  const loadInventory = useCallback(async () => {
-    try {
-      const response = await dispatch(getBoxes({ status: statusFilters, search })).unwrap();
-      setBoxes(response.data);
-    } catch {
-      setBoxes([]);
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
+  const loadBoxPage = useCallback(
+    async (pageToLoad: number, append: boolean) => {
+      // Append must not bump listRequestIdRef — that cancels an in-flight page-1 refresh
+      // (FlatList often fires onEndReached during the first load).
+      if (append) {
+        if (
+          listLoadingRef.current ||
+          loadingMoreRef.current ||
+          !hasMoreRef.current ||
+          pageToLoad !== pageRef.current + 1
+        ) {
+          return;
+        }
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+      } else {
+        const requestId = ++listRequestIdRef.current;
+        listLoadingRef.current = true;
+        loadingMoreRef.current = false;
+        hasMoreRef.current = true;
+        pageRef.current = 1;
+        setListLoading(true);
+        setLoadingMore(false);
+
+        try {
+          const response = await dispatch(
+            getBoxes({
+              status: statusFilters,
+              search: debouncedSearch,
+              page: pageToLoad,
+              limit: BOX_PAGE_SIZE,
+            }),
+          ).unwrap();
+
+          if (requestId !== listRequestIdRef.current) {
+            return;
+          }
+
+          setBoxes(response.data);
+          pageRef.current = response.page;
+          hasMoreRef.current = response.hasMore;
+        } catch {
+          if (requestId !== listRequestIdRef.current) {
+            return;
+          }
+          setBoxes([]);
+          pageRef.current = 1;
+          hasMoreRef.current = false;
+        } finally {
+          if (requestId === listRequestIdRef.current) {
+            listLoadingRef.current = false;
+            setListLoading(false);
+          }
+        }
+        return;
+      }
+
+      const refreshIdAtStart = listRequestIdRef.current;
+
+      try {
+        const response = await dispatch(
+          getBoxes({
+            status: statusFilters,
+            search: debouncedSearch,
+            page: pageToLoad,
+            limit: BOX_PAGE_SIZE,
+          }),
+        ).unwrap();
+
+        // Drop append results if a full refresh started while we were loading.
+        if (refreshIdAtStart !== listRequestIdRef.current) {
+          return;
+        }
+
+        setBoxes((prev) => [...prev, ...response.data]);
+        pageRef.current = response.page;
+        hasMoreRef.current = response.hasMore;
+      } catch {
+        if (refreshIdAtStart !== listRequestIdRef.current) {
+          return;
+        }
+        hasMoreRef.current = false;
+      } finally {
+        if (refreshIdAtStart === listRequestIdRef.current) {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        }
+      }
+    },
+    [debouncedSearch, dispatch, statusFilters],
+  );
+
+  const loadSelectedBoxDetails = useCallback(async () => {
     if (!selectedBoxId) {
       setSelectedBox(null);
       return;
@@ -66,17 +167,33 @@ export default function InventoryScreen() {
       setSelectedBox(null);
       setSelectedBoxId(null);
     }
-  }, [dispatch, search, selectedBoxId, statusFilters]);
+  }, [dispatch, selectedBoxId]);
+
+  const loadSelectedBoxDetailsRef = useRef(loadSelectedBoxDetails);
+  loadSelectedBoxDetailsRef.current = loadSelectedBoxDetails;
 
   useFocusEffect(
     useCallback(() => {
-      void loadInventory();
-    }, [loadInventory]),
+      void loadBoxPage(1, false);
+      void loadSelectedBoxDetailsRef.current();
+    }, [loadBoxPage]),
   );
 
   useEffect(() => {
-    void loadInventory();
-  }, [loadInventory]);
+    void loadSelectedBoxDetails();
+  }, [loadSelectedBoxDetails]);
+
+  const loadMoreBoxes = useCallback(() => {
+    if (
+      listLoadingRef.current ||
+      loadingMoreRef.current ||
+      !hasMoreRef.current ||
+      boxes.length === 0
+    ) {
+      return;
+    }
+    void loadBoxPage(pageRef.current + 1, true);
+  }, [boxes.length, loadBoxPage]);
 
   const openCreateBox = () => {
     router.push("/(auth)/create-box");
@@ -125,7 +242,7 @@ export default function InventoryScreen() {
         }),
       ).unwrap();
       setSelectedBox(response.data);
-      void loadInventory();
+      void loadBoxPage(1, false);
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error));
     }
@@ -209,7 +326,7 @@ export default function InventoryScreen() {
                 <TextInput
                   value={search}
                   onChangeText={setSearch}
-                  placeholder="Search box id"
+                  placeholder="Search box id or customer"
                   placeholderTextColor={"#7A8F87"}
                   style={styles.input}
                 />
@@ -223,9 +340,27 @@ export default function InventoryScreen() {
                   keyboardShouldPersistTaps="handled"
                   initialNumToRender={12}
                   maxToRenderPerBatch={12}
+                  updateCellsBatchingPeriod={50}
                   windowSize={7}
                   removeClippedSubviews
-                  ListEmptyComponent={renderEmptyState}
+                  onEndReached={loadMoreBoxes}
+                  onEndReachedThreshold={0.4}
+                  ListEmptyComponent={
+                    listLoading ? (
+                      <View style={styles.emptyState}>
+                        <ActivityIndicator size="large" color="#0D7A4E" />
+                      </View>
+                    ) : (
+                      renderEmptyState()
+                    )
+                  }
+                  ListFooterComponent={
+                    loadingMore ? (
+                      <View style={styles.listFooter}>
+                        <ActivityIndicator size="small" color="#0D7A4E" />
+                      </View>
+                    ) : null
+                  }
                   renderItem={({ item }) => {
                     const daysOut = getDaysOut(item.dateOut);
                     const isWarning = item.status === "checked-out" && daysOut > 7 && daysOut <= 14;
@@ -509,6 +644,10 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 0,
     gap: 8,
+  },
+  listFooter: {
+    paddingVertical: 12,
+    alignItems: "center",
   },
   detailsCard: {
     flex: 0.95,

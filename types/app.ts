@@ -55,6 +55,82 @@ export type RunningNoControl = {
   currentNumber: number;
 };
 
+export type StoreLocation = {
+  id: string;
+  name: string;
+};
+
+export type Timeslot = {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+};
+
+export type GlobalSetting = {
+  orderWhatsappNumber: string;
+  dailyCutOffTime: string;
+  timeslots: Timeslot[];
+  storeLocations: StoreLocation[];
+};
+
+export type DailyMeal = {
+  id: string;
+  date: string;
+  dayOfWeek: string;
+  dishesName: string;
+  dishesDescription: string;
+  dishesIngredients: string;
+  basicBoxPrice: number;
+  basicBoxInventory: number;
+  extraLargePrice: number;
+  extraLargeInventory: number;
+  extraProteinPrice: number;
+  extraProteinInventory: number;
+  extraVeggiePrice: number;
+  extraVeggieInventory: number;
+  extraSoupBoxPrice: number;
+  extraSoupBoxInventory: number;
+};
+
+export type DailyMealInput = {
+  date: string;
+  dishesName: string;
+  dishesDescription: string;
+  dishesIngredients: string;
+  basicBoxPrice: number;
+  basicBoxInventory: number;
+  extraLargePrice: number;
+  extraLargeInventory: number;
+  extraProteinPrice: number;
+  extraProteinInventory: number;
+  extraVeggiePrice: number;
+  extraVeggieInventory: number;
+  extraSoupBoxPrice: number;
+  extraSoupBoxInventory: number;
+};
+
+export type OrderMeal = {
+  addons: string[];
+};
+
+export type Order = {
+  id: string;
+  customerId: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  date: string;
+  dayOfWeek: string;
+  timeslotId: string;
+  storeLocationId: string;
+  meals: OrderMeal[];
+  status: string;
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DashboardStats = {
   totalBoxes: number;
   availableCount: number;

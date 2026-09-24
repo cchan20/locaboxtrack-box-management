@@ -28,24 +28,65 @@ const initialState: BoxState = {
   error: null,
 };
 
+export type GetBoxesParams = {
+  status?: BoxStatus[];
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type GetBoxesResult = {
+  data: Box[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+type GetBoxesApiResponse = {
+  data: BoxDto[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+function buildBoxesQuery(params?: GetBoxesParams): string {
+  const query = new URLSearchParams();
+
+  if (params?.status?.length) {
+    query.set("status", params.status.join(","));
+  }
+
+  if (params?.search?.trim()) {
+    query.set("search", params.search.trim());
+  }
+
+  if (params?.page != null && params.page > 0) {
+    query.set("page", String(params.page));
+  }
+
+  if (params?.limit != null && params.limit > 0) {
+    query.set("limit", String(params.limit));
+  }
+
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
 export const getBoxes = createAsyncThunk(
   "getBoxes",
-  async (params?: { status?: BoxStatus[]; search?: string }) => {
+  async (params?: GetBoxesParams) => {
     try {
-      const searchParams = new URLSearchParams();
-
-      if (params?.status?.length) {
-        searchParams.set("status", params.status.join(","));
-      }
-
-      if (params?.search?.trim()) {
-        searchParams.set("search", params.search.trim());
-      }
-
-      const query = searchParams.toString();
-      const url = query ? `boxes?${query}` : "boxes";
-      const response = await axiosInstance.get<BoxDto[]>(url);
-      return { data: response.data.map(mapBox) };
+      const url = `boxes${buildBoxesQuery(params)}`;
+      const response = await axiosInstance.get<GetBoxesApiResponse>(url);
+      return {
+        data: (response.data.data ?? []).map(mapBox),
+        page: response.data.page,
+        limit: response.data.limit,
+        total: response.data.total,
+        hasMore: response.data.hasMore,
+      } satisfies GetBoxesResult;
     } catch (error) {
       throw error;
     }

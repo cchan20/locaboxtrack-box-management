@@ -1,8 +1,11 @@
 import authReducer from "@/store/slices/authSlice";
 import boxReducer from "@/store/slices/boxSlice";
 import customerReducer from "@/store/slices/customerSlice";
+import dailyMealReducer from "@/store/slices/dailyMealSlice";
 import dashboardReducer from "@/store/slices/dashboardSlice";
+import orderReducer from "@/store/slices/orderSlice";
 import prefixReducer from "@/store/slices/prefixSlice";
+import settingsReducer from "@/store/slices/settingsSlice";
 import transactionReducer from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -28,9 +31,12 @@ const rootReducer = combineReducers({
   auth: persistReducer(authPersistConfig, authReducer),
   box: boxReducer,
   customer: customerReducer,
+  order: orderReducer,
+  dailyMeal: dailyMealReducer,
   transaction: transactionReducer,
   user: userReducer,
   prefix: prefixReducer,
+  settings: settingsReducer,
   dashboard: dashboardReducer,
 });
 

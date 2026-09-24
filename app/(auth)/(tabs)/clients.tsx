@@ -1,4 +1,4 @@
-import { TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
+import { CUSTOMER_PAGE_SIZE, TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
 import { useAppDispatch } from "@/store/hooks";
 import { getCheckedOutBoxes } from "@/store/slices/boxSlice";
 import {
@@ -14,9 +14,10 @@ import { Box, Customer, TransactionHistoryItem } from "@/types/app";
 import { getErrorMessage } from "@/utils/apiError";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Keyboard,
@@ -35,12 +36,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ClientsScreen() {
-  const router = useRouter();
   const dispatch = useAppDispatch();
   const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [listLoading, setListLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
@@ -49,16 +54,60 @@ export default function ClientsScreen() {
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
+  const listRequestIdRef = useRef(0);
   const statCardWidth = width < 950 ? "48.5%" : "31.5%";
 
-  const loadClients = useCallback(async () => {
-    try {
-      const response = await dispatch(getCustomers(search)).unwrap();
-      setCustomers(response.data);
-    } catch {
-      setCustomers([]);
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
+  const loadCustomerPage = useCallback(
+    async (pageToLoad: number, append: boolean) => {
+      const requestId = ++listRequestIdRef.current;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setListLoading(true);
+      }
+
+      try {
+        const response = await dispatch(
+          getCustomers({
+            search: debouncedSearch,
+            page: pageToLoad,
+            limit: CUSTOMER_PAGE_SIZE,
+          }),
+        ).unwrap();
+
+        if (requestId !== listRequestIdRef.current) {
+          return;
+        }
+
+        setCustomers((prev) => (append ? [...prev, ...response.data] : response.data));
+        setPage(response.page);
+        setHasMore(response.hasMore);
+      } catch {
+        if (requestId !== listRequestIdRef.current) {
+          return;
+        }
+        if (!append) {
+          setCustomers([]);
+        }
+        setHasMore(false);
+      } finally {
+        if (requestId === listRequestIdRef.current) {
+          setListLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [debouncedSearch, dispatch],
+  );
+
+  const loadSelectedClientDetails = useCallback(async () => {
     if (!selectedClientId) {
       setSelectedClient(null);
       setCheckedOutBoxes([]);
@@ -68,7 +117,7 @@ export default function ClientsScreen() {
     try {
       const [detailResponse, allCheckedOutResponse] = await Promise.all([
         dispatch(getCustomerById(selectedClientId)).unwrap(),
-        dispatch(getCheckedOutBoxes()).unwrap(),
+        dispatch(getCheckedOutBoxes("")).unwrap(),
       ]);
 
       setSelectedClient(detailResponse.data);
@@ -80,36 +129,34 @@ export default function ClientsScreen() {
       setCheckedOutBoxes([]);
       setSelectedClientId(null);
     }
-  }, [dispatch, search, selectedClientId]);
+  }, [dispatch, selectedClientId]);
+
+  // Keep latest details loader in a ref so focus refresh can update details
+  // without depending on selectedClientId (which would reset the list).
+  const loadSelectedClientDetailsRef = useRef(loadSelectedClientDetails);
+  loadSelectedClientDetailsRef.current = loadSelectedClientDetails;
 
   useFocusEffect(
     useCallback(() => {
-      void loadClients();
-    }, [loadClients]),
+      void loadCustomerPage(1, false);
+      void loadSelectedClientDetailsRef.current();
+    }, [loadCustomerPage]),
   );
 
   useEffect(() => {
-    void loadClients();
-  }, [loadClients]);
+    void loadSelectedClientDetails();
+  }, [loadSelectedClientDetails]);
 
   useEffect(() => {
     setIsEditingCredit(false);
     setCreditDraft(1);
   }, [selectedClientId]);
 
-  const openCreateClient = () => {
-    router.push("/(auth)/create-client");
-  };
-
-  const openEditClient = () => {
-    if (!selectedClient) {
+  const loadMoreCustomers = () => {
+    if (!hasMore || listLoading || loadingMore) {
       return;
     }
-
-    router.push({
-      pathname: "/(auth)/create-client",
-      params: { customerId: selectedClient.id },
-    });
+    void loadCustomerPage(page + 1, true);
   };
 
   const openClientDetails = (client: Customer) => {
@@ -153,7 +200,7 @@ export default function ClientsScreen() {
         }),
       ).unwrap();
       setSelectedClient(response.data);
-      void loadClients();
+      void loadCustomerPage(1, false);
       Alert.alert("Success", "Risk status updated.");
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error));
@@ -187,7 +234,7 @@ export default function ClientsScreen() {
         }),
       ).unwrap();
       setSelectedClient(response.data);
-      void loadClients();
+      void loadCustomerPage(1, false);
       setIsEditingCredit(false);
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error));
@@ -196,7 +243,7 @@ export default function ClientsScreen() {
 
   const customerHasLinkedBoxes = async (customerId: string) => {
     try {
-      const response = await dispatch(getCheckedOutBoxes()).unwrap();
+      const response = await dispatch(getCheckedOutBoxes("")).unwrap();
       return response.data.some((box) => box.customerId === customerId);
     } catch {
       return true;
@@ -226,7 +273,7 @@ export default function ClientsScreen() {
               await dispatch(deleteCustomer(selectedClient.id)).unwrap();
               setSelectedClientId(null);
               setSelectedClient(null);
-              void loadClients();
+              void loadCustomerPage(1, false);
               Alert.alert("Success", "Customer deleted.");
             } catch (error) {
               Alert.alert("Error", getErrorMessage(error));
@@ -251,13 +298,11 @@ export default function ClientsScreen() {
     }
 
     return (
-      <Pressable style={styles.emptyState} onPress={openCreateClient}>
-        <Ionicons name="person-add-outline" size={36} color="#0D7A4E" />
+      <View style={styles.emptyState}>
+        <Ionicons name="people-outline" size={36} color="#0D7A4E" />
         <Text style={styles.emptyTitle}>No clients yet</Text>
-        <Text style={styles.emptyText}>
-          Tap here to create your first client.
-        </Text>
-      </Pressable>
+        <Text style={styles.emptyText}>Customers will appear here once available.</Text>
+      </View>
     );
   };
 
@@ -292,7 +337,24 @@ export default function ClientsScreen() {
                     updateCellsBatchingPeriod={50}
                     windowSize={7}
                     removeClippedSubviews
-                    ListEmptyComponent={renderEmptyState}
+                    onEndReached={loadMoreCustomers}
+                    onEndReachedThreshold={0.4}
+                    ListEmptyComponent={
+                      listLoading ? (
+                        <View style={styles.emptyState}>
+                          <ActivityIndicator size="large" color="#0D7A4E" />
+                        </View>
+                      ) : (
+                        renderEmptyState()
+                      )
+                    }
+                    ListFooterComponent={
+                      loadingMore ? (
+                        <View style={styles.listFooter}>
+                          <ActivityIndicator size="small" color="#0D7A4E" />
+                        </View>
+                      ) : null
+                    }
                     renderItem={({ item }) => (
                       <Pressable
                         style={[styles.clientItem, selectedClientId === item.id ? styles.selectedItem : null]}
@@ -336,11 +398,6 @@ export default function ClientsScreen() {
             <View style={styles.detailsCard}>
               <View style={styles.detailsTitleRow}>
                 <Text style={styles.sectionTitle}>Customer Details</Text>
-                {selectedClient ? (
-                  <Pressable style={styles.editCustomerButton} onPress={openEditClient}>
-                    <Text style={styles.editCustomerButtonText}>Edit</Text>
-                  </Pressable>
-                ) : null}
               </View>
 
               <ScrollView
@@ -595,19 +652,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  editCustomerButton: {
-    borderWidth: 1,
-    borderColor: "#A9C8BA",
-    backgroundColor: "#EDF7F3",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  editCustomerButtonText: {
-    color: "#0E6045",
-    fontSize: 12,
-    fontWeight: "700",
   },
   detailsEmptyState: {
     flex: 1,
@@ -998,6 +1042,10 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 0,
     gap: 8,
+  },
+  listFooter: {
+    paddingVertical: 12,
+    alignItems: "center",
   },
   emptyState: {
     marginTop: 8,

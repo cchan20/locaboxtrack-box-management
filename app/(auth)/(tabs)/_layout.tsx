@@ -4,7 +4,7 @@ import { useAuth } from "@/store/useAuth";
 import { Tabs, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-type CreateRoute = "/(auth)/create-box" | "/(auth)/create-client";
+type CreateRoute = "/(auth)/create-box";
 
 function HeaderActionsWithCreate({
   label,
@@ -53,26 +53,23 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="checkout"
+        name="orders"
         options={{
-          title: "Give Box",
-          tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" size={size} color={color} />,
+          title: "Order",
+          tabBarIcon: ({ color, size }) => <Ionicons name="receipt" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="checkin"
+        name="checkout"
         options={{
-          title: "Return Box",
-          tabBarIcon: ({ color, size }) => <Ionicons name="refresh-circle" size={size} color={color} />,
+          title: "Give/Return Box",
+          tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal" size={size} color={color} />,
         }}
-      />
+      />  
       <Tabs.Screen
         name="clients"
         options={{
           title: "Customers",
-          headerRight: () => (
-            <HeaderActionsWithCreate label="Create" route="/(auth)/create-client" />
-          ),
           tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
         }}
       />

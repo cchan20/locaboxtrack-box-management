@@ -7,13 +7,25 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } fro
 type MenuOption = {
   key: string;
   label: string;
-  route?: "/(auth)/(options)/user-management" | "/(auth)/(options)/box-setting";
+  route?:
+    | "/(auth)/(options)/user-management"
+    | "/(auth)/(options)/box-setting"
+    | "/(auth)/(options)/store-location"
+    | "/(auth)/(options)/pickup-timeslot"
+    | "/(auth)/(options)/menu";
   isLogout?: boolean;
 };
 
 const MENU_OPTIONS: MenuOption[] = [
   { key: "user-management", label: "User Management", route: "/(auth)/(options)/user-management" },
   { key: "box-setting", label: "Box Setting", route: "/(auth)/(options)/box-setting" },
+  { key: "store-location", label: "Store Location", route: "/(auth)/(options)/store-location" },
+  {
+    key: "pickup-timeslot",
+    label: "Pickup Timeslot",
+    route: "/(auth)/(options)/pickup-timeslot",
+  },
+  { key: "menu", label: "Menu", route: "/(auth)/(options)/menu" },
   { key: "logout", label: "Logout", isLogout: true },
 ];
 

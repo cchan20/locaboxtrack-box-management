@@ -3,7 +3,13 @@ import {
   BoxStatus,
   CheckedOutBoxDetails,
   Customer,
+  DailyMeal,
+  GlobalSetting,
+  Order,
+  OrderMeal,
   RunningNoControl,
+  StoreLocation,
+  Timeslot,
   TransactionHistoryItem,
   User,
   UserRole,
@@ -60,6 +66,65 @@ export type PrefixDto = {
   currentNumber: number;
 };
 
+export type StoreLocationDto = {
+  id: string;
+  name: string;
+};
+
+export type TimeslotDto = {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+};
+
+export type GlobalSettingDto = {
+  orderWhatsappNumber?: string;
+  dailyCutOffTime?: string;
+  timeslots?: TimeslotDto[];
+  storeLocations?: StoreLocationDto[];
+};
+
+export type DailyMealDto = {
+  id: string;
+  date: string;
+  dayOfWeek: string;
+  dishesName?: string;
+  dishesDescription?: string;
+  dishesIngredients?: string;
+  basicBoxPrice?: number;
+  basicBoxInventory?: number;
+  extraLargePrice?: number;
+  extraLargeInventory?: number;
+  extraProteinPrice?: number;
+  extraProteinInventory?: number;
+  extraVeggiePrice?: number;
+  extraVeggieInventory?: number;
+  extraSoupBoxPrice?: number;
+  extraSoupBoxInventory?: number;
+};
+
+export type OrderMealDto = {
+  addons?: string[];
+};
+
+export type OrderDto = {
+  id: string;
+  customerId: string;
+  customerName?: string;
+  customerPhone?: string;
+  date: string;
+  dayOfWeek: string;
+  timeslotId: string;
+  storeLocationId: string;
+  meals?: OrderMealDto[];
+  status: string;
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const mapBox = (dto: BoxDto): Box => ({
   id: dto.id,
   status: dto.status,
@@ -110,4 +175,63 @@ export const mapUser = (dto: UserDto): User => ({
 export const mapPrefix = (dto: PrefixDto): RunningNoControl => ({
   id: dto.id,
   currentNumber: dto.currentNumber,
+});
+
+export const mapStoreLocation = (dto: StoreLocationDto): StoreLocation => ({
+  id: dto.id,
+  name: dto.name,
+});
+
+export const mapTimeslot = (dto: TimeslotDto): Timeslot => ({
+  id: dto.id,
+  label: dto.label,
+  startTime: dto.startTime ?? "",
+  endTime: dto.endTime ?? "",
+  capacity: dto.capacity,
+});
+
+export const mapGlobalSetting = (dto: GlobalSettingDto): GlobalSetting => ({
+  orderWhatsappNumber: dto.orderWhatsappNumber ?? "",
+  dailyCutOffTime: dto.dailyCutOffTime ?? "",
+  timeslots: (dto.timeslots ?? []).map(mapTimeslot),
+  storeLocations: (dto.storeLocations ?? []).map(mapStoreLocation),
+});
+
+export const mapDailyMeal = (dto: DailyMealDto): DailyMeal => ({
+  id: dto.id,
+  date: dto.date,
+  dayOfWeek: dto.dayOfWeek,
+  dishesName: dto.dishesName ?? "",
+  dishesDescription: dto.dishesDescription ?? "",
+  dishesIngredients: dto.dishesIngredients ?? "",
+  basicBoxPrice: dto.basicBoxPrice ?? 0,
+  basicBoxInventory: dto.basicBoxInventory ?? 0,
+  extraLargePrice: dto.extraLargePrice ?? 0,
+  extraLargeInventory: dto.extraLargeInventory ?? 0,
+  extraProteinPrice: dto.extraProteinPrice ?? 0,
+  extraProteinInventory: dto.extraProteinInventory ?? 0,
+  extraVeggiePrice: dto.extraVeggiePrice ?? 0,
+  extraVeggieInventory: dto.extraVeggieInventory ?? 0,
+  extraSoupBoxPrice: dto.extraSoupBoxPrice ?? 0,
+  extraSoupBoxInventory: dto.extraSoupBoxInventory ?? 0,
+});
+
+export const mapOrderMeal = (dto: OrderMealDto): OrderMeal => ({
+  addons: dto.addons ?? [],
+});
+
+export const mapOrder = (dto: OrderDto): Order => ({
+  id: dto.id,
+  customerId: dto.customerId,
+  customerName: dto.customerName ?? null,
+  customerPhone: dto.customerPhone ?? null,
+  date: dto.date,
+  dayOfWeek: dto.dayOfWeek,
+  timeslotId: dto.timeslotId,
+  storeLocationId: dto.storeLocationId,
+  meals: (dto.meals ?? []).map(mapOrderMeal),
+  status: dto.status,
+  totalAmount: dto.totalAmount,
+  createdAt: dto.createdAt,
+  updatedAt: dto.updatedAt,
 });

@@ -13,3 +13,7 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || DEFAULT_HOST;
 
 export const TRANSACTION_HISTORY_LIMIT = 100;
+
+export const CUSTOMER_PAGE_SIZE = 20;
+
+export const BOX_PAGE_SIZE = 20;

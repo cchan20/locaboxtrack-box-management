@@ -2,7 +2,14 @@ import { useAuth } from "@/store/useAuth";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 
-const ADMIN_ONLY_ROUTES = new Set(["user-management", "user-form", "box-setting"]);
+const ADMIN_ONLY_ROUTES = new Set([
+  "user-management",
+  "user-form",
+  "box-setting",
+  "store-location",
+  "pickup-timeslot",
+  "menu",
+]);
 
 export default function AuthLayout() {
   const router = useRouter();
@@ -53,19 +60,37 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen
-        name="create-box"
+        name="(options)/store-location"
         options={{
           headerShown: true,
-          title: "Create Box",
+          title: "Store Location",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}
       />
       <Stack.Screen
-        name="create-client"
+        name="(options)/pickup-timeslot"
         options={{
           headerShown: true,
-          title: "Create Client",
+          title: "Pickup Timeslot",
+          headerStyle: { backgroundColor: "#0B5D44" },
+          headerTintColor: "#FFFFFF",
+        }}
+      />
+      <Stack.Screen
+        name="(options)/menu"
+        options={{
+          headerShown: true,
+          title: "Menu",
+          headerStyle: { backgroundColor: "#0B5D44" },
+          headerTintColor: "#FFFFFF",
+        }}
+      />
+      <Stack.Screen
+        name="create-box"
+        options={{
+          headerShown: true,
+          title: "Create Box",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}

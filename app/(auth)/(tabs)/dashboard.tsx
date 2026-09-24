@@ -1,9 +1,20 @@
 import { useAppDispatch } from "@/store/hooks";
 import { getCheckedOutBoxDetails } from "@/store/slices/boxSlice";
 import { getDashboardStats } from "@/store/slices/dashboardSlice";
+import { getOrders } from "@/store/slices/orderSlice";
+import { getGlobalSettings } from "@/store/slices/settingsSlice";
 import { getTransactionsSince } from "@/store/slices/transactionSlice";
-import { CheckedOutBoxDetails, DashboardStats } from "@/types/app";
+import {
+  CheckedOutBoxDetails,
+  DashboardStats,
+  Order,
+  Timeslot,
+} from "@/types/app";
 import { getDaysOut } from "@/utils/dates";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerChangeEvent,
+} from "@react-native-community/datetimepicker";
 import * as echarts from "echarts/core";
 import { BarChart } from "echarts/charts";
 import {
@@ -15,8 +26,10 @@ import { SkiaChart, SkiaRenderer } from "@wuba/react-native-echarts";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,6 +48,7 @@ echarts.use([
 ]);
 
 const CHART_HEIGHT = 260;
+const ACTIVITY_DAYS = 14;
 
 const EMPTY_STATS: DashboardStats = {
   totalBoxes: 0,
@@ -46,24 +60,175 @@ const EMPTY_STATS: DashboardStats = {
   overdueCount: 0,
 };
 
+const ADDON_LABELS: Record<string, string> = {
+  xl: "Extra Large",
+  pro: "Extra Protein",
+  veg: "Extra Veggie",
+  soup: "Extra Soup",
+};
+
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+type DashboardTab = "boxes" | "orders";
+type OrderScopeTab = "overall" | string;
+
+type WeekDay = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  date: Date;
+};
+
+type MealCombinationCount = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+function formatDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function buildWeekdays(anchor = new Date()): WeekDay[] {
+  const today = startOfDay(anchor);
+  const dayOfWeek = today.getDay(); // 0=Sun ... 6=Sat
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    const dayName = DAY_NAMES[date.getDay()];
+    return {
+      key: formatDateKey(date),
+      label: dayName,
+      shortLabel: dayName.slice(0, 3),
+      date,
+    };
+  });
+}
+
+function defaultWeekdayKey(weekDays: WeekDay[], anchor = new Date()) {
+  const todayKey = formatDateKey(startOfDay(anchor));
+  const todayMatch = weekDays.find((day) => day.key === todayKey);
+  if (todayMatch) {
+    return todayMatch.key;
+  }
+  return weekDays[weekDays.length - 1]?.key ?? todayKey;
+}
+
+function formatWeekRange(weekDays: WeekDay[]) {
+  if (weekDays.length === 0) {
+    return "";
+  }
+  const first = weekDays[0].date;
+  const last = weekDays[weekDays.length - 1].date;
+  const fmt = (value: Date) =>
+    `${value.getMonth() + 1}/${value.getDate()}/${value.getFullYear()}`;
+  return `${fmt(first)} – ${fmt(last)}`;
+}
+
+function formatAddonLabel(addon: string) {
+  return ADDON_LABELS[addon] ?? addon;
+}
+
+function formatCurrency(amount: number) {
+  return `$${amount.toFixed(2)}`;
+}
+
+function mealCount(orders: Order[]) {
+  return orders.reduce((sum, order) => sum + order.meals.length, 0);
+}
+
+function mealCombinationKey(addons: string[]) {
+  return [...addons]
+    .map((addon) => addon.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function mealCombinationLabel(addons: string[]) {
+  if (addons.length === 0) {
+    return "Basic Meal";
+  }
+  return `Basic Meal + ${[...addons].sort().map(formatAddonLabel).join(" + ")}`;
+}
+
+function countMealCombinations(orders: Order[]): MealCombinationCount[] {
+  const counts = new Map<string, MealCombinationCount>();
+
+  for (const order of orders) {
+    for (const meal of order.meals) {
+      const key = mealCombinationKey(meal.addons);
+      const existing = counts.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        counts.set(key, {
+          key,
+          label: mealCombinationLabel(meal.addons),
+          count: 1,
+        });
+      }
+    }
+  }
+
+  return Array.from(counts.values()).sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+  );
+}
+
 export default function DashboardScreen() {
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
   const chartWidth = width - 32;
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>("boxes");
   const [detailsModalType, setDetailsModalType] = useState<
     "total-out" | "safe" | "warning" | "overdue" | null
   >(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_STATS);
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<CheckedOutBoxDetails[]>([]);
-
   const chartRef = useRef<any>(null);
   const [chartData, setChartData] = useState<{
     dates: string[];
     checkouts: number[];
     checkins: number[];
   }>({ dates: [], checkouts: [], checkins: [] });
+
+  const weekAnchor = useMemo(() => startOfDay(new Date()), []);
+  const [selectedWeekDate, setSelectedWeekDate] = useState(weekAnchor);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const weekDays = useMemo(
+    () => buildWeekdays(selectedWeekDate),
+    [selectedWeekDate],
+  );
+  const [selectedDayKey, setSelectedDayKey] = useState(
+    () => defaultWeekdayKey(weekDays, weekAnchor),
+  );
+  const [orderScopeTab, setOrderScopeTab] = useState<OrderScopeTab>("overall");
+  const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   const closeDetailsModal = useCallback(() => {
     setDetailsModalType(null);
@@ -106,6 +271,83 @@ export default function DashboardScreen() {
           ? overdueBoxes
           : [];
 
+  const selectedDay = useMemo(
+    () => weekDays.find((day) => day.key === selectedDayKey) ?? weekDays[weekDays.length - 1],
+    [selectedDayKey, weekDays],
+  );
+
+  const dayOrders = useMemo(
+    () =>
+      orders
+        .filter((order) => order.date === selectedDayKey)
+        .sort((a, b) =>
+          (a.customerName ?? "").localeCompare(b.customerName ?? "", undefined, {
+            sensitivity: "base",
+          }),
+        ),
+    [orders, selectedDayKey],
+  );
+
+  const scopedOrders = useMemo(() => {
+    if (orderScopeTab === "overall") {
+      return dayOrders;
+    }
+    return dayOrders.filter((order) => order.timeslotId === orderScopeTab);
+  }, [dayOrders, orderScopeTab]);
+
+  const dayCap = useMemo(
+    () => timeslots.reduce((sum, slot) => sum + (slot.capacity || 0), 0),
+    [timeslots],
+  );
+
+  const scopedCapacity = useMemo(() => {
+    if (orderScopeTab === "overall") {
+      return dayCap;
+    }
+    return timeslots.find((slot) => slot.id === orderScopeTab)?.capacity ?? 0;
+  }, [dayCap, orderScopeTab, timeslots]);
+
+  const dayTotalMeals = useMemo(() => mealCount(dayOrders), [dayOrders]);
+  const scopedTotalMeals = useMemo(() => mealCount(scopedOrders), [scopedOrders]);
+  const scopedSlotsRemaining = Math.max(scopedCapacity - scopedTotalMeals, 0);
+  const scopedEstimatedRevenue = useMemo(
+    () => scopedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+    [scopedOrders],
+  );
+  const mealCombinations = useMemo(
+    () => countMealCombinations(scopedOrders),
+    [scopedOrders],
+  );
+
+  const dayMealCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const day of weekDays) {
+      counts[day.key] = mealCount(orders.filter((order) => order.date === day.key));
+    }
+    return counts;
+  }, [orders, weekDays]);
+
+  const weekRangeLabel = useMemo(() => formatWeekRange(weekDays), [weekDays]);
+
+  const onWeekDateChange = useCallback(
+    (_event: DateTimePickerChangeEvent, selected?: Date) => {
+      if (Platform.OS !== "ios") {
+        setShowDatePicker(false);
+      }
+
+      if (!selected) {
+        return;
+      }
+
+      const nextDate = startOfDay(selected);
+      const nextWeek = buildWeekdays(nextDate);
+      setSelectedWeekDate(nextDate);
+      setSelectedDayKey(defaultWeekdayKey(nextWeek, nextDate));
+      setOrderScopeTab("overall");
+    },
+    [],
+  );
+
   const renderModalItem = useCallback(
     ({ item }: { item: CheckedOutBoxDetails }) => (
       <View style={styles.modalItem}>
@@ -129,20 +371,29 @@ export default function DashboardScreen() {
   );
 
   const loadDashboard = useCallback(async () => {
+    setOrdersLoading(true);
     try {
-      const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      const [statsResponse, checkedOutResponse, transactionsResponse] =
+      const since = Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000;
+      const from = weekDays[0]?.key;
+      const to = weekDays[weekDays.length - 1]?.key;
+
+      const [statsResponse, checkedOutResponse, transactionsResponse, settingsResponse, ordersResponse] =
         await Promise.all([
           dispatch(getDashboardStats()).unwrap(),
           dispatch(getCheckedOutBoxDetails()).unwrap(),
           dispatch(getTransactionsSince(since)).unwrap(),
+          dispatch(getGlobalSettings()).unwrap(),
+          from && to
+            ? dispatch(getOrders({ from, to })).unwrap()
+            : Promise.resolve({ data: [] as Order[] }),
         ]);
+
       const stats = statsResponse.data;
       const checkedOut = checkedOutResponse.data;
       const transactions = transactionsResponse.data;
 
-      const days = Array.from({ length: 14 }, (_, i) => {
-        const d = new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000);
+      const days = Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
+        const d = new Date(Date.now() - (ACTIVITY_DAYS - 1 - i) * 24 * 60 * 60 * 1000);
         return {
           label: `${d.getMonth() + 1}/${d.getDate()}`,
           key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
@@ -170,10 +421,29 @@ export default function DashboardScreen() {
         checkouts: days.map((d) => checkoutMap[d.key] ?? 0),
         checkins: days.map((d) => checkinMap[d.key] ?? 0),
       });
+      setTimeslots(settingsResponse.data.timeslots ?? []);
+      setOrders(ordersResponse.data ?? []);
     } catch (error) {
       console.warn("Failed to load dashboard:", error);
+    } finally {
+      setOrdersLoading(false);
     }
-  }, [dispatch]);
+  }, [dispatch, weekDays]);
+
+  useEffect(() => {
+    if (
+      orderScopeTab !== "overall" &&
+      !timeslots.some((slot) => slot.id === orderScopeTab)
+    ) {
+      setOrderScopeTab("overall");
+    }
+  }, [orderScopeTab, timeslots]);
+
+  useEffect(() => {
+    if (!weekDays.some((day) => day.key === selectedDayKey)) {
+      setSelectedDayKey(defaultWeekdayKey(weekDays, selectedWeekDate));
+    }
+  }, [selectedDayKey, selectedWeekDate, weekDays]);
 
   useFocusEffect(
     useCallback(() => {
@@ -182,7 +452,7 @@ export default function DashboardScreen() {
   );
 
   useEffect(() => {
-    if (!chartRef.current || chartData.dates.length === 0) {
+    if (activeTab !== "boxes" || !chartRef.current || chartData.dates.length === 0) {
       return;
     }
 
@@ -245,57 +515,280 @@ export default function DashboardScreen() {
     });
 
     return () => chart.dispose();
-  }, [chartData, chartWidth]);
+  }, [activeTab, chartData, chartWidth]);
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
+      <View style={styles.headerRow}>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.title} numberOfLines={1}>
+            {activeTab === "boxes" ? "LocaBox Tracker" : "Order Board"}
+          </Text>
+          <Text
+            style={[
+              styles.headerMeta,
+              activeTab !== "orders" ? styles.headerMetaHidden : null,
+            ]}
+          >
+            {dayTotalMeals} / {dayCap} meals booked
+          </Text>
+        </View>
+
+        <View style={styles.dashboardTabs}>
+          <Pressable
+            style={[
+              styles.dashboardTab,
+              activeTab === "boxes" ? styles.dashboardTabActive : null,
+            ]}
+            onPress={() => setActiveTab("boxes")}
+          >
+            <Text
+              style={[
+                styles.dashboardTabText,
+                activeTab === "boxes" ? styles.dashboardTabTextActive : null,
+              ]}
+            >
+              Box Tracker
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.dashboardTab,
+              activeTab === "orders" ? styles.dashboardTabActive : null,
+            ]}
+            onPress={() => setActiveTab("orders")}
+          >
+            <Text
+              style={[
+                styles.dashboardTabText,
+                activeTab === "orders" ? styles.dashboardTabTextActive : null,
+              ]}
+            >
+              Order Overview
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>LocaBox Tracker</Text>
-        </View>
+        {activeTab === "boxes" ? (
+          <>
+            <View style={styles.metricsGrid}>
+              <MetricCard
+                label="Available"
+                value={dashboardStats.availableCount}
+                color="#0D7A4E"
+                width={metricCardWidth}
+              />
+              <MetricCard
+                label="Safe (0-7)"
+                value={dashboardStats.safeCount}
+                color="#1C5AA6"
+                width={metricCardWidth}
+                onPress={() => setDetailsModalType("safe")}
+              />
+              <MetricCard
+                label="Warning (7-14)"
+                value={dashboardStats.warningCount}
+                color="#C48700"
+                width={metricCardWidth}
+                onPress={() => setDetailsModalType("warning")}
+              />
+              <MetricCard
+                label="Overdue (>14)"
+                value={dashboardStats.overdueCount}
+                color="#BD2323"
+                width={metricCardWidth}
+                onPress={() => setDetailsModalType("overdue")}
+              />
+            </View>
 
-        <View style={styles.metricsGrid}>
-          <MetricCard
-            label="Available"
-            value={dashboardStats.availableCount}
-            color="#0D7A4E"
-            width={metricCardWidth}
-          />
-          <MetricCard
-            label="Safe (0-7)"
-            value={dashboardStats.safeCount}
-            color="#1C5AA6"
-            width={metricCardWidth}
-            onPress={() => setDetailsModalType("safe")}
-          />
-          <MetricCard
-            label="Warning (7-14)"
-            value={dashboardStats.warningCount}
-            color="#C48700"
-            width={metricCardWidth}
-            onPress={() => setDetailsModalType("warning")}
-          />
-          <MetricCard
-            label="Overdue (>14)"
-            value={dashboardStats.overdueCount}
-            color="#BD2323"
-            width={metricCardWidth}
-            onPress={() => setDetailsModalType("overdue")}
-          />
-        </View>
+            <Text style={styles.sectionTitle}>Last 14 Days Activity</Text>
+            <View
+              style={[
+                styles.chartContainer,
+                { width: chartWidth, height: CHART_HEIGHT },
+              ]}
+            >
+              <SkiaChart ref={chartRef} />
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.weekPickerRow}>
+              <Text style={styles.weekPickerLabel}>Week</Text>
+              <Pressable
+                style={styles.dateSelector}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateSelectorText}>{weekRangeLabel}</Text>
+                <Ionicons name="calendar-outline" size={16} color="#42685D" />
+              </Pressable>
+            </View>
 
-        <Text style={styles.sectionTitle}>Last 14 Days Activity</Text>
-        <View
-          style={[
-            styles.chartContainer,
-            { width: chartWidth, height: CHART_HEIGHT },
-          ]}
-        >
-          <SkiaChart ref={chartRef} />
-        </View>
+            {showDatePicker ? (
+              <DateTimePicker
+                value={selectedWeekDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={onWeekDateChange}
+              />
+            ) : null}
+
+            {Platform.OS === "ios" && showDatePicker ? (
+              <Pressable
+                style={styles.datePickerDone}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.datePickerDoneText}>Done</Text>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.dayTabs}>
+              {weekDays.map((day) => {
+                const isActive = day.key === selectedDayKey;
+                const count = dayMealCounts[day.key] ?? 0;
+                return (
+                  <Pressable
+                    key={day.key}
+                    style={[styles.dayTab, isActive ? styles.dayTabActive : null]}
+                    onPress={() => {
+                      setSelectedDayKey(day.key);
+                      setOrderScopeTab("overall");
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayTabLabel,
+                        isActive ? styles.dayTabLabelActive : null,
+                      ]}
+                    >
+                      {day.shortLabel}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.dayTabCount,
+                        isActive ? styles.dayTabCountActive : null,
+                      ]}
+                    >
+                      {count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scopeTabs}
+            >
+              <Pressable
+                style={[
+                  styles.scopeTab,
+                  orderScopeTab === "overall" ? styles.scopeTabActive : null,
+                ]}
+                onPress={() => setOrderScopeTab("overall")}
+              >
+                <Text
+                  style={[
+                    styles.scopeTabText,
+                    orderScopeTab === "overall" ? styles.scopeTabTextActive : null,
+                  ]}
+                >
+                  Overall
+                </Text>
+              </Pressable>
+              {timeslots.map((slot) => {
+                const isActive = orderScopeTab === slot.id;
+                return (
+                  <Pressable
+                    key={slot.id}
+                    style={[styles.scopeTab, isActive ? styles.scopeTabActive : null]}
+                    onPress={() => setOrderScopeTab(slot.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.scopeTabText,
+                        isActive ? styles.scopeTabTextActive : null,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {slot.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {ordersLoading ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator color="#0D7A4E" />
+                <Text style={styles.loadingText}>Loading orders...</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.scopeHeading}>
+                  {selectedDay?.label}
+                  {orderScopeTab === "overall"
+                    ? " · Overall"
+                    : ` · ${
+                        timeslots.find((slot) => slot.id === orderScopeTab)?.label ??
+                        "Timeslot"
+                      }`}
+                </Text>
+
+                <View style={styles.metricsGrid}>
+                  <SummaryCard
+                    label="Members Ordered"
+                    value={String(scopedOrders.length)}
+                    width={metricCardWidth}
+                  />
+                  <SummaryCard
+                    label="Total Meals"
+                    value={String(scopedTotalMeals)}
+                    width={metricCardWidth}
+                  />
+                  <SummaryCard
+                    label="Slots Remaining"
+                    value={String(scopedSlotsRemaining)}
+                    width={metricCardWidth}
+                  />
+                  <SummaryCard
+                    label="Est. Revenue"
+                    value={formatCurrency(scopedEstimatedRevenue)}
+                    width={metricCardWidth}
+                  />
+                </View>
+
+                <View style={styles.combinationCard}>
+                  <Text style={styles.combinationTitle}>Meal Combinations</Text>
+                  {mealCombinations.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyText}>No meals ordered for this view.</Text>
+                    </View>
+                  ) : (
+                    mealCombinations.map((item, index) => (
+                      <View
+                        key={item.key}
+                        style={[
+                          styles.combinationRow,
+                          index === 0 ? styles.combinationRowFirst : null,
+                        ]}
+                      >
+                        <Text style={styles.combinationLabel}>{item.label}</Text>
+                        <Text style={styles.combinationCount}>×{item.count}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </>
+            )}
+          </>
+        )}
       </ScrollView>
 
       <Modal
@@ -376,22 +869,76 @@ function MetricCard({
   );
 }
 
+function SummaryCard({
+  label,
+  value,
+  width,
+}: {
+  label: string;
+  value: string;
+  width: `${number}%`;
+}) {
+  return (
+    <View style={[styles.summaryCard, { width }]}>
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F8F7",
     padding: 16,
   },
+  dashboardTabs: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    padding: 2,
+    gap: 2,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  dashboardTab: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  dashboardTabActive: {
+    backgroundColor: "#0D7A4E",
+  },
+  dashboardTabText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#5B7268",
+  },
+  dashboardTabTextActive: {
+    color: "#FFFFFF",
+  },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    alignItems: "flex-start",
+    marginBottom: 12,
+    gap: 10,
+  },
+  headerTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#0B3D2E",
+    lineHeight: 28,
   },
   metricsGrid: {
     flexDirection: "row",
@@ -420,11 +967,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   scrollContent: {
-    paddingBottom: 80,
+    paddingBottom: 16,
+    gap: 12,
   },
   sectionTitle: {
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: -2,
     fontSize: 18,
     fontWeight: "700",
     color: "#0B3D2E",
@@ -435,6 +983,195 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DCE9E4",
     overflow: "hidden",
+  },
+  headerMeta: {
+    fontSize: 12,
+    color: "#5B7268",
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  headerMetaHidden: {
+    opacity: 0,
+  },
+  dayTabs: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    padding: 4,
+    gap: 4,
+  },
+  dayTab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  dayTabActive: {
+    backgroundColor: "#0D7A4E",
+  },
+  dayTabLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#5B7268",
+  },
+  dayTabLabelActive: {
+    color: "#FFFFFF",
+  },
+  dayTabCount: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#8A9A93",
+  },
+  dayTabCountActive: {
+    color: "#B7E4C7",
+  },
+  weekPickerRow: {
+    gap: 6,
+  },
+  weekPickerLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#43635A",
+  },
+  dateSelector: {
+    borderWidth: 1,
+    borderColor: "#C6D6D0",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  dateSelectorText: {
+    flex: 1,
+    color: "#1E2A26",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  datePickerDone: {
+    alignSelf: "flex-end",
+    backgroundColor: "#E8EFEC",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  datePickerDoneText: {
+    color: "#35574A",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  scopeTabs: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  scopeTab: {
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  scopeTabActive: {
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
+  },
+  scopeTabText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#5B7268",
+  },
+  scopeTabTextActive: {
+    color: "#FFFFFF",
+  },
+  scopeHeading: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0B3D2E",
+  },
+  loadingState: {
+    paddingVertical: 28,
+    alignItems: "center",
+    gap: 8,
+  },
+  loadingText: {
+    color: "#5B7268",
+    fontSize: 13,
+  },
+  emptyState: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#CFE0D9",
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: "center",
+    backgroundColor: "#FAFCFB",
+  },
+  emptyText: {
+    color: "#617870",
+    fontSize: 13,
+  },
+  combinationCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    padding: 14,
+    gap: 10,
+  },
+  combinationTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0B3D2E",
+  },
+  combinationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E5EFEB",
+    paddingTop: 10,
+  },
+  combinationRowFirst: {
+    borderTopWidth: 0,
+    paddingTop: 0,
+  },
+  combinationLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#13493A",
+  },
+  combinationCount: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0D7A4E",
+  },
+  summaryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    alignItems: "center",
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0D7A4E",
+  },
+  summaryLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#8A9A93",
+    fontWeight: "600",
+    textAlign: "center",
   },
   modalBackdrop: {
     flex: 1,

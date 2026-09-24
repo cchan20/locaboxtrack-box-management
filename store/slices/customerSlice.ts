@@ -17,16 +17,76 @@ const initialState: CustomerState = {
   error: null,
 };
 
+export type GetCustomersParams = {
+  search?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type GetCustomersResult = {
+  data: Customer[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+type GetCustomersApiResponse = {
+  data: CustomerDto[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+function buildCustomersQuery(params?: GetCustomersParams): string {
+  const query = new URLSearchParams();
+  const search = params?.search?.trim();
+  const name = params?.name?.trim();
+  const phone = params?.phone?.trim();
+  const email = params?.email?.trim();
+
+  if (search) {
+    query.set("search", search);
+  }
+  if (name) {
+    query.set("name", name);
+  }
+  if (phone) {
+    query.set("phone", phone);
+  }
+  if (email) {
+    query.set("email", email);
+  }
+  if (params?.page != null && params.page > 0) {
+    query.set("page", String(params.page));
+  }
+  if (params?.limit != null && params.limit > 0) {
+    query.set("limit", String(params.limit));
+  }
+
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
 export const getCustomers = createAsyncThunk(
   "getCustomers",
-  async (search?: string) => {
+  async (params?: GetCustomersParams | string) => {
     try {
-      const query = search?.trim()
-        ? `?search=${encodeURIComponent(search.trim())}`
-        : "";
-      const url = `customers${query}`;
-      const response = await axiosInstance.get<CustomerDto[]>(url);
-      return { data: response.data.map(mapCustomer) };
+      const normalized: GetCustomersParams | undefined =
+        typeof params === "string" ? { search: params } : params;
+      const url = `customers${buildCustomersQuery(normalized)}`;
+      const response = await axiosInstance.get<GetCustomersApiResponse>(url);
+      return {
+        data: (response.data.data ?? []).map(mapCustomer),
+        page: response.data.page,
+        limit: response.data.limit,
+        total: response.data.total,
+        hasMore: response.data.hasMore,
+      } satisfies GetCustomersResult;
     } catch (error) {
       throw error;
     }
@@ -39,49 +99,6 @@ export const getCustomerById = createAsyncThunk(
     try {
       const url = `customers/${encodeURIComponent(id)}`;
       const response = await axiosInstance.get<CustomerDto>(url);
-      return { data: mapCustomer(response.data) };
-    } catch (error) {
-      throw error;
-    }
-  },
-);
-
-export const createCustomer = createAsyncThunk(
-  "createCustomer",
-  async (payload: {
-    name: string;
-    phone: string;
-    email: string;
-    externalId?: string;
-  }) => {
-    try {
-      const url = "customers";
-      const response = await axiosInstance.post<CustomerDto>(url, payload);
-      return { data: mapCustomer(response.data) };
-    } catch (error) {
-      throw error;
-    }
-  },
-);
-
-export const updateCustomer = createAsyncThunk(
-  "updateCustomer",
-  async (payload: {
-    id: string;
-    name: string;
-    phone: string;
-    email: string;
-    externalId?: string | null;
-  }) => {
-    try {
-      const { id, ...body } = payload;
-      const url = `customers/${encodeURIComponent(id)}`;
-      const response = await axiosInstance.put<CustomerDto>(url, {
-        name: body.name,
-        phone: body.phone,
-        email: body.email,
-        ...(body.externalId != null ? { externalId: body.externalId } : {}),
-      });
       return { data: mapCustomer(response.data) };
     } catch (error) {
       throw error;
@@ -166,19 +183,6 @@ const customerSlice = createSlice({
       state.selectedCustomer = action.payload.data;
     });
     builder.addCase(getCustomerById.rejected, setRejected);
-
-    builder.addCase(createCustomer.pending, setPending);
-    builder.addCase(createCustomer.fulfilled, (state) => {
-      state.loading = false;
-    });
-    builder.addCase(createCustomer.rejected, setRejected);
-
-    builder.addCase(updateCustomer.pending, setPending);
-    builder.addCase(updateCustomer.fulfilled, (state, action) => {
-      state.loading = false;
-      state.selectedCustomer = action.payload.data;
-    });
-    builder.addCase(updateCustomer.rejected, setRejected);
 
     builder.addCase(setCustomerRiskStatus.pending, setPending);
     builder.addCase(setCustomerRiskStatus.fulfilled, (state, action) => {
