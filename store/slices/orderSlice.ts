@@ -1,6 +1,6 @@
 import axiosInstance from "@/store/utility/axiosInstance";
 import { OrderDto, mapOrder } from "@/store/utility/mappers";
-import { Order } from "@/types/app";
+import { DayAvailability, Order, UpsertOrderPayload } from "@/types/app";
 import { PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 type OrderState = {
@@ -20,6 +20,17 @@ export type GetOrdersParams = {
   to: string;
   timeslotId?: string;
   storeLocationId?: string;
+};
+
+export type UpsertOrderForCustomerParams = {
+  customerId: string;
+  date: string;
+  payload: UpsertOrderPayload;
+};
+
+export type GetAvailabilityParams = {
+  from: string;
+  to: string;
 };
 
 function buildOrdersQuery(params: GetOrdersParams): string {
@@ -45,6 +56,38 @@ export const getOrders = createAsyncThunk(
       const url = `orders${buildOrdersQuery(params)}`;
       const response = await axiosInstance.get<OrderDto[]>(url);
       return { data: (response.data ?? []).map(mapOrder) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export const upsertOrderForCustomer = createAsyncThunk(
+  "upsertOrderForCustomer",
+  async ({ customerId, date, payload }: UpsertOrderForCustomerParams) => {
+    try {
+      const response = await axiosInstance.put<OrderDto>(
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}`,
+        payload,
+      );
+      return { data: mapOrder(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export const getAvailability = createAsyncThunk(
+  "getAvailability",
+  async (params: GetAvailabilityParams) => {
+    try {
+      const query = new URLSearchParams();
+      query.set("from", params.from);
+      query.set("to", params.to);
+      const response = await axiosInstance.get<DayAvailability[]>(
+        `inventory/availability?${query.toString()}`,
+      );
+      return { data: response.data ?? [] };
     } catch (error) {
       throw error;
     }
@@ -79,6 +122,12 @@ const orderSlice = createSlice({
       state.orders = action.payload.data;
     });
     builder.addCase(getOrders.rejected, setRejected);
+
+    builder.addCase(upsertOrderForCustomer.pending, setPending);
+    builder.addCase(upsertOrderForCustomer.fulfilled, (state) => {
+      state.loading = false;
+    });
+    builder.addCase(upsertOrderForCustomer.rejected, setRejected);
   },
 });
 

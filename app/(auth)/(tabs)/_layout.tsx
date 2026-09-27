@@ -4,7 +4,7 @@ import { useAuth } from "@/store/useAuth";
 import { Tabs, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-type CreateRoute = "/(auth)/create-box";
+type CreateRoute = "/(auth)/create-box" | "/(auth)/create-order";
 
 function HeaderActionsWithCreate({
   label,
@@ -56,6 +56,9 @@ export default function TabsLayout() {
         name="orders"
         options={{
           title: "Order",
+          headerRight: () => (
+            <HeaderActionsWithCreate label="Create" route="/(auth)/create-order" />
+          ),
           tabBarIcon: ({ color, size }) => <Ionicons name="receipt" size={size} color={color} />,
         }}
       />

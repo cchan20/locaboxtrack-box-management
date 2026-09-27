@@ -131,6 +131,44 @@ export type Order = {
   updatedAt: string;
 };
 
+export type UpsertOrderPayload = {
+  timeslotId: string;
+  storeLocationId: string;
+  meals: OrderMeal[];
+};
+
+export type StockLevel = {
+  original: number;
+  sold: number;
+  remaining: number;
+};
+
+export type TimeslotAvailability = {
+  timeslotId: string;
+  label: string;
+  original: number;
+  sold: number;
+  remaining: number;
+};
+
+export type DayAvailability = {
+  date: string;
+  dayOfWeek: string;
+  basicBox: StockLevel;
+  extraLarge: StockLevel;
+  extraProtein: StockLevel;
+  extraVeggie: StockLevel;
+  extraSoupBox: StockLevel;
+  timeslots: TimeslotAvailability[];
+};
+
+export type WeekDay =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday";
+
 export type DashboardStats = {
   totalBoxes: number;
   availableCount: number;

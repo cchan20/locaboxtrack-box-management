@@ -17,7 +17,16 @@ export const DAILY_MEAL_CSV_HEADERS = [
   "extraSoupBoxInventory",
 ] as const;
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})$/;
+
+/** Normalize a CSV date (YYYYMMDD) to the API date format (YYYY-MM-DD). */
+function normalizeCsvDate(value: string): string | null {
+  const match = DATE_PATTERN.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
 
 function parseCsvRows(content: string): string[][] {
   const rows: string[][] = [];
@@ -132,12 +141,13 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
       continue;
     }
 
-    const date = cell(row, "date");
-    if (!DATE_PATTERN.test(date)) {
-      throw new Error(`Row ${rowNumber}: date must be YYYY-MM-DD.`);
+    const rawDate = cell(row, "date");
+    const date = normalizeCsvDate(rawDate);
+    if (!date) {
+      throw new Error(`Row ${rowNumber}: date must be YYYYMMDD.`);
     }
     if (seenDates.has(date)) {
-      throw new Error(`Row ${rowNumber}: duplicate date ${date}.`);
+      throw new Error(`Row ${rowNumber}: duplicate date ${rawDate}.`);
     }
     seenDates.add(date);
 

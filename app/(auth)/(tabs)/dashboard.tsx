@@ -202,7 +202,7 @@ export default function DashboardScreen() {
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
   const chartWidth = width - 32;
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>("boxes");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("orders");
   const [detailsModalType, setDetailsModalType] = useState<
     "total-out" | "safe" | "warning" | "overdue" | null
   >(null);
@@ -308,6 +308,8 @@ export default function DashboardScreen() {
   }, [dayCap, orderScopeTab, timeslots]);
 
   const dayTotalMeals = useMemo(() => mealCount(dayOrders), [dayOrders]);
+  const dayRemaining = Math.max(dayCap - dayTotalMeals, 0);
+  const daySoldRatio = dayCap > 0 ? Math.min(dayTotalMeals / dayCap, 1) : 0;
   const scopedTotalMeals = useMemo(() => mealCount(scopedOrders), [scopedOrders]);
   const scopedSlotsRemaining = Math.max(scopedCapacity - scopedTotalMeals, 0);
   const scopedEstimatedRevenue = useMemo(
@@ -522,7 +524,7 @@ export default function DashboardScreen() {
       <View style={styles.headerRow}>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.title} numberOfLines={1}>
-            {activeTab === "boxes" ? "LocaBox Tracker" : "Order Board"}
+            {activeTab === "boxes" ? "LocaBox Tracker" : "Order Overview"}
           </Text>
           <Text
             style={[
@@ -679,6 +681,34 @@ export default function DashboardScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+
+            <View style={styles.inventoryBarCard}>
+              <View style={styles.inventoryBarHeader}>
+                <Text style={styles.inventoryBarTitle}>Meal Inventory</Text>
+                <Text style={styles.inventoryBarMeta}>
+                  {dayTotalMeals} sold · {dayRemaining} remaining
+                </Text>
+              </View>
+              <View style={styles.inventoryBarTrack}>
+                <View
+                  style={[
+                    styles.inventoryBarFill,
+                    {
+                      width: `${daySoldRatio * 100}%`,
+                      backgroundColor:
+                        daySoldRatio >= 1
+                          ? "#BD2323"
+                          : daySoldRatio >= 0.8
+                            ? "#C48700"
+                            : "#0D7A4E",
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.inventoryBarCaption}>
+                {dayTotalMeals} / {dayCap} capacity used
+              </Text>
             </View>
 
             <ScrollView
@@ -1026,6 +1056,47 @@ const styles = StyleSheet.create({
   },
   dayTabCountActive: {
     color: "#B7E4C7",
+  },
+  inventoryBarCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    padding: 12,
+    gap: 8,
+  },
+  inventoryBarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  inventoryBarTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B3D2E",
+  },
+  inventoryBarMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#5B7268",
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  inventoryBarTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#E8EFEC",
+    overflow: "hidden",
+  },
+  inventoryBarFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  inventoryBarCaption: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#8A9A93",
   },
   weekPickerRow: {
     gap: 6,

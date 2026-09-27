@@ -120,7 +120,7 @@ export default function OrdersScreen() {
   }, [availableBoxes, boxSearch]);
 
   const displayedAvailableBoxes = useMemo(
-    () => filteredAvailableBoxes.slice(0, 6),
+    () => filteredAvailableBoxes.slice(0, 9),
     [filteredAvailableBoxes],
   );
 
@@ -1188,14 +1188,13 @@ const styles = StyleSheet.create({
   },
   boxSearchWorkArea: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "stretch",
     gap: 10,
   },
   boxSearchLeft: {
     flex: 1,
     gap: 6,
     minWidth: 0,
-    height: 124,
   },
   boxSearchDisplay: {
     flexDirection: "row",

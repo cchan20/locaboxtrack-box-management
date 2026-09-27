@@ -95,6 +95,15 @@ export default function AuthLayout() {
           headerTintColor: "#FFFFFF",
         }}
       />
+      <Stack.Screen
+        name="create-order"
+        options={{
+          headerShown: true,
+          title: "Create Order",
+          headerStyle: { backgroundColor: "#0B5D44" },
+          headerTintColor: "#FFFFFF",
+        }}
+      />
     </Stack>
   );
 }

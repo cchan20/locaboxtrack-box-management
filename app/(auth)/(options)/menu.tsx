@@ -765,8 +765,8 @@ export default function MenuScreen() {
           <Pressable style={styles.importModalCard} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.modalTitle}>Import Menu CSV</Text>
             <Text style={styles.importSubtitle}>
-              Download the template, fill in Mon–Fri meal rows, then choose the CSV file to import.
-              Existing dates are updated; new dates are created.
+              Download the template, fill in Mon–Fri meal rows (date as YYYYMMDD), then choose the
+              CSV file to import. Existing dates are updated; new dates are created.
             </Text>
 
             {selectedImportFileName ? (
