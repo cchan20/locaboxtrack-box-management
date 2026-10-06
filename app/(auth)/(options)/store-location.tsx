@@ -4,6 +4,7 @@ import {
   updateStoreLocations,
 } from "@/store/slices/settingsSlice";
 import { StoreLocation } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -13,7 +14,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -157,7 +157,7 @@ export default function StoreLocationScreen() {
               : "Add a pickup store location used for web orders."}
           </Text>
 
-          <TextInput
+          <ClearableTextInput
             value={name}
             onChangeText={setName}
             placeholder="Location name (e.g. KLCC)"

@@ -1,6 +1,7 @@
 import { useAppDispatch } from "@/store/hooks";
 import { generateBoxes, getPrefixes } from "@/store/slices/prefixSlice";
 import { RunningNoControl } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
@@ -15,7 +16,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
@@ -120,7 +120,7 @@ export default function CreateBoxScreen() {
             </Pressable>
 
             <Text style={styles.label}>Number of Boxes</Text>
-            <TextInput
+            <ClearableTextInput
               value={quantityText}
               onChangeText={setQuantityText}
               placeholder="e.g. 10"

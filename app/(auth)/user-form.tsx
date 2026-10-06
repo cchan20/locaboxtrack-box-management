@@ -6,6 +6,7 @@ import {
   updateUser,
 } from "@/store/slices/userSlice";
 import { UserRole } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +21,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
@@ -193,7 +193,7 @@ export default function UserFormScreen() {
             <View style={styles.card}>
               {!isReady ? <Text style={styles.loadingText}>Loading user...</Text> : null}
 
-              <TextInput
+              <ClearableTextInput
                 value={username}
                 onChangeText={setUsername}
                 placeholder="Username"
@@ -203,7 +203,7 @@ export default function UserFormScreen() {
                 style={styles.input}
               />
 
-              <TextInput
+              <ClearableTextInput
                 value={name}
                 onChangeText={setName}
                 placeholder="Display name"
@@ -211,37 +211,36 @@ export default function UserFormScreen() {
                 style={styles.input}
               />
 
-              <View style={styles.passwordWrap}>
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder={isEditMode ? "Password (optional to keep current)" : "Password"}
-                  placeholderTextColor="#6B7D76"
-                  secureTextEntry={isPasswordHidden}
-                  style={[styles.input, styles.passwordInput]}
-                />
-                <Pressable
-                  onPress={() => setIsPasswordHidden((current) => !current)}
-                  style={styles.passwordToggleButton}
-                >
-                  <Ionicons
-                    name={isPasswordHidden ? "eye-outline" : "eye-off-outline"}
-                    size={19}
-                    color="#0E6045"
-                  />
-                </Pressable>
-              </View>
+              <ClearableTextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder={isEditMode ? "Password (optional to keep current)" : "Password"}
+                placeholderTextColor="#6B7D76"
+                secureTextEntry={isPasswordHidden}
+                style={styles.input}
+                endAccessoryWidth={36}
+                endAccessory={
+                  <Pressable
+                    onPress={() => setIsPasswordHidden((current) => !current)}
+                    style={styles.passwordToggleButton}
+                  >
+                    <Ionicons
+                      name={isPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                      size={19}
+                      color="#0E6045"
+                    />
+                  </Pressable>
+                }
+              />
 
-              <View style={styles.passwordWrap}>
-                <TextInput
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder={isEditMode ? "Confirm Password (only if changing)" : "Confirm Password"}
-                  placeholderTextColor="#6B7D76"
-                  secureTextEntry={isPasswordHidden}
-                  style={[styles.input, styles.passwordInput]}
-                />
-              </View>
+              <ClearableTextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder={isEditMode ? "Confirm Password (only if changing)" : "Confirm Password"}
+                placeholderTextColor="#6B7D76"
+                secureTextEntry={isPasswordHidden}
+                style={styles.input}
+              />
 
               <View style={styles.segmentRow}>
                 <Text style={styles.segmentLabel}>Role</Text>
@@ -367,16 +366,12 @@ const styles = StyleSheet.create({
     color: "#1E2A26",
     fontSize: 15,
   },
-  passwordWrap: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 42,
-  },
   passwordToggleButton: {
     position: "absolute",
     right: 10,
-    top: 20,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
   },
   segmentRow: {
     marginTop: 12,

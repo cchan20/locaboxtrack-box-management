@@ -12,6 +12,7 @@ import { getTransactionsByCustomer } from "@/store/slices/transactionSlice";
 import { useAuth } from "@/store/useAuth";
 import { Box, Customer, TransactionHistoryItem } from "@/types/app";
 import { getErrorMessage } from "@/utils/apiError";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -28,7 +29,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
@@ -55,7 +55,7 @@ export default function ClientsScreen() {
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
   const listRequestIdRef = useRef(0);
-  const statCardWidth = width < 950 ? "48.5%" : "31.5%";
+  const statCardWidth = width < 950 ? "48.5%" : "23.5%";
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -317,7 +317,7 @@ export default function ClientsScreen() {
             <View style={styles.leftColumn}>
               <View style={styles.filterCard}>
                 <Text style={styles.sectionTitle}>Search</Text>
-                <TextInput
+                <ClearableTextInput
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Search name, phone, email"
@@ -492,6 +492,13 @@ export default function ClientsScreen() {
                     <View style={[styles.statCard, { width: statCardWidth }]}>
                       <Text style={styles.statLabel}>Late Returns</Text>
                       <Text style={[styles.statValue, styles.lateValue]}>{selectedClient.lateReturns}</Text>
+                    </View>
+
+                    <View style={[styles.statCard, { width: statCardWidth }]}>
+                      <Text style={styles.statLabel}>Late Cancels</Text>
+                      <Text style={[styles.statValue, styles.lateValue]}>
+                        {selectedClient.lateCancelCount}
+                      </Text>
                     </View>
                   </View>
 

@@ -5,6 +5,7 @@ import {
   getPrefixes,
 } from "@/store/slices/prefixSlice";
 import { RunningNoControl } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -15,7 +16,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -90,12 +90,13 @@ export default function BoxSettingScreen() {
           <Text style={styles.subtitle}>Manage box ID prefixes and running numbers.</Text>
 
           <View style={styles.addRow}>
-            <TextInput
+            <ClearableTextInput
               value={prefix}
               onChangeText={setPrefix}
               placeholder="Prefix (e.g. BOX, CRT)"
               autoCapitalize="characters"
               style={styles.input}
+              containerStyle={styles.inputGrow}
             />
             <Pressable style={styles.addButton} onPress={handleAdd}>
               <Text style={styles.addButtonText}>Add</Text>
@@ -180,8 +181,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
   },
-  input: {
+  inputGrow: {
     flex: 1,
+  },
+  input: {
     borderWidth: 1,
     borderColor: "#C7D8D1",
     borderRadius: 10,

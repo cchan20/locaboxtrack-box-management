@@ -1,37 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { HeaderActionsWithCreate } from "@/ui/HeaderActionsWithCreate";
 import { HeaderOverflowMenu } from "@/ui/HeaderOverflowMenu";
-import { useAuth } from "@/store/useAuth";
-import { Tabs, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-
-type CreateRoute = "/(auth)/create-box" | "/(auth)/create-order";
-
-function HeaderActionsWithCreate({
-  label,
-  route,
-  adminOnly = false,
-}: {
-  label: string;
-  route: CreateRoute;
-  adminOnly?: boolean;
-}) {
-  const router = useRouter();
-  const { isAdmin } = useAuth();
-
-  if (adminOnly && !isAdmin) {
-    return <HeaderOverflowMenu />;
-  }
-
-  return (
-    <View style={styles.headerActionsWrap}>
-      <Pressable style={styles.headerCreateButton} onPress={() => router.push(route)}>
-        <Ionicons name="add" size={16} color="#FFFFFF" />
-        <Text style={styles.headerCreateButtonText}>{label}</Text>
-      </Pressable>
-      <HeaderOverflowMenu />
-    </View>
-  );
-}
+import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
   return (
@@ -56,9 +26,7 @@ export default function TabsLayout() {
         name="orders"
         options={{
           title: "Order",
-          headerRight: () => (
-            <HeaderActionsWithCreate label="Create" route="/(auth)/create-order" />
-          ),
+          // headerRight is set from OrdersScreen so Export can use live filters.
           tabBarIcon: ({ color, size }) => <Ionicons name="receipt" size={size} color={color} />,
         }}
       />
@@ -68,7 +36,7 @@ export default function TabsLayout() {
           title: "Give/Return Box",
           tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal" size={size} color={color} />,
         }}
-      />  
+      />
       <Tabs.Screen
         name="clients"
         options={{
@@ -89,27 +57,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  headerActionsWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 2,
-  },
-  headerCreateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.45)",
-    marginRight: 2,
-  },
-  headerCreateButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-    marginLeft: 4,
-  },
-});

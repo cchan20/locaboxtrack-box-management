@@ -6,6 +6,7 @@ import {
   getDailyMeals,
 } from "@/store/slices/dailyMealSlice";
 import { DailyMeal, DailyMealInput } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { parseDailyMealsCsv } from "@/utils/dailyMealCsv";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,7 +29,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -50,12 +50,21 @@ type FormState = {
   basicBoxInventory: string;
   extraLargePrice: string;
   extraLargeInventory: string;
-  extraProteinPrice: string;
-  extraProteinInventory: string;
-  extraVeggiePrice: string;
-  extraVeggieInventory: string;
-  extraSoupBoxPrice: string;
-  extraSoupBoxInventory: string;
+  extraField1Name: string;
+  extraField1Price: string;
+  extraField1Inventory: string;
+  extraField2Name: string;
+  extraField2Price: string;
+  extraField2Inventory: string;
+  extraField3Name: string;
+  extraField3Price: string;
+  extraField3Inventory: string;
+  extraField4Name: string;
+  extraField4Price: string;
+  extraField4Inventory: string;
+  extraField5Name: string;
+  extraField5Price: string;
+  extraField5Inventory: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -66,12 +75,21 @@ const EMPTY_FORM: FormState = {
   basicBoxInventory: "0",
   extraLargePrice: "0",
   extraLargeInventory: "0",
-  extraProteinPrice: "0",
-  extraProteinInventory: "0",
-  extraVeggiePrice: "0",
-  extraVeggieInventory: "0",
-  extraSoupBoxPrice: "0",
-  extraSoupBoxInventory: "0",
+  extraField1Name: "",
+  extraField1Price: "0",
+  extraField1Inventory: "0",
+  extraField2Name: "",
+  extraField2Price: "0",
+  extraField2Inventory: "0",
+  extraField3Name: "",
+  extraField3Price: "0",
+  extraField3Inventory: "0",
+  extraField4Name: "",
+  extraField4Price: "0",
+  extraField4Inventory: "0",
+  extraField5Name: "",
+  extraField5Price: "0",
+  extraField5Inventory: "0",
 };
 
 function formatDateKey(value: Date) {
@@ -112,12 +130,21 @@ function mealToForm(meal: DailyMeal): FormState {
     basicBoxInventory: String(meal.basicBoxInventory),
     extraLargePrice: String(meal.extraLargePrice),
     extraLargeInventory: String(meal.extraLargeInventory),
-    extraProteinPrice: String(meal.extraProteinPrice),
-    extraProteinInventory: String(meal.extraProteinInventory),
-    extraVeggiePrice: String(meal.extraVeggiePrice),
-    extraVeggieInventory: String(meal.extraVeggieInventory),
-    extraSoupBoxPrice: String(meal.extraSoupBoxPrice),
-    extraSoupBoxInventory: String(meal.extraSoupBoxInventory),
+    extraField1Name: meal.extraField1Name,
+    extraField1Price: String(meal.extraField1Price),
+    extraField1Inventory: String(meal.extraField1Inventory),
+    extraField2Name: meal.extraField2Name,
+    extraField2Price: String(meal.extraField2Price),
+    extraField2Inventory: String(meal.extraField2Inventory),
+    extraField3Name: meal.extraField3Name,
+    extraField3Price: String(meal.extraField3Price),
+    extraField3Inventory: String(meal.extraField3Inventory),
+    extraField4Name: meal.extraField4Name,
+    extraField4Price: String(meal.extraField4Price),
+    extraField4Inventory: String(meal.extraField4Inventory),
+    extraField5Name: meal.extraField5Name,
+    extraField5Price: String(meal.extraField5Price),
+    extraField5Inventory: String(meal.extraField5Inventory),
   };
 }
 
@@ -271,16 +298,20 @@ export default function MenuScreen() {
     const priceFields: Array<[keyof FormState, string]> = [
       ["basicBoxPrice", "Basic box price"],
       ["extraLargePrice", "Extra large price"],
-      ["extraProteinPrice", "Extra protein price"],
-      ["extraVeggiePrice", "Extra veggie price"],
-      ["extraSoupBoxPrice", "Extra soup price"],
+      ["extraField1Price", "Extra field 1 price"],
+      ["extraField2Price", "Extra field 2 price"],
+      ["extraField3Price", "Extra field 3 price"],
+      ["extraField4Price", "Extra field 4 price"],
+      ["extraField5Price", "Extra field 5 price"],
     ];
     const inventoryFields: Array<[keyof FormState, string]> = [
       ["basicBoxInventory", "Basic box inventory"],
       ["extraLargeInventory", "Extra large inventory"],
-      ["extraProteinInventory", "Extra protein inventory"],
-      ["extraVeggieInventory", "Extra veggie inventory"],
-      ["extraSoupBoxInventory", "Extra soup inventory"],
+      ["extraField1Inventory", "Extra field 1 inventory"],
+      ["extraField2Inventory", "Extra field 2 inventory"],
+      ["extraField3Inventory", "Extra field 3 inventory"],
+      ["extraField4Inventory", "Extra field 4 inventory"],
+      ["extraField5Inventory", "Extra field 5 inventory"],
     ];
 
     const prices: Record<string, number> = {};
@@ -312,12 +343,21 @@ export default function MenuScreen() {
       basicBoxInventory: inventories.basicBoxInventory,
       extraLargePrice: prices.extraLargePrice,
       extraLargeInventory: inventories.extraLargeInventory,
-      extraProteinPrice: prices.extraProteinPrice,
-      extraProteinInventory: inventories.extraProteinInventory,
-      extraVeggiePrice: prices.extraVeggiePrice,
-      extraVeggieInventory: inventories.extraVeggieInventory,
-      extraSoupBoxPrice: prices.extraSoupBoxPrice,
-      extraSoupBoxInventory: inventories.extraSoupBoxInventory,
+      extraField1Name: form.extraField1Name.trim(),
+      extraField1Price: prices.extraField1Price,
+      extraField1Inventory: inventories.extraField1Inventory,
+      extraField2Name: form.extraField2Name.trim(),
+      extraField2Price: prices.extraField2Price,
+      extraField2Inventory: inventories.extraField2Inventory,
+      extraField3Name: form.extraField3Name.trim(),
+      extraField3Price: prices.extraField3Price,
+      extraField3Inventory: inventories.extraField3Inventory,
+      extraField4Name: form.extraField4Name.trim(),
+      extraField4Price: prices.extraField4Price,
+      extraField4Inventory: inventories.extraField4Inventory,
+      extraField5Name: form.extraField5Name.trim(),
+      extraField5Price: prices.extraField5Price,
+      extraField5Inventory: inventories.extraField5Inventory,
     };
   };
 
@@ -495,7 +535,7 @@ export default function MenuScreen() {
       <View style={styles.priceInventoryRow}>
         <View style={styles.halfField}>
           <Text style={styles.miniLabel}>Price ($)</Text>
-          <TextInput
+          <ClearableTextInput
             value={form[priceKey]}
             onChangeText={(value) => updateField(priceKey, value)}
             keyboardType="decimal-pad"
@@ -506,7 +546,50 @@ export default function MenuScreen() {
         </View>
         <View style={styles.halfField}>
           <Text style={styles.miniLabel}>Inventory</Text>
-          <TextInput
+          <ClearableTextInput
+            value={form[inventoryKey]}
+            onChangeText={(value) => updateField(inventoryKey, value)}
+            keyboardType="number-pad"
+            editable={hasSelection && !isSaving}
+            style={styles.input}
+            placeholder="0"
+          />
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderExtraFieldRow = (
+    label: string,
+    nameKey: keyof FormState,
+    priceKey: keyof FormState,
+    inventoryKey: keyof FormState,
+  ) => (
+    <View style={styles.priceInventoryBlock}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.miniLabel}>Name</Text>
+      <ClearableTextInput
+        value={form[nameKey]}
+        onChangeText={(value) => updateField(nameKey, value)}
+        editable={hasSelection && !isSaving}
+        style={styles.input}
+        placeholder="e.g. Extra Protein"
+      />
+      <View style={styles.priceInventoryRow}>
+        <View style={styles.halfField}>
+          <Text style={styles.miniLabel}>Price ($)</Text>
+          <ClearableTextInput
+            value={form[priceKey]}
+            onChangeText={(value) => updateField(priceKey, value)}
+            keyboardType="decimal-pad"
+            editable={hasSelection && !isSaving}
+            style={styles.input}
+            placeholder="0"
+          />
+        </View>
+        <View style={styles.halfField}>
+          <Text style={styles.miniLabel}>Inventory</Text>
+          <ClearableTextInput
             value={form[inventoryKey]}
             onChangeText={(value) => updateField(inventoryKey, value)}
             keyboardType="number-pad"
@@ -579,7 +662,7 @@ export default function MenuScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Text style={styles.fieldLabel}>Dishes name</Text>
-            <TextInput
+            <ClearableTextInput
               value={form.dishesName}
               onChangeText={(value) => updateField("dishesName", value)}
               editable={hasSelection && !isSaving}
@@ -588,7 +671,7 @@ export default function MenuScreen() {
             />
 
             <Text style={styles.fieldLabel}>Description</Text>
-            <TextInput
+            <ClearableTextInput
               value={form.dishesDescription}
               onChangeText={(value) => updateField("dishesDescription", value)}
               editable={hasSelection && !isSaving}
@@ -598,7 +681,7 @@ export default function MenuScreen() {
             />
 
             <Text style={styles.fieldLabel}>Ingredients</Text>
-            <TextInput
+            <ClearableTextInput
               value={form.dishesIngredients}
               onChangeText={(value) => updateField("dishesIngredients", value)}
               editable={hasSelection && !isSaving}
@@ -617,20 +700,35 @@ export default function MenuScreen() {
               "extraLargePrice",
               "extraLargeInventory",
             )}
-            {renderPriceInventoryRow(
-              "Extra Protein",
-              "extraProteinPrice",
-              "extraProteinInventory",
+            {renderExtraFieldRow(
+              "Extra Field 1",
+              "extraField1Name",
+              "extraField1Price",
+              "extraField1Inventory",
             )}
-            {renderPriceInventoryRow(
-              "Extra Veggie",
-              "extraVeggiePrice",
-              "extraVeggieInventory",
+            {renderExtraFieldRow(
+              "Extra Field 2",
+              "extraField2Name",
+              "extraField2Price",
+              "extraField2Inventory",
             )}
-            {renderPriceInventoryRow(
-              "Extra Soup",
-              "extraSoupBoxPrice",
-              "extraSoupBoxInventory",
+            {renderExtraFieldRow(
+              "Extra Field 3",
+              "extraField3Name",
+              "extraField3Price",
+              "extraField3Inventory",
+            )}
+            {renderExtraFieldRow(
+              "Extra Field 4",
+              "extraField4Name",
+              "extraField4Price",
+              "extraField4Inventory",
+            )}
+            {renderExtraFieldRow(
+              "Extra Field 5",
+              "extraField5Name",
+              "extraField5Price",
+              "extraField5Inventory",
             )}
           </ScrollView>
 

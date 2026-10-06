@@ -38,6 +38,7 @@ export type CustomerDto = {
   totalTaken: number;
   totalReturned: number;
   lateReturns: number;
+  lateCancelCount: number;
   riskStatus: Customer["riskStatus"];
 };
 
@@ -82,6 +83,7 @@ export type TimeslotDto = {
 export type GlobalSettingDto = {
   orderWhatsappNumber?: string;
   dailyCutOffTime?: string;
+  welcomeMessage?: string;
   timeslots?: TimeslotDto[];
   storeLocations?: StoreLocationDto[];
 };
@@ -97,12 +99,21 @@ export type DailyMealDto = {
   basicBoxInventory?: number;
   extraLargePrice?: number;
   extraLargeInventory?: number;
-  extraProteinPrice?: number;
-  extraProteinInventory?: number;
-  extraVeggiePrice?: number;
-  extraVeggieInventory?: number;
-  extraSoupBoxPrice?: number;
-  extraSoupBoxInventory?: number;
+  extraField1Name?: string;
+  extraField1Price?: number;
+  extraField1Inventory?: number;
+  extraField2Name?: string;
+  extraField2Price?: number;
+  extraField2Inventory?: number;
+  extraField3Name?: string;
+  extraField3Price?: number;
+  extraField3Inventory?: number;
+  extraField4Name?: string;
+  extraField4Price?: number;
+  extraField4Inventory?: number;
+  extraField5Name?: string;
+  extraField5Price?: number;
+  extraField5Inventory?: number;
 };
 
 export type OrderMealDto = {
@@ -114,12 +125,15 @@ export type OrderDto = {
   customerId: string;
   customerName?: string;
   customerPhone?: string;
+  walkInCustomerName?: string;
   date: string;
   dayOfWeek: string;
   timeslotId: string;
   storeLocationId: string;
+  footnote?: string;
   meals?: OrderMealDto[];
   status: string;
+  pickedBoxIds?: string[];
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
@@ -149,6 +163,7 @@ export const mapCustomer = (dto: CustomerDto): Customer => ({
   totalTaken: dto.totalTaken,
   totalReturned: dto.totalReturned,
   lateReturns: dto.lateReturns,
+  lateCancelCount: dto.lateCancelCount ?? 0,
   riskStatus: dto.riskStatus,
 });
 
@@ -193,6 +208,7 @@ export const mapTimeslot = (dto: TimeslotDto): Timeslot => ({
 export const mapGlobalSetting = (dto: GlobalSettingDto): GlobalSetting => ({
   orderWhatsappNumber: dto.orderWhatsappNumber ?? "",
   dailyCutOffTime: dto.dailyCutOffTime ?? "",
+  welcomeMessage: dto.welcomeMessage ?? "",
   timeslots: (dto.timeslots ?? []).map(mapTimeslot),
   storeLocations: (dto.storeLocations ?? []).map(mapStoreLocation),
 });
@@ -208,12 +224,21 @@ export const mapDailyMeal = (dto: DailyMealDto): DailyMeal => ({
   basicBoxInventory: dto.basicBoxInventory ?? 0,
   extraLargePrice: dto.extraLargePrice ?? 0,
   extraLargeInventory: dto.extraLargeInventory ?? 0,
-  extraProteinPrice: dto.extraProteinPrice ?? 0,
-  extraProteinInventory: dto.extraProteinInventory ?? 0,
-  extraVeggiePrice: dto.extraVeggiePrice ?? 0,
-  extraVeggieInventory: dto.extraVeggieInventory ?? 0,
-  extraSoupBoxPrice: dto.extraSoupBoxPrice ?? 0,
-  extraSoupBoxInventory: dto.extraSoupBoxInventory ?? 0,
+  extraField1Name: dto.extraField1Name ?? "",
+  extraField1Price: dto.extraField1Price ?? 0,
+  extraField1Inventory: dto.extraField1Inventory ?? 0,
+  extraField2Name: dto.extraField2Name ?? "",
+  extraField2Price: dto.extraField2Price ?? 0,
+  extraField2Inventory: dto.extraField2Inventory ?? 0,
+  extraField3Name: dto.extraField3Name ?? "",
+  extraField3Price: dto.extraField3Price ?? 0,
+  extraField3Inventory: dto.extraField3Inventory ?? 0,
+  extraField4Name: dto.extraField4Name ?? "",
+  extraField4Price: dto.extraField4Price ?? 0,
+  extraField4Inventory: dto.extraField4Inventory ?? 0,
+  extraField5Name: dto.extraField5Name ?? "",
+  extraField5Price: dto.extraField5Price ?? 0,
+  extraField5Inventory: dto.extraField5Inventory ?? 0,
 });
 
 export const mapOrderMeal = (dto: OrderMealDto): OrderMeal => ({
@@ -225,12 +250,15 @@ export const mapOrder = (dto: OrderDto): Order => ({
   customerId: dto.customerId,
   customerName: dto.customerName ?? null,
   customerPhone: dto.customerPhone ?? null,
+  walkInCustomerName: dto.walkInCustomerName ?? null,
   date: dto.date,
   dayOfWeek: dto.dayOfWeek,
   timeslotId: dto.timeslotId,
   storeLocationId: dto.storeLocationId,
+  footnote: dto.footnote ?? "",
   meals: (dto.meals ?? []).map(mapOrderMeal),
   status: dto.status,
+  pickedBoxIds: dto.pickedBoxIds ?? [],
   totalAmount: dto.totalAmount,
   createdAt: dto.createdAt,
   updatedAt: dto.updatedAt,

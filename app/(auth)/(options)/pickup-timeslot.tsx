@@ -1,6 +1,7 @@
 import { useAppDispatch } from "@/store/hooks";
 import { getGlobalSettings, updateTimeslots } from "@/store/slices/settingsSlice";
 import { Timeslot } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
@@ -16,7 +17,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -297,7 +297,7 @@ export default function PickupTimeslotScreen() {
               : "Create a pickup window with start time, end time, and capacity."}
           </Text>
 
-          <TextInput
+          <ClearableTextInput
             value={label}
             onChangeText={setLabel}
             placeholder="Label (e.g. Lunch)"
@@ -321,12 +321,13 @@ export default function PickupTimeslotScreen() {
           </View>
           <View style={styles.createCapacityRow}>
             <Text style={styles.createFieldLabel}>Capacity</Text>
-            <TextInput
+            <ClearableTextInput
               value={capacity}
               onChangeText={setCapacity}
               placeholder="0"
               keyboardType="number-pad"
-              style={[styles.input, styles.createCapacityInput]}
+              style={styles.input}
+              containerStyle={styles.createCapacityInput}
             />
           </View>
 

@@ -8,6 +8,7 @@ import {
 } from "@/store/slices/boxSlice";
 import { getCustomers } from "@/store/slices/customerSlice";
 import { Box, Customer } from "@/types/app";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { getErrorMessage } from "@/utils/apiError";
 import { normalizeBoxId } from "@/utils/boxId";
 import { getDaysOut } from "@/utils/dates";
@@ -668,26 +669,15 @@ export default function CheckoutScreen() {
                       ? `Available Boxes (${availableBoxes.length})`
                       : `Checked-out Boxes (${checkedOutBoxes.length})`}
                   </Text>
-                  <View style={styles.searchInputWrap}>
-                    <TextInput
-                      value={boxSearch}
-                      onChangeText={setBoxSearch}
-                      editable={!isSubmitting}
-                      placeholder={isGiveMode ? "Search box id" : "Search box id or customer"}
-                      placeholderTextColor="#7A8F87"
-                      keyboardType="number-pad"
-                      style={[styles.input, styles.searchInput]}
-                    />
-                    {boxSearch ? (
-                      <Pressable
-                        disabled={isSubmitting}
-                        style={styles.clearButton}
-                        onPress={() => setBoxSearch("")}
-                      >
-                        <Ionicons name="close-circle" size={18} color="#7A8F87" />
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  <ClearableTextInput
+                    value={boxSearch}
+                    onChangeText={setBoxSearch}
+                    editable={!isSubmitting}
+                    placeholder={isGiveMode ? "Search box id" : "Search box id or customer"}
+                    placeholderTextColor="#7A8F87"
+                    keyboardType="number-pad"
+                    style={styles.input}
+                  />
                 </View>
 
                 <View style={styles.boxListCard}>
@@ -859,26 +849,15 @@ export default function CheckoutScreen() {
           />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Select Customer</Text>
-            <View style={styles.searchInputWrap}>
-              <TextInput
-                ref={customerSearchRef}
-                value={customerSearch}
-                onChangeText={setCustomerSearch}
-                editable={!isSubmitting}
-                placeholder="Search name, phone, email"
-                placeholderTextColor="#7A8F87"
-                style={[styles.input, styles.modalSearch, styles.searchInput]}
-              />
-              {customerSearch ? (
-                <Pressable
-                  disabled={isSubmitting}
-                  style={styles.clearButton}
-                  onPress={() => setCustomerSearch("")}
-                >
-                  <Ionicons name="close-circle" size={18} color="#7A8F87" />
-                </Pressable>
-              ) : null}
-            </View>
+            <ClearableTextInput
+              ref={customerSearchRef}
+              value={customerSearch}
+              onChangeText={setCustomerSearch}
+              editable={!isSubmitting}
+              placeholder="Search name, phone, email"
+              placeholderTextColor="#7A8F87"
+              style={[styles.input, styles.modalSearch]}
+            />
             <FlatList
               style={styles.modalList}
               data={filteredCustomers}
@@ -1297,19 +1276,6 @@ const styles = StyleSheet.create({
   },
   modalSearch: {
     marginBottom: 2,
-  },
-  searchInputWrap: {
-    position: "relative",
-  },
-  searchInput: {
-    paddingRight: 34,
-  },
-  clearButton: {
-    position: "absolute",
-    right: 10,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
   },
   modalList: {
     flex: 1,

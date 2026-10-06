@@ -62,6 +62,36 @@ export const updateTimeslots = createAsyncThunk(
   },
 );
 
+export const updateWelcomeMessage = createAsyncThunk(
+  "updateWelcomeMessage",
+  async (welcomeMessage: string) => {
+    try {
+      const response = await axiosInstance.put<GlobalSettingDto>(
+        "settings/welcome-message",
+        { welcomeMessage },
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export const updateOrderWhatsappNumber = createAsyncThunk(
+  "updateOrderWhatsappNumber",
+  async (orderWhatsappNumber: string) => {
+    try {
+      const response = await axiosInstance.put<GlobalSettingDto>(
+        "settings/whatsapp-number",
+        { orderWhatsappNumber },
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 const settingsSlice = createSlice({
   name: "settings",
   initialState,
@@ -97,6 +127,14 @@ const settingsSlice = createSlice({
     builder.addCase(updateTimeslots.pending, setPending);
     builder.addCase(updateTimeslots.fulfilled, setFulfilledSettings);
     builder.addCase(updateTimeslots.rejected, setRejected);
+
+    builder.addCase(updateWelcomeMessage.pending, setPending);
+    builder.addCase(updateWelcomeMessage.fulfilled, setFulfilledSettings);
+    builder.addCase(updateWelcomeMessage.rejected, setRejected);
+
+    builder.addCase(updateOrderWhatsappNumber.pending, setPending);
+    builder.addCase(updateOrderWhatsappNumber.fulfilled, setFulfilledSettings);
+    builder.addCase(updateOrderWhatsappNumber.rejected, setRejected);
   },
 });
 

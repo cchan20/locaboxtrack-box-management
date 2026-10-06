@@ -1,4 +1,5 @@
 import { useAuth } from "@/store/useAuth";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -9,7 +10,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -66,7 +66,7 @@ export default function LoginScreen() {
               Login with admin or staff account credentials
             </Text>
 
-            <TextInput
+            <ClearableTextInput
               value={username}
               onChangeText={(value) => {
                 setUsername(value);
@@ -87,44 +87,41 @@ export default function LoginScreen() {
               returnKeyType="next"
             />
 
-            <View style={styles.passwordWrap}>
-              <TextInput
-                value={password}
-                onChangeText={(value) => {
-                  setPassword(value);
-                  if (showValidationError) {
-                    setShowValidationError(false);
-                  }
-                  if (loginError) {
-                    clearError();
-                  }
-                }}
-                style={[
-                  styles.input,
-                  styles.passwordInput,
-                  hasError ? styles.inputError : undefined,
-                ]}
-                secureTextEntry={isPasswordHidden}
-                placeholder="Enter password"
-                placeholderTextColor="#7C7C7C"
-                editable={!isSubmitting}
-                onSubmitEditing={handleLogin}
-                returnKeyType="done"
-              />
-              <Pressable
-                onPress={() => setIsPasswordHidden((current) => !current)}
-                style={styles.passwordToggleButton}
-                disabled={isSubmitting}
-                accessibilityRole="button"
-                accessibilityLabel={!isPasswordHidden ? "Show password" : "Hide password"}
-              >
-                <Ionicons
-                  name={!isPasswordHidden ? "eye-outline" : "eye-off-outline"}
-                  size={20}
-                  style={styles.passwordToggleIcon}
-                />
-              </Pressable>
-            </View>
+            <ClearableTextInput
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (showValidationError) {
+                  setShowValidationError(false);
+                }
+                if (loginError) {
+                  clearError();
+                }
+              }}
+              style={[styles.input, hasError ? styles.inputError : undefined]}
+              secureTextEntry={isPasswordHidden}
+              placeholder="Enter password"
+              placeholderTextColor="#7C7C7C"
+              editable={!isSubmitting}
+              onSubmitEditing={handleLogin}
+              returnKeyType="done"
+              endAccessoryWidth={36}
+              endAccessory={
+                <Pressable
+                  onPress={() => setIsPasswordHidden((current) => !current)}
+                  style={styles.passwordToggleButton}
+                  disabled={isSubmitting}
+                  accessibilityRole="button"
+                  accessibilityLabel={!isPasswordHidden ? "Show password" : "Hide password"}
+                >
+                  <Ionicons
+                    name={!isPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                    size={20}
+                    style={styles.passwordToggleIcon}
+                  />
+                </Pressable>
+              }
+            />
 
             {showValidationError ? (
               <Text style={styles.errorText}>
@@ -199,17 +196,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1F1F1F",
   },
-  passwordWrap: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 52,
-  },
   passwordToggleButton: {
     position: "absolute",
     right: 10,
-    top: 8,
-    bottom: 8,
+    top: 0,
+    bottom: 0,
     justifyContent: "center",
     paddingHorizontal: 6,
   },

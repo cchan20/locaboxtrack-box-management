@@ -17,3 +17,6 @@ export const TRANSACTION_HISTORY_LIMIT = 100;
 export const CUSTOMER_PAGE_SIZE = 20;
 
 export const BOX_PAGE_SIZE = 20;
+
+/** Sentinel customer id for walk-in orders (matches backend WalkInCustomerId). */
+export const WALK_IN_CUSTOMER_ID = "WALK-IN";

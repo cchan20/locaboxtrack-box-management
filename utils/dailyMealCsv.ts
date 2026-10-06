@@ -9,12 +9,21 @@ export const DAILY_MEAL_CSV_HEADERS = [
   "basicBoxInventory",
   "extraLargePrice",
   "extraLargeInventory",
-  "extraProteinPrice",
-  "extraProteinInventory",
-  "extraVeggiePrice",
-  "extraVeggieInventory",
-  "extraSoupBoxPrice",
-  "extraSoupBoxInventory",
+  "extraField1Name",
+  "extraField1Price",
+  "extraField1Inventory",
+  "extraField2Name",
+  "extraField2Price",
+  "extraField2Inventory",
+  "extraField3Name",
+  "extraField3Price",
+  "extraField3Inventory",
+  "extraField4Name",
+  "extraField4Price",
+  "extraField4Inventory",
+  "extraField5Name",
+  "extraField5Price",
+  "extraField5Inventory",
 ] as const;
 
 const DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})$/;
@@ -49,41 +58,34 @@ function parseCsvRows(content: string): string[][] {
     row = [];
   };
 
-  const normalized = content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  for (let i = 0; i < normalized.length; i += 1) {
-    const char = normalized[i];
-    const next = normalized[i + 1];
-
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content[i];
     if (inQuotes) {
-      if (char === '"' && next === '"') {
-        current += '"';
-        i += 1;
-      } else if (char === '"') {
-        inQuotes = false;
+      if (ch === '"') {
+        if (content[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
       } else {
-        current += char;
+        current += ch;
       }
       continue;
     }
 
-    if (char === '"') {
+    if (ch === '"') {
       inQuotes = true;
-      continue;
-    }
-
-    if (char === ",") {
+    } else if (ch === ",") {
       pushCell();
-      continue;
-    }
-
-    if (char === "\n") {
+    } else if (ch === "\n") {
       pushCell();
       pushRow();
-      continue;
+    } else if (ch === "\r") {
+      // ignore CR; LF handles row ends
+    } else {
+      current += ch;
     }
-
-    current += char;
   }
 
   if (current.length > 0 || row.length > 0) {
@@ -94,7 +96,12 @@ function parseCsvRows(content: string): string[][] {
   return rows;
 }
 
-function parseNumber(value: string, field: string, rowNumber: number, integer = false) {
+function parseNumber(
+  value: string,
+  field: string,
+  rowNumber: number,
+  integer = false,
+): number {
   const trimmed = value.trim();
   if (!trimmed) {
     return 0;
@@ -104,23 +111,24 @@ function parseNumber(value: string, field: string, rowNumber: number, integer = 
     throw new Error(`Row ${rowNumber}: ${field} must be zero or a positive number.`);
   }
   if (integer && !Number.isInteger(parsed)) {
-    throw new Error(`Row ${rowNumber}: ${field} must be a whole number.`);
+    throw new Error(`Row ${rowNumber}: ${field} must be an integer.`);
   }
   return parsed;
 }
 
-/**
- * Parse a daily-meals CSV template into API meal inputs.
- * Expects a header row matching DAILY_MEAL_CSV_HEADERS (order flexible by name).
- */
 export function parseDailyMealsCsv(content: string): DailyMealInput[] {
   const rows = parseCsvRows(content);
-  if (rows.length < 2) {
-    throw new Error("CSV must include a header row and at least one data row.");
+  if (rows.length === 0) {
+    throw new Error("CSV is empty.");
   }
 
   const header = rows[0].map((cell) => cell.trim());
-  const indexByHeader = new Map(header.map((name, index) => [name, index]));
+  const indexByHeader = new Map<string, number>();
+  header.forEach((name, index) => {
+    if (name) {
+      indexByHeader.set(name, index);
+    }
+  });
 
   for (const required of DAILY_MEAL_CSV_HEADERS) {
     if (!indexByHeader.has(required)) {
@@ -128,8 +136,13 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
     }
   }
 
-  const cell = (row: string[], key: (typeof DAILY_MEAL_CSV_HEADERS)[number]) =>
-    (row[indexByHeader.get(key)!] ?? "").trim();
+  const cell = (row: string[], name: (typeof DAILY_MEAL_CSV_HEADERS)[number]) => {
+    const index = indexByHeader.get(name);
+    if (index == null) {
+      return "";
+    }
+    return (row[index] ?? "").trim();
+  };
 
   const meals: DailyMealInput[] = [];
   const seenDates = new Set<string>();
@@ -137,11 +150,10 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i];
     const rowNumber = i + 1;
-    if (row.every((value) => !value.trim())) {
+    const rawDate = cell(row, "date");
+    if (!rawDate) {
       continue;
     }
-
-    const rawDate = cell(row, "date");
     const date = normalizeCsvDate(rawDate);
     if (!date) {
       throw new Error(`Row ${rowNumber}: date must be YYYYMMDD.`);
@@ -175,32 +187,63 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
         rowNumber,
         true,
       ),
-      extraProteinPrice: parseNumber(
-        cell(row, "extraProteinPrice"),
-        "extraProteinPrice",
+      extraField1Name: cell(row, "extraField1Name"),
+      extraField1Price: parseNumber(
+        cell(row, "extraField1Price"),
+        "extraField1Price",
         rowNumber,
       ),
-      extraProteinInventory: parseNumber(
-        cell(row, "extraProteinInventory"),
-        "extraProteinInventory",
-        rowNumber,
-        true,
-      ),
-      extraVeggiePrice: parseNumber(cell(row, "extraVeggiePrice"), "extraVeggiePrice", rowNumber),
-      extraVeggieInventory: parseNumber(
-        cell(row, "extraVeggieInventory"),
-        "extraVeggieInventory",
+      extraField1Inventory: parseNumber(
+        cell(row, "extraField1Inventory"),
+        "extraField1Inventory",
         rowNumber,
         true,
       ),
-      extraSoupBoxPrice: parseNumber(
-        cell(row, "extraSoupBoxPrice"),
-        "extraSoupBoxPrice",
+      extraField2Name: cell(row, "extraField2Name"),
+      extraField2Price: parseNumber(
+        cell(row, "extraField2Price"),
+        "extraField2Price",
         rowNumber,
       ),
-      extraSoupBoxInventory: parseNumber(
-        cell(row, "extraSoupBoxInventory"),
-        "extraSoupBoxInventory",
+      extraField2Inventory: parseNumber(
+        cell(row, "extraField2Inventory"),
+        "extraField2Inventory",
+        rowNumber,
+        true,
+      ),
+      extraField3Name: cell(row, "extraField3Name"),
+      extraField3Price: parseNumber(
+        cell(row, "extraField3Price"),
+        "extraField3Price",
+        rowNumber,
+      ),
+      extraField3Inventory: parseNumber(
+        cell(row, "extraField3Inventory"),
+        "extraField3Inventory",
+        rowNumber,
+        true,
+      ),
+      extraField4Name: cell(row, "extraField4Name"),
+      extraField4Price: parseNumber(
+        cell(row, "extraField4Price"),
+        "extraField4Price",
+        rowNumber,
+      ),
+      extraField4Inventory: parseNumber(
+        cell(row, "extraField4Inventory"),
+        "extraField4Inventory",
+        rowNumber,
+        true,
+      ),
+      extraField5Name: cell(row, "extraField5Name"),
+      extraField5Price: parseNumber(
+        cell(row, "extraField5Price"),
+        "extraField5Price",
+        rowNumber,
+      ),
+      extraField5Inventory: parseNumber(
+        cell(row, "extraField5Inventory"),
+        "extraField5Inventory",
         rowNumber,
         true,
       ),

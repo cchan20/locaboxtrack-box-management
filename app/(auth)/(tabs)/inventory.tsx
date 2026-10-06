@@ -10,6 +10,7 @@ import { useAuth } from "@/store/useAuth";
 import { Box, BoxStatus, TransactionHistoryItem } from "@/types/app";
 import { getErrorMessage } from "@/utils/apiError";
 import { getDaysOut } from "@/utils/dates";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -25,7 +26,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
@@ -323,7 +323,7 @@ export default function InventoryScreen() {
                     })}
                   </View>
                 </View>
-                <TextInput
+                <ClearableTextInput
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Search box id or customer"

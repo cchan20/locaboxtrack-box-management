@@ -12,6 +12,7 @@ type MenuOption = {
     | "/(auth)/(options)/box-setting"
     | "/(auth)/(options)/store-location"
     | "/(auth)/(options)/pickup-timeslot"
+    | "/(auth)/(options)/welcome-message"
     | "/(auth)/(options)/menu";
   isLogout?: boolean;
 };
@@ -24,6 +25,11 @@ const MENU_OPTIONS: MenuOption[] = [
     key: "pickup-timeslot",
     label: "Pickup Timeslot",
     route: "/(auth)/(options)/pickup-timeslot",
+  },
+  {
+    key: "welcome-message",
+    label: "General Message",
+    route: "/(auth)/(options)/welcome-message",
   },
   { key: "menu", label: "Menu", route: "/(auth)/(options)/menu" },
   { key: "logout", label: "Logout", isLogout: true },

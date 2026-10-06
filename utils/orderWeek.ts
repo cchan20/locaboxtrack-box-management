@@ -9,6 +9,7 @@ export const WEEK_DAYS: WeekDay[] = [
 ];
 
 export const MAX_MEALS_PER_ORDER = 2;
+export const MAX_ORDER_FOOTNOTE_LENGTH = 100;
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -112,19 +113,64 @@ export type AddonOption = {
   price: number;
 };
 
+type ExtraFieldNameKey =
+  | "extraField1Name"
+  | "extraField2Name"
+  | "extraField3Name"
+  | "extraField4Name"
+  | "extraField5Name";
+
+type ExtraFieldPriceKey =
+  | "extraField1Price"
+  | "extraField2Price"
+  | "extraField3Price"
+  | "extraField4Price"
+  | "extraField5Price";
+
+type ExtraFieldDef = {
+  id: string;
+  nameKey: ExtraFieldNameKey;
+  priceKey: ExtraFieldPriceKey;
+  fallback: string;
+};
+
+const EXTRA_FIELDS: ExtraFieldDef[] = [
+  { id: "ef1", nameKey: "extraField1Name", priceKey: "extraField1Price", fallback: "Extra Field 1" },
+  { id: "ef2", nameKey: "extraField2Name", priceKey: "extraField2Price", fallback: "Extra Field 2" },
+  { id: "ef3", nameKey: "extraField3Name", priceKey: "extraField3Price", fallback: "Extra Field 3" },
+  { id: "ef4", nameKey: "extraField4Name", priceKey: "extraField4Price", fallback: "Extra Field 4" },
+  { id: "ef5", nameKey: "extraField5Name", priceKey: "extraField5Price", fallback: "Extra Field 5" },
+];
+
+export function addonLabelFromMeal(
+  addonId: string,
+  meal?: Pick<DailyMeal, ExtraFieldNameKey> | null,
+): string {
+  if (addonId === "xl") {
+    return "Extra Large";
+  }
+  const field = EXTRA_FIELDS.find((item) => item.id === addonId);
+  if (!field) {
+    return addonId;
+  }
+  const name = (meal?.[field.nameKey] ?? "").trim();
+  return name || field.fallback;
+}
+
 export function addonsFromDailyMeal(meal: DailyMeal): AddonOption[] {
   const addons: AddonOption[] = [];
   if (meal.extraLargePrice > 0) {
     addons.push({ id: "xl", label: "Extra Large", price: meal.extraLargePrice });
   }
-  if (meal.extraProteinPrice > 0) {
-    addons.push({ id: "pro", label: "Extra Protein", price: meal.extraProteinPrice });
-  }
-  if (meal.extraVeggiePrice > 0) {
-    addons.push({ id: "veg", label: "Extra Veggie", price: meal.extraVeggiePrice });
-  }
-  if (meal.extraSoupBoxPrice > 0) {
-    addons.push({ id: "soup", label: "Add Soup", price: meal.extraSoupBoxPrice });
+  for (const field of EXTRA_FIELDS) {
+    const price = meal[field.priceKey];
+    if (price > 0) {
+      addons.push({
+        id: field.id,
+        label: addonLabelFromMeal(field.id, meal),
+        price,
+      });
+    }
   }
   return addons;
 }

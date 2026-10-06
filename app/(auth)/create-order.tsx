@@ -1,4 +1,4 @@
-import { CUSTOMER_PAGE_SIZE } from "@/constants/config";
+import { CUSTOMER_PAGE_SIZE, WALK_IN_CUSTOMER_ID } from "@/constants/config";
 import { useAppDispatch } from "@/store/hooks";
 import { getCustomers } from "@/store/slices/customerSlice";
 import { getDailyMeals } from "@/store/slices/dailyMealSlice";
@@ -18,6 +18,7 @@ import {
 import { getErrorMessage } from "@/utils/apiError";
 import {
   MAX_MEALS_PER_ORDER,
+  MAX_ORDER_FOOTNOTE_LENGTH,
   WEEK_DAYS,
   addonsFromDailyMeal,
   availabilityByDay,
@@ -28,6 +29,7 @@ import {
   mealsByDay,
   orderCost,
 } from "@/utils/orderWeek";
+import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -41,8 +43,8 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
@@ -53,8 +55,11 @@ type DraftMeal = { addons: string[] };
 type OrderDraft = {
   slot: string;
   location: string;
+  footnote: string;
   meals: DraftMeal[];
 };
+
+type CustomerMode = "existing" | "walkin";
 
 export default function CreateOrderScreen() {
   const router = useRouter();
@@ -62,6 +67,8 @@ export default function CreateOrderScreen() {
 
   const [step, setStep] = useState<1 | 2>(1);
 
+  const [customerMode, setCustomerMode] = useState<CustomerMode>("existing");
+  const [walkInName, setWalkInName] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -137,8 +144,24 @@ export default function CreateOrderScreen() {
   );
 
   useEffect(() => {
+    if (customerMode !== "existing") {
+      return;
+    }
     void loadCustomerPage(1, false);
-  }, [loadCustomerPage]);
+  }, [customerMode, loadCustomerPage]);
+
+  const selectedCustomerLabel = useMemo(() => {
+    if (customerMode === "walkin") {
+      const name = walkInName.trim();
+      return name ? `Walk-in (${name})` : "Walk-in customer";
+    }
+    return selectedCustomer?.name ?? "";
+  }, [customerMode, selectedCustomer?.name, walkInName]);
+
+  const canContinueStep1 =
+    customerMode === "walkin"
+      ? walkInName.trim().length > 0
+      : selectedCustomer != null;
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -169,8 +192,23 @@ export default function CreateOrderScreen() {
     void loadCustomerPage(page + 1, true);
   };
 
+  const handleWalkInToggle = (enabled: boolean) => {
+    setCustomerMode(enabled ? "walkin" : "existing");
+    if (enabled) {
+      setSelectedCustomer(null);
+      setSearch("");
+    } else {
+      setWalkInName("");
+    }
+  };
+
   const goToStep2 = () => {
-    if (!selectedCustomer) {
+    if (customerMode === "walkin") {
+      if (!walkInName.trim()) {
+        Alert.alert("Walk-in name required", "Please enter the walk-in customer name.");
+        return;
+      }
+    } else if (!selectedCustomer) {
       Alert.alert("Select customer", "Please choose a customer first.");
       return;
     }
@@ -209,6 +247,7 @@ export default function CreateOrderScreen() {
     setDraft({
       slot: "",
       location: "",
+      footnote: "",
       meals: [{ addons: [] }],
     });
   };
@@ -218,7 +257,15 @@ export default function CreateOrderScreen() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!selectedCustomer || !draft) {
+    if (!draft) {
+      return;
+    }
+    if (customerMode === "walkin") {
+      if (!walkInName.trim()) {
+        Alert.alert("Walk-in name required", "Please enter the walk-in customer name.");
+        return;
+      }
+    } else if (!selectedCustomer) {
       return;
     }
     if (!weekDates[activeDay]) {
@@ -237,26 +284,28 @@ export default function CreateOrderScreen() {
       return;
     }
 
+    const customerId =
+      customerMode === "walkin" ? WALK_IN_CUSTOMER_ID : selectedCustomer!.id;
+
     setIsSubmitting(true);
     try {
       await dispatch(
         upsertOrderForCustomer({
-          customerId: selectedCustomer.id,
+          customerId,
           date: weekDates[activeDay],
           payload: {
             timeslotId: draft.slot,
             storeLocationId: draft.location,
+            footnote: draft.footnote,
+            ...(customerMode === "walkin"
+              ? { walkInCustomerName: walkInName.trim() }
+              : {}),
             meals: draft.meals.map((m) => ({ addons: [...m.addons] })),
           },
         }),
       ).unwrap();
 
-      Alert.alert("Success", "Order created successfully.", [
-        {
-          text: "OK",
-          onPress: () => router.replace("/(auth)/(tabs)/orders"),
-        },
-      ]);
+      router.replace("/(auth)/(tabs)/orders");
     } catch (error) {
       Alert.alert("Unable to create order", getErrorMessage(error));
     } finally {
@@ -312,72 +361,105 @@ export default function CreateOrderScreen() {
             style={styles.flex}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Select Customer</Text>
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search name, phone, email"
-                placeholderTextColor="#7A8F87"
-                style={styles.input}
-              />
-            </View>
-
             <View style={[styles.card, styles.listCard]}>
-              <FlatList
-                data={customers}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                keyboardShouldPersistTaps="handled"
-                onEndReached={loadMoreCustomers}
-                onEndReachedThreshold={0.4}
-                ListEmptyComponent={renderCustomerEmpty}
-                ListFooterComponent={
-                  loadingMore ? (
-                    <View style={styles.listFooter}>
-                      <ActivityIndicator size="small" color="#0D7A4E" />
-                    </View>
-                  ) : null
-                }
-                renderItem={({ item }) => {
-                  const selected = selectedCustomer?.id === item.id;
-                  return (
-                    <Pressable
-                      style={[styles.customerItem, selected ? styles.customerItemSelected : null]}
-                      onPress={() => setSelectedCustomer(item)}
-                    >
-                      <View style={styles.flex}>
-                        <Text style={styles.customerName}>{item.name}</Text>
-                        <Text style={styles.customerSub}>{item.phone}</Text>
-                        {item.email ? (
-                          <Text style={styles.customerSub}>{item.email}</Text>
-                        ) : null}
-                      </View>
-                      {selected ? (
-                        <Ionicons name="checkmark-circle" size={22} color="#0D7A4E" />
-                      ) : (
-                        <Ionicons name="ellipse-outline" size={22} color="#C7D8D1" />
-                      )}
-                    </Pressable>
-                  );
-                }}
-              />
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitleInline}>Select Customer</Text>
+                <View style={styles.walkInRow}>
+                  <Text style={styles.walkInLabel}>Walk-in</Text>
+                  <Switch
+                    value={customerMode === "walkin"}
+                    onValueChange={handleWalkInToggle}
+                    trackColor={{ false: "#C7D8D1", true: "#0D7A4E" }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              {customerMode === "existing" ? (
+                <>
+                  <ClearableTextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Search name, phone, email"
+                    placeholderTextColor="#7A8F87"
+                    style={styles.input}
+                    containerStyle={styles.searchInput}
+                  />
+                  <FlatList
+                    data={customers}
+                    keyExtractor={(item) => item.id}
+                    style={styles.flex}
+                    contentContainerStyle={styles.listContent}
+                    keyboardShouldPersistTaps="handled"
+                    onEndReached={loadMoreCustomers}
+                    onEndReachedThreshold={0.4}
+                    ListEmptyComponent={renderCustomerEmpty}
+                    ListFooterComponent={
+                      loadingMore ? (
+                        <View style={styles.listFooter}>
+                          <ActivityIndicator size="small" color="#0D7A4E" />
+                        </View>
+                      ) : null
+                    }
+                    renderItem={({ item }) => {
+                      const selected = selectedCustomer?.id === item.id;
+                      return (
+                        <Pressable
+                          style={[
+                            styles.customerItem,
+                            selected ? styles.customerItemSelected : null,
+                          ]}
+                          onPress={() => setSelectedCustomer(item)}
+                        >
+                          <View style={styles.flex}>
+                            <Text style={styles.customerName}>{item.name}</Text>
+                            <Text style={styles.customerSub}>{item.phone}</Text>
+                            {item.email ? (
+                              <Text style={styles.customerSub}>{item.email}</Text>
+                            ) : null}
+                          </View>
+                          {selected ? (
+                            <Ionicons name="checkmark-circle" size={22} color="#0D7A4E" />
+                          ) : (
+                            <Ionicons name="ellipse-outline" size={22} color="#C7D8D1" />
+                          )}
+                        </Pressable>
+                      );
+                    }}
+                  />
+                </>
+              ) : (
+                <ClearableTextInput
+                  value={walkInName}
+                  onChangeText={setWalkInName}
+                  placeholder="Enter walk-in customer name"
+                  placeholderTextColor="#7A8F87"
+                  style={styles.input}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  maxLength={100}
+                />
+              )}
             </View>
 
             <View style={styles.footerBar}>
-              {selectedCustomer ? (
+              {canContinueStep1 ? (
                 <Text style={styles.footerHint} numberOfLines={1}>
-                  Selected: {selectedCustomer.name}
+                  Selected: {selectedCustomerLabel}
                 </Text>
               ) : (
-                <Text style={styles.footerHint}>Select a customer to continue</Text>
+                <Text style={styles.footerHint}>
+                  {customerMode === "walkin"
+                    ? "Enter a walk-in name to continue"
+                    : "Select a customer to continue"}
+                </Text>
               )}
               <Pressable
                 style={[
                   styles.primaryButton,
-                  !selectedCustomer ? styles.primaryButtonDisabled : undefined,
+                  !canContinueStep1 ? styles.primaryButtonDisabled : undefined,
                 ]}
-                disabled={!selectedCustomer}
+                disabled={!canContinueStep1}
                 onPress={goToStep2}
               >
                 <Text style={styles.primaryButtonText}>Next</Text>
@@ -397,7 +479,7 @@ export default function CreateOrderScreen() {
               <Text style={styles.backStepText}>Change</Text>
             </Pressable>
             <Text style={styles.selectedBannerText} numberOfLines={1}>
-              {selectedCustomer?.name}
+              {selectedCustomerLabel}
             </Text>
           </View>
 
@@ -653,6 +735,25 @@ export default function CreateOrderScreen() {
                       </Pressable>
                     ) : null}
 
+                    <Text style={styles.label}>Footnote</Text>
+                    <ClearableTextInput
+                      style={[styles.input, styles.footnoteInput]}
+                      value={draft.footnote}
+                      onChangeText={(text) =>
+                        updateDraft({
+                          ...draft,
+                          footnote: text.slice(0, MAX_ORDER_FOOTNOTE_LENGTH),
+                        })
+                      }
+                      placeholder="Optional note (max 100 characters)"
+                      placeholderTextColor="#9AAEA6"
+                      maxLength={MAX_ORDER_FOOTNOTE_LENGTH}
+                      multiline
+                    />
+                    <Text style={styles.footnoteCount}>
+                      {draft.footnote.length}/{MAX_ORDER_FOOTNOTE_LENGTH}
+                    </Text>
+
                     <View style={styles.totalRow}>
                       <Text style={styles.totalLabel}>Day total</Text>
                       <Text style={styles.totalValue}>{formatCurrency(dayTotal)}</Text>
@@ -750,6 +851,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 10,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  sectionTitleInline: {
+    color: "#0B3D2E",
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+  },
+  walkInRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  walkInLabel: {
+    fontSize: 12,
+    color: "#39584F",
+    fontWeight: "600",
+  },
+  searchInput: {
+    marginBottom: 10,
+  },
   input: {
     borderWidth: 1,
     borderColor: "#C7D8D1",
@@ -759,6 +886,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     color: "#1E2A26",
     fontSize: 15,
+  },
+  footnoteInput: {
+    minHeight: 64,
+    textAlignVertical: "top",
+    marginTop: 4,
+  },
+  footnoteCount: {
+    color: "#7A8F87",
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 4,
+    marginBottom: 8,
   },
   listContent: {
     flexGrow: 1,

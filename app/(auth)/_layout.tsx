@@ -8,6 +8,7 @@ const ADMIN_ONLY_ROUTES = new Set([
   "box-setting",
   "store-location",
   "pickup-timeslot",
+  "welcome-message",
   "menu",
 ]);
 
@@ -73,6 +74,15 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Pickup Timeslot",
+          headerStyle: { backgroundColor: "#0B5D44" },
+          headerTintColor: "#FFFFFF",
+        }}
+      />
+      <Stack.Screen
+        name="(options)/welcome-message"
+        options={{
+          headerShown: true,
+          title: "General Message",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}

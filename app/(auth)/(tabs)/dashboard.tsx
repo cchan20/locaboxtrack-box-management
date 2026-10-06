@@ -1,16 +1,19 @@
 import { useAppDispatch } from "@/store/hooks";
 import { getCheckedOutBoxDetails } from "@/store/slices/boxSlice";
 import { getDashboardStats } from "@/store/slices/dashboardSlice";
+import { getDailyMeals } from "@/store/slices/dailyMealSlice";
 import { getOrders } from "@/store/slices/orderSlice";
 import { getGlobalSettings } from "@/store/slices/settingsSlice";
 import { getTransactionsSince } from "@/store/slices/transactionSlice";
 import {
   CheckedOutBoxDetails,
+  DailyMeal,
   DashboardStats,
   Order,
   Timeslot,
 } from "@/types/app";
 import { getDaysOut } from "@/utils/dates";
+import { addonLabelFromMeal } from "@/utils/orderWeek";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerChangeEvent,
@@ -23,7 +26,7 @@ import {
   TooltipComponent,
 } from "echarts/components";
 import { SkiaChart, SkiaRenderer } from "@wuba/react-native-echarts";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -58,13 +61,6 @@ const EMPTY_STATS: DashboardStats = {
   checkedOutCount: 0,
   warningCount: 0,
   overdueCount: 0,
-};
-
-const ADDON_LABELS: Record<string, string> = {
-  xl: "Extra Large",
-  pro: "Extra Protein",
-  veg: "Extra Veggie",
-  soup: "Extra Soup",
 };
 
 const DAY_NAMES = [
@@ -144,10 +140,6 @@ function formatWeekRange(weekDays: WeekDay[]) {
   return `${fmt(first)} – ${fmt(last)}`;
 }
 
-function formatAddonLabel(addon: string) {
-  return ADDON_LABELS[addon] ?? addon;
-}
-
 function formatCurrency(amount: number) {
   return `$${amount.toFixed(2)}`;
 }
@@ -164,14 +156,20 @@ function mealCombinationKey(addons: string[]) {
     .join("|");
 }
 
-function mealCombinationLabel(addons: string[]) {
+function mealCombinationLabel(addons: string[], dailyMeal?: DailyMeal | null) {
   if (addons.length === 0) {
     return "Basic Meal";
   }
-  return `Basic Meal + ${[...addons].sort().map(formatAddonLabel).join(" + ")}`;
+  return `Basic Meal + ${[...addons]
+    .sort()
+    .map((addon) => addonLabelFromMeal(addon, dailyMeal))
+    .join(" + ")}`;
 }
 
-function countMealCombinations(orders: Order[]): MealCombinationCount[] {
+function countMealCombinations(
+  orders: Order[],
+  dailyMeal?: DailyMeal | null,
+): MealCombinationCount[] {
   const counts = new Map<string, MealCombinationCount>();
 
   for (const order of orders) {
@@ -183,7 +181,7 @@ function countMealCombinations(orders: Order[]): MealCombinationCount[] {
       } else {
         counts.set(key, {
           key,
-          label: mealCombinationLabel(meal.addons),
+          label: mealCombinationLabel(meal.addons, dailyMeal),
           count: 1,
         });
       }
@@ -197,9 +195,11 @@ function countMealCombinations(orders: Order[]): MealCombinationCount[] {
 
 export default function DashboardScreen() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const metricsColumns = width >= 900 ? 4 : 2;
   const metricCardWidth = metricsColumns === 4 ? "23.5%" : "48.5%";
+  const summaryCardWidth = "31.5%" as const;
   const chartWidth = width - 32;
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("orders");
@@ -228,6 +228,9 @@ export default function DashboardScreen() {
   const [orderScopeTab, setOrderScopeTab] = useState<OrderScopeTab>("overall");
   const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [dailyMealsByDate, setDailyMealsByDate] = useState<Record<string, DailyMeal>>(
+    {},
+  );
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   const closeDetailsModal = useCallback(() => {
@@ -316,9 +319,10 @@ export default function DashboardScreen() {
     () => scopedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
     [scopedOrders],
   );
+  const selectedDayMeal = dailyMealsByDate[selectedDayKey] ?? null;
   const mealCombinations = useMemo(
-    () => countMealCombinations(scopedOrders),
-    [scopedOrders],
+    () => countMealCombinations(scopedOrders, selectedDayMeal),
+    [scopedOrders, selectedDayMeal],
   );
 
   const dayMealCounts = useMemo(() => {
@@ -330,6 +334,16 @@ export default function DashboardScreen() {
   }, [orders, weekDays]);
 
   const weekRangeLabel = useMemo(() => formatWeekRange(weekDays), [weekDays]);
+
+  const openOrdersForSelectedDay = useCallback(() => {
+    if (!selectedDayKey) {
+      return;
+    }
+    router.push({
+      pathname: "/(auth)/(tabs)/orders",
+      params: { date: selectedDayKey },
+    });
+  }, [router, selectedDayKey]);
 
   const onWeekDateChange = useCallback(
     (_event: DateTimePickerChangeEvent, selected?: Date) => {
@@ -379,7 +393,7 @@ export default function DashboardScreen() {
       const from = weekDays[0]?.key;
       const to = weekDays[weekDays.length - 1]?.key;
 
-      const [statsResponse, checkedOutResponse, transactionsResponse, settingsResponse, ordersResponse] =
+      const [statsResponse, checkedOutResponse, transactionsResponse, settingsResponse, ordersResponse, mealsResponse] =
         await Promise.all([
           dispatch(getDashboardStats()).unwrap(),
           dispatch(getCheckedOutBoxDetails()).unwrap(),
@@ -388,6 +402,9 @@ export default function DashboardScreen() {
           from && to
             ? dispatch(getOrders({ from, to })).unwrap()
             : Promise.resolve({ data: [] as Order[] }),
+          from && to
+            ? dispatch(getDailyMeals({ from, to })).unwrap()
+            : Promise.resolve({ data: [] as DailyMeal[] }),
         ]);
 
       const stats = statsResponse.data;
@@ -425,6 +442,11 @@ export default function DashboardScreen() {
       });
       setTimeslots(settingsResponse.data.timeslots ?? []);
       setOrders(ordersResponse.data ?? []);
+      const mealMap: Record<string, DailyMeal> = {};
+      for (const meal of mealsResponse.data ?? []) {
+        mealMap[meal.date] = meal;
+      }
+      setDailyMealsByDate(mealMap);
     } catch (error) {
       console.warn("Failed to load dashboard:", error);
     } finally {
@@ -761,36 +783,42 @@ export default function DashboardScreen() {
               </View>
             ) : (
               <>
-                <Text style={styles.scopeHeading}>
-                  {selectedDay?.label}
-                  {orderScopeTab === "overall"
-                    ? " · Overall"
-                    : ` · ${
-                        timeslots.find((slot) => slot.id === orderScopeTab)?.label ??
-                        "Timeslot"
-                      }`}
-                </Text>
+                <View style={styles.scopeHeadingRow}>
+                  <Text style={styles.scopeHeading}>
+                    {selectedDay?.label}
+                    {orderScopeTab === "overall"
+                      ? " · Overall"
+                      : ` · ${
+                          timeslots.find((slot) => slot.id === orderScopeTab)?.label ??
+                          "Timeslot"
+                        }`}
+                  </Text>
+                  {orderScopeTab === "overall" ? (
+                    <Pressable
+                      style={styles.viewAllOrdersButton}
+                      onPress={openOrdersForSelectedDay}
+                    >
+                      <Text style={styles.viewAllOrdersButtonText}>View all Orders</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#0D7A4E" />
+                    </Pressable>
+                  ) : null}
+                </View>
 
                 <View style={styles.metricsGrid}>
                   <SummaryCard
                     label="Members Ordered"
                     value={String(scopedOrders.length)}
-                    width={metricCardWidth}
+                    width={summaryCardWidth}
                   />
                   <SummaryCard
                     label="Total Meals"
                     value={String(scopedTotalMeals)}
-                    width={metricCardWidth}
+                    width={summaryCardWidth}
                   />
                   <SummaryCard
                     label="Slots Remaining"
                     value={String(scopedSlotsRemaining)}
-                    width={metricCardWidth}
-                  />
-                  <SummaryCard
-                    label="Est. Revenue"
-                    value={formatCurrency(scopedEstimatedRevenue)}
-                    width={metricCardWidth}
+                    width={summaryCardWidth}
                   />
                 </View>
 
@@ -815,6 +843,10 @@ export default function DashboardScreen() {
                     ))
                   )}
                 </View>
+
+                <Text style={styles.estimatedRevenueText}>
+                  Est. revenue {formatCurrency(scopedEstimatedRevenue)}
+                </Text>
               </>
             )}
           </>
@@ -1160,7 +1192,14 @@ const styles = StyleSheet.create({
   scopeTabTextActive: {
     color: "#FFFFFF",
   },
+  scopeHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   scopeHeading: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
     color: "#0B3D2E",
@@ -1223,6 +1262,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#0D7A4E",
+  },
+  estimatedRevenueText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#8A9A93",
+    textAlign: "center",
+  },
+  viewAllOrdersButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+    paddingVertical: 2,
+  },
+  viewAllOrdersButtonText: {
+    color: "#0D7A4E",
+    fontWeight: "700",
+    fontSize: 13,
   },
   summaryCard: {
     backgroundColor: "#FFFFFF",

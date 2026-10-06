@@ -23,6 +23,7 @@ export type Customer = {
   totalTaken: number;
   totalReturned: number;
   lateReturns: number;
+  lateCancelCount: number;
   riskStatus: "low" | "medium" | "high";
 };
 
@@ -71,6 +72,7 @@ export type Timeslot = {
 export type GlobalSetting = {
   orderWhatsappNumber: string;
   dailyCutOffTime: string;
+  welcomeMessage: string;
   timeslots: Timeslot[];
   storeLocations: StoreLocation[];
 };
@@ -86,12 +88,21 @@ export type DailyMeal = {
   basicBoxInventory: number;
   extraLargePrice: number;
   extraLargeInventory: number;
-  extraProteinPrice: number;
-  extraProteinInventory: number;
-  extraVeggiePrice: number;
-  extraVeggieInventory: number;
-  extraSoupBoxPrice: number;
-  extraSoupBoxInventory: number;
+  extraField1Name: string;
+  extraField1Price: number;
+  extraField1Inventory: number;
+  extraField2Name: string;
+  extraField2Price: number;
+  extraField2Inventory: number;
+  extraField3Name: string;
+  extraField3Price: number;
+  extraField3Inventory: number;
+  extraField4Name: string;
+  extraField4Price: number;
+  extraField4Inventory: number;
+  extraField5Name: string;
+  extraField5Price: number;
+  extraField5Inventory: number;
 };
 
 export type DailyMealInput = {
@@ -103,12 +114,21 @@ export type DailyMealInput = {
   basicBoxInventory: number;
   extraLargePrice: number;
   extraLargeInventory: number;
-  extraProteinPrice: number;
-  extraProteinInventory: number;
-  extraVeggiePrice: number;
-  extraVeggieInventory: number;
-  extraSoupBoxPrice: number;
-  extraSoupBoxInventory: number;
+  extraField1Name: string;
+  extraField1Price: number;
+  extraField1Inventory: number;
+  extraField2Name: string;
+  extraField2Price: number;
+  extraField2Inventory: number;
+  extraField3Name: string;
+  extraField3Price: number;
+  extraField3Inventory: number;
+  extraField4Name: string;
+  extraField4Price: number;
+  extraField4Inventory: number;
+  extraField5Name: string;
+  extraField5Price: number;
+  extraField5Inventory: number;
 };
 
 export type OrderMeal = {
@@ -120,12 +140,15 @@ export type Order = {
   customerId: string;
   customerName: string | null;
   customerPhone: string | null;
+  walkInCustomerName: string | null;
   date: string;
   dayOfWeek: string;
   timeslotId: string;
   storeLocationId: string;
+  footnote: string;
   meals: OrderMeal[];
   status: string;
+  pickedBoxIds: string[];
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
@@ -134,6 +157,8 @@ export type Order = {
 export type UpsertOrderPayload = {
   timeslotId: string;
   storeLocationId: string;
+  footnote?: string;
+  walkInCustomerName?: string;
   meals: OrderMeal[];
 };
 
@@ -156,9 +181,11 @@ export type DayAvailability = {
   dayOfWeek: string;
   basicBox: StockLevel;
   extraLarge: StockLevel;
-  extraProtein: StockLevel;
-  extraVeggie: StockLevel;
-  extraSoupBox: StockLevel;
+  extraField1: StockLevel;
+  extraField2: StockLevel;
+  extraField3: StockLevel;
+  extraField4: StockLevel;
+  extraField5: StockLevel;
   timeslots: TimeslotAvailability[];
 };
 

@@ -77,6 +77,54 @@ export const upsertOrderForCustomer = createAsyncThunk(
   },
 );
 
+export type CancelOrderForCustomerParams = {
+  customerId: string;
+  date: string;
+  orderId?: string;
+};
+
+export const cancelOrderForCustomer = createAsyncThunk(
+  "cancelOrderForCustomer",
+  async ({ customerId, date, orderId }: CancelOrderForCustomerParams) => {
+    try {
+      const query = orderId?.trim()
+        ? `?orderId=${encodeURIComponent(orderId.trim())}`
+        : "";
+      await axiosInstance.delete(
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}${query}`,
+      );
+      return { customerId, date };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export type MarkOrderPickedParams = {
+  customerId: string;
+  date: string;
+  boxIds: string[];
+  orderId?: string;
+};
+
+export const markOrderPicked = createAsyncThunk(
+  "markOrderPicked",
+  async ({ customerId, date, boxIds, orderId }: MarkOrderPickedParams) => {
+    try {
+      const query = orderId?.trim()
+        ? `?orderId=${encodeURIComponent(orderId.trim())}`
+        : "";
+      const response = await axiosInstance.post<OrderDto>(
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}/picked${query}`,
+        { boxIds },
+      );
+      return { data: mapOrder(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 export const getAvailability = createAsyncThunk(
   "getAvailability",
   async (params: GetAvailabilityParams) => {
@@ -128,6 +176,24 @@ const orderSlice = createSlice({
       state.loading = false;
     });
     builder.addCase(upsertOrderForCustomer.rejected, setRejected);
+
+    builder.addCase(cancelOrderForCustomer.fulfilled, (state, action) => {
+      const { customerId, date } = action.payload;
+      const order = state.orders.find(
+        (item) => item.customerId === customerId && item.date === date,
+      );
+      if (order) {
+        order.status = "cancelled";
+      }
+    });
+
+    builder.addCase(markOrderPicked.fulfilled, (state, action) => {
+      const updated = action.payload.data;
+      const index = state.orders.findIndex((item) => item.id === updated.id);
+      if (index >= 0) {
+        state.orders[index] = updated;
+      }
+    });
   },
 });
 
