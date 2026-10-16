@@ -5,6 +5,7 @@ import {
 } from "@/constants/config";
 import { useAppDispatch } from "@/store/hooks";
 import {
+  deleteBox,
   getBoxById,
   getBoxes,
   importBoxes,
@@ -267,6 +268,57 @@ export default function InventoryScreen() {
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error));
     }
+  };
+
+  const boxHasTransactions = async (boxId: string) => {
+    try {
+      const response = await dispatch(
+        getTransactionsByBox({
+          boxId,
+          limit: 1,
+        }),
+      ).unwrap();
+      return response.data.length > 0;
+    } catch {
+      return true;
+    }
+  };
+
+  const openDeleteBoxConfirm = async () => {
+    if (!selectedBox) {
+      return;
+    }
+
+    if (await boxHasTransactions(selectedBox.id)) {
+      Alert.alert(
+        "Cannot delete box",
+        "This box has transaction history and cannot be deleted.",
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Delete Box",
+      `Are you sure you want to delete ${selectedBox.id}? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await dispatch(deleteBox(selectedBox.id)).unwrap();
+              setSelectedBoxId(null);
+              setSelectedBox(null);
+              void loadBoxPage(1, false);
+              Alert.alert("Success", "Box deleted.");
+            } catch (error) {
+              Alert.alert("Error", getErrorMessage(error));
+            }
+          },
+        },
+      ],
+    );
   };
 
   const toggleStatusFilter = (status: BoxStatus) => {
@@ -679,6 +731,18 @@ export default function InventoryScreen() {
                   </Pressable>
                   ) : null}
 
+                  {isAdmin ? (
+                    <Pressable
+                      style={[styles.availabilityButton, styles.deleteBoxButton]}
+                      onPress={() => {
+                        void openDeleteBoxConfirm();
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                      <Text style={styles.availabilityButtonText}>Delete Box</Text>
+                    </Pressable>
+                  ) : null}
+
                   <View style={styles.statsRow}>
                     <View style={[styles.statCard, { width: statCardWidth }]}>
                       <Text style={styles.statLabel}>Status</Text>
@@ -1003,6 +1067,9 @@ const styles = StyleSheet.create({
   },
   makeAvailableButton: {
     backgroundColor: "#0D7A4E",
+  },
+  deleteBoxButton: {
+    backgroundColor: "#BD2323",
   },
   availabilityButtonText: {
     color: "#FFFFFF",

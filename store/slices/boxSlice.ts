@@ -225,6 +225,19 @@ export const importBoxes = createAsyncThunk(
   },
 );
 
+export const deleteBox = createAsyncThunk(
+  "deleteBox",
+  async (id: string) => {
+    try {
+      const url = `boxes/${encodeURIComponent(id)}`;
+      const response = await axiosInstance.delete<{ deleted: boolean }>(url);
+      return { data: response.data };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 const boxSlice = createSlice({
   name: "box",
   initialState,
@@ -305,6 +318,13 @@ const boxSlice = createSlice({
       state.loading = false;
     });
     builder.addCase(importBoxes.rejected, setRejected);
+
+    builder.addCase(deleteBox.pending, setPending);
+    builder.addCase(deleteBox.fulfilled, (state) => {
+      state.loading = false;
+      state.selectedBox = null;
+    });
+    builder.addCase(deleteBox.rejected, setRejected);
   },
 });
 
