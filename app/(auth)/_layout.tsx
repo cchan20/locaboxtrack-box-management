@@ -5,7 +5,6 @@ import { useEffect } from "react";
 const ADMIN_ONLY_ROUTES = new Set([
   "user-management",
   "user-form",
-  "box-setting",
   "store-location",
   "pickup-timeslot",
   "welcome-message",
@@ -52,15 +51,6 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen
-        name="(options)/box-setting"
-        options={{
-          headerShown: true,
-          title: "Box Setting",
-          headerStyle: { backgroundColor: "#0B5D44" },
-          headerTintColor: "#FFFFFF",
-        }}
-      />
-      <Stack.Screen
         name="(options)/store-location"
         options={{
           headerShown: true,
@@ -82,7 +72,7 @@ export default function AuthLayout() {
         name="(options)/welcome-message"
         options={{
           headerShown: true,
-          title: "General Message",
+          title: "General",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}
@@ -92,15 +82,6 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Menu",
-          headerStyle: { backgroundColor: "#0B5D44" },
-          headerTintColor: "#FFFFFF",
-        }}
-      />
-      <Stack.Screen
-        name="create-box"
-        options={{
-          headerShown: true,
-          title: "Create Box",
           headerStyle: { backgroundColor: "#0B5D44" },
           headerTintColor: "#FFFFFF",
         }}

@@ -4,7 +4,6 @@ import customerReducer from "@/store/slices/customerSlice";
 import dailyMealReducer from "@/store/slices/dailyMealSlice";
 import dashboardReducer from "@/store/slices/dashboardSlice";
 import orderReducer from "@/store/slices/orderSlice";
-import prefixReducer from "@/store/slices/prefixSlice";
 import settingsReducer from "@/store/slices/settingsSlice";
 import transactionReducer from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
@@ -35,7 +34,6 @@ const rootReducer = combineReducers({
   dailyMeal: dailyMealReducer,
   transaction: transactionReducer,
   user: userReducer,
-  prefix: prefixReducer,
   settings: settingsReducer,
   dashboard: dashboardReducer,
 });

@@ -136,6 +136,21 @@ export const setCustomerCreditCount = createAsyncThunk(
   },
 );
 
+export const resetCustomerTempPassword = createAsyncThunk(
+  "resetCustomerTempPassword",
+  async (payload: { id: string; tempPassword: string }) => {
+    try {
+      const url = `customers/${encodeURIComponent(payload.id)}/temp-password`;
+      const response = await axiosInstance.put<CustomerDto>(url, {
+        tempPassword: payload.tempPassword,
+      });
+      return { data: mapCustomer(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 export const deleteCustomer = createAsyncThunk(
   "deleteCustomer",
   async (id: string) => {
@@ -197,6 +212,13 @@ const customerSlice = createSlice({
       state.selectedCustomer = action.payload.data;
     });
     builder.addCase(setCustomerCreditCount.rejected, setRejected);
+
+    builder.addCase(resetCustomerTempPassword.pending, setPending);
+    builder.addCase(resetCustomerTempPassword.fulfilled, (state, action) => {
+      state.loading = false;
+      state.selectedCustomer = action.payload.data;
+    });
+    builder.addCase(resetCustomerTempPassword.rejected, setRejected);
 
     builder.addCase(deleteCustomer.pending, setPending);
     builder.addCase(deleteCustomer.fulfilled, (state) => {

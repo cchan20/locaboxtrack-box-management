@@ -92,6 +92,76 @@ export const updateOrderWhatsappNumber = createAsyncThunk(
   },
 );
 
+export const updateMaxMealsPerOrder = createAsyncThunk(
+  "updateMaxMealsPerOrder",
+  async (maxMealsPerOrder: number) => {
+    try {
+      const response = await axiosInstance.put<GlobalSettingDto>(
+        "settings/max-meals-per-order",
+        { maxMealsPerOrder },
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export type WelcomeImageUpload = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+export const uploadWelcomeImage = createAsyncThunk(
+  "uploadWelcomeImage",
+  async (file: WelcomeImageUpload) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
+
+      const response = await axiosInstance.put<GlobalSettingDto>(
+        "settings/welcome-image",
+        formData,
+        {
+          headers: { "Content-Type": undefined },
+          timeout: 60000,
+          transformRequest: [
+            (data, headers) => {
+              // Let the runtime set multipart boundary; default JSON Content-Type breaks uploads.
+              if (headers && typeof headers === "object") {
+                delete (headers as Record<string, unknown>)["Content-Type"];
+              }
+              return data;
+            },
+          ],
+        },
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export const deleteWelcomeImage = createAsyncThunk(
+  "deleteWelcomeImage",
+  async () => {
+    try {
+      const response = await axiosInstance.delete<GlobalSettingDto>(
+        "settings/welcome-image",
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 const settingsSlice = createSlice({
   name: "settings",
   initialState,
@@ -135,6 +205,18 @@ const settingsSlice = createSlice({
     builder.addCase(updateOrderWhatsappNumber.pending, setPending);
     builder.addCase(updateOrderWhatsappNumber.fulfilled, setFulfilledSettings);
     builder.addCase(updateOrderWhatsappNumber.rejected, setRejected);
+
+    builder.addCase(updateMaxMealsPerOrder.pending, setPending);
+    builder.addCase(updateMaxMealsPerOrder.fulfilled, setFulfilledSettings);
+    builder.addCase(updateMaxMealsPerOrder.rejected, setRejected);
+
+    builder.addCase(uploadWelcomeImage.pending, setPending);
+    builder.addCase(uploadWelcomeImage.fulfilled, setFulfilledSettings);
+    builder.addCase(uploadWelcomeImage.rejected, setRejected);
+
+    builder.addCase(deleteWelcomeImage.pending, setPending);
+    builder.addCase(deleteWelcomeImage.fulfilled, setFulfilledSettings);
+    builder.addCase(deleteWelcomeImage.rejected, setRejected);
   },
 });
 

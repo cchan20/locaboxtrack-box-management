@@ -1,26 +1,37 @@
-import { BOX_PAGE_SIZE, TRANSACTION_HISTORY_LIMIT } from "@/constants/config";
+import {
+  BOX_EXPORT_PAGE_SIZE,
+  BOX_PAGE_SIZE,
+  TRANSACTION_HISTORY_LIMIT,
+} from "@/constants/config";
 import { useAppDispatch } from "@/store/hooks";
 import {
   getBoxById,
   getBoxes,
+  importBoxes,
   setBoxAvailability,
 } from "@/store/slices/boxSlice";
 import { getTransactionsByBox } from "@/store/slices/transactionSlice";
 import { useAuth } from "@/store/useAuth";
 import { Box, BoxStatus, TransactionHistoryItem } from "@/types/app";
-import { getErrorMessage } from "@/utils/apiError";
-import { getDaysOut } from "@/utils/dates";
 import { ClearableTextInput } from "@/ui/ClearableTextInput";
+import { HeaderActionsWithCreate } from "@/ui/HeaderActionsWithCreate";
 import { TransactionHistoryModal } from "@/ui/TransactionHistoryModal";
+import { getErrorMessage } from "@/utils/apiError";
+import { buildBoxesCsv, parseBoxesCsv } from "@/utils/boxCsv";
+import { getDaysOut } from "@/utils/dates";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { useFocusEffect, useNavigation } from "expo-router";
+import * as Sharing from "expo-sharing";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,8 +43,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const EXPORT_STATUS_FILTERS = [
+  { key: "available" as const, label: "Available" },
+  { key: "checked-out" as const, label: "Checked-out" },
+  { key: "unavailable" as const, label: "Unavailable" },
+];
+
 export default function InventoryScreen() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
@@ -48,6 +65,14 @@ export default function InventoryScreen() {
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportStatuses, setExportStatuses] = useState<BoxStatus[]>([
+    "available",
+    "checked-out",
+    "unavailable",
+  ]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const listRequestIdRef = useRef(0);
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -195,10 +220,6 @@ export default function InventoryScreen() {
     void loadBoxPage(pageRef.current + 1, true);
   }, [boxes.length, loadBoxPage]);
 
-  const openCreateBox = () => {
-    router.push("/(auth)/create-box");
-  };
-
   const openBoxDetails = (box: Box) => {
     setSelectedBoxId(box.id);
     setSelectedBox(box);
@@ -262,6 +283,194 @@ export default function InventoryScreen() {
     });
   };
 
+  const toggleExportStatus = (status: BoxStatus) => {
+    setExportStatuses((current) => {
+      if (current.includes(status)) {
+        if (current.length === 1) {
+          return current;
+        }
+
+        return current.filter((item) => item !== status);
+      }
+
+      return [...current, status];
+    });
+  };
+
+  const openExportModal = useCallback(() => {
+    setExportStatuses(["available", "checked-out", "unavailable"]);
+    setExportModalOpen(true);
+  }, []);
+
+  const closeExportModal = useCallback(() => {
+    if (isExporting) {
+      return;
+    }
+    setExportModalOpen(false);
+  }, [isExporting]);
+
+  const handleExportBoxes = useCallback(async () => {
+    if (isExporting) {
+      return;
+    }
+
+    if (exportStatuses.length === 0) {
+      Alert.alert("Nothing to export", "Select at least one status.");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const exportedBoxes: Box[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await dispatch(
+          getBoxes({
+            status: exportStatuses,
+            page,
+            limit: BOX_EXPORT_PAGE_SIZE,
+          }),
+        ).unwrap();
+
+        exportedBoxes.push(...response.data);
+        hasMore = response.hasMore;
+        page += 1;
+
+        if (page > 500) {
+          break;
+        }
+      }
+
+      if (exportedBoxes.length === 0) {
+        Alert.alert("Nothing to export", "There are no boxes matching the selected statuses.");
+        return;
+      }
+
+      const csv = buildBoxesCsv(exportedBoxes);
+      const cacheDir = FileSystem.cacheDirectory;
+      if (!cacheDir) {
+        throw new Error("Cache directory is unavailable on this device.");
+      }
+
+      const dateKey = new Date().toISOString().slice(0, 10);
+      const fileUri = `${cacheDir}boxes-${dateKey}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: "utf8",
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert(
+          "Export ready",
+          "CSV was created, but sharing is unavailable on this device.",
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/csv",
+        dialogTitle: `Export boxes for ${dateKey}`,
+        UTI: "public.comma-separated-values-text",
+      });
+
+      setExportModalOpen(false);
+    } catch (error) {
+      Alert.alert("Unable to export", getErrorMessage(error));
+    } finally {
+      setIsExporting(false);
+    }
+  }, [dispatch, exportStatuses, isExporting]);
+
+  const handleImportBoxes = useCallback(async () => {
+    if (isImporting || isExporting) {
+      return;
+    }
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "text/csv",
+          "text/comma-separated-values",
+          "public.comma-separated-values-text",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const csvContent = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: "utf8",
+      });
+
+      let rows;
+      try {
+        rows = parseBoxesCsv(csvContent);
+      } catch (error) {
+        Alert.alert(
+          "Invalid CSV",
+          error instanceof Error ? error.message : "Unable to parse the selected CSV file.",
+        );
+        return;
+      }
+
+      setIsImporting(true);
+      try {
+        const response = await dispatch(
+          importBoxes({
+            boxes: rows.map((row) => ({ id: row.id, status: row.status })),
+          }),
+        ).unwrap();
+
+        void loadBoxPage(1, false);
+        void loadSelectedBoxDetailsRef.current();
+
+        Alert.alert(
+          "Import complete",
+          [
+            asset.name ? `File: ${asset.name}` : null,
+            `Created ${response.data.created}`,
+            `Updated ${response.data.updated}`,
+            `Unchanged ${response.data.unchanged}`,
+            `Skipped checked-out ${response.data.skipped}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      } catch (error) {
+        Alert.alert("Unable to import", getErrorMessage(error));
+      } finally {
+        setIsImporting(false);
+      }
+    } catch (error) {
+      Alert.alert(
+        "Unable to open file",
+        getErrorMessage(error, "Failed to read the selected file."),
+      );
+    }
+  }, [dispatch, isExporting, isImporting, loadBoxPage]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderActionsWithCreate
+          onImport={() => {
+            void handleImportBoxes();
+          }}
+          importDisabled={isImporting || isExporting}
+          onExport={openExportModal}
+          exportDisabled={isExporting || isImporting}
+        />
+      ),
+    });
+  }, [handleImportBoxes, isExporting, isImporting, navigation, openExportModal]);
+
   const renderEmptyState = () => {
     const query = search.trim();
 
@@ -276,11 +485,11 @@ export default function InventoryScreen() {
     }
 
     return (
-      <Pressable style={styles.emptyState} onPress={isAdmin ? openCreateBox : undefined}>
+      <View style={styles.emptyState}>
         <Ionicons name="cube-outline" size={36} color="#0D7A4E" />
         <Text style={styles.emptyTitle}>No boxes yet</Text>
-        <Text style={styles.emptyText}>Tap here to create your first box.</Text>
-      </Pressable>
+        <Text style={styles.emptyText}>Boxes will appear here once they are available.</Text>
+      </View>
     );
   };
 
@@ -297,11 +506,7 @@ export default function InventoryScreen() {
                 <View style={styles.filterHeaderRow}>
                   <Text style={styles.sectionTitle}>Search</Text>
                   <View style={styles.filterTabs}>
-                    {([
-                      { key: "available", label: "Available" },
-                      { key: "checked-out", label: "Checked-out" },
-                      { key: "unavailable", label: "Unavailable" },
-                    ] as const).map((filter) => {
+                    {EXPORT_STATUS_FILTERS.map((filter) => {
                       const isActive = statusFilters.includes(filter.key);
 
                       return (
@@ -556,6 +761,74 @@ export default function InventoryScreen() {
           setTransactions([]);
         }}
       />
+
+      <Modal
+        visible={exportModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={closeExportModal}
+      >
+        <View style={styles.exportModalOverlay}>
+          <View style={styles.exportModalCard}>
+            <Text style={styles.exportModalTitle}>Export Boxes</Text>
+            <Text style={styles.exportModalHint}>
+              Select statuses to include. The CSV will contain box id and status.
+            </Text>
+
+            <Text style={styles.exportModalLabel}>Status</Text>
+            <View style={styles.exportFilterTabs}>
+              {EXPORT_STATUS_FILTERS.map((filter) => {
+                const isActive = exportStatuses.includes(filter.key);
+
+                return (
+                  <Pressable
+                    key={filter.key}
+                    disabled={isExporting}
+                    style={[styles.filterTab, isActive ? styles.filterTabActive : undefined]}
+                    onPress={() => toggleExportStatus(filter.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterTabText,
+                        isActive ? styles.filterTabTextActive : undefined,
+                      ]}
+                    >
+                      {filter.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.exportModalActions}>
+              <Pressable
+                disabled={isExporting}
+                style={[styles.exportModalButton, styles.exportModalCancelButton]}
+                onPress={closeExportModal}
+              >
+                <Text style={styles.exportModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isExporting}
+                style={[
+                  styles.exportModalButton,
+                  styles.exportModalConfirmButton,
+                  isExporting ? styles.exportModalButtonDisabled : undefined,
+                ]}
+                onPress={() => {
+                  void handleExportBoxes();
+                }}
+              >
+                {isExporting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.exportModalConfirmText}>Export</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -574,10 +847,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     gap: 12,
+    minHeight: 0,
   },
   leftColumn: {
     flex: 1.25,
     gap: 12,
+    minHeight: 0,
   },
   filterCard: {
     backgroundColor: "#FFFFFF",
@@ -651,11 +926,13 @@ const styles = StyleSheet.create({
   },
   detailsCard: {
     flex: 0.95,
+    minHeight: 0,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#DDEBE6",
     padding: 14,
+    overflow: "hidden",
   },
   detailsEmptyState: {
     flex: 1,
@@ -679,6 +956,7 @@ const styles = StyleSheet.create({
   },
   detailsScroll: {
     flex: 1,
+    minHeight: 0,
   },
   boxIdentityBlock: {
     marginBottom: 10,
@@ -893,5 +1171,76 @@ const styles = StyleSheet.create({
   },
   overdueText: {
     color: "#8E1F1F",
+  },
+  exportModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(16, 35, 28, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  exportModalCard: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D8E6E0",
+    backgroundColor: "#F9FCFB",
+    padding: 14,
+  },
+  exportModalTitle: {
+    color: "#0D4A37",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  exportModalHint: {
+    color: "#577066",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  exportModalLabel: {
+    color: "#35574A",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  exportFilterTabs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  exportModalActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  exportModalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 42,
+  },
+  exportModalCancelButton: {
+    backgroundColor: "#E8EFEC",
+  },
+  exportModalConfirmButton: {
+    backgroundColor: "#0D7A4E",
+  },
+  exportModalButtonDisabled: {
+    opacity: 0.7,
+  },
+  exportModalCancelText: {
+    color: "#35574A",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  exportModalConfirmText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

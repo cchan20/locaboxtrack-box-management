@@ -17,12 +17,13 @@ import {
 } from "@/types/app";
 import { getErrorMessage } from "@/utils/apiError";
 import {
-  MAX_MEALS_PER_ORDER,
+  DEFAULT_MAX_MEALS_PER_ORDER,
   MAX_ORDER_FOOTNOTE_LENGTH,
   WEEK_DAYS,
   addonsFromDailyMeal,
   availabilityByDay,
   datesByDay,
+  effectiveMaxMealsPerOrder,
   firstOrderableDay,
   formatCurrency,
   getCurrentWeekRange,
@@ -82,6 +83,9 @@ export default function CreateOrderScreen() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
   const [storeLocations, setStoreLocations] = useState<StoreLocation[]>([]);
+  const [maxMealsPerOrder, setMaxMealsPerOrder] = useState(
+    DEFAULT_MAX_MEALS_PER_ORDER,
+  );
   const [meals, setMeals] = useState<Partial<Record<WeekDay, DailyMeal>>>({});
   const [availability, setAvailability] = useState<
     Partial<Record<WeekDay, DayAvailability>>
@@ -174,6 +178,9 @@ export default function CreateOrderScreen() {
       ]);
       setTimeslots(settingsRes.data.timeslots ?? []);
       setStoreLocations(settingsRes.data.storeLocations ?? []);
+      setMaxMealsPerOrder(
+        effectiveMaxMealsPerOrder(settingsRes.data.maxMealsPerOrder),
+      );
       setMeals(mealsByDay(mealsRes.data));
       setAvailability(availabilityByDay(availRes.data));
       setActiveDay(firstOrderableDay(weekDates));
@@ -718,7 +725,7 @@ export default function CreateOrderScreen() {
                       </View>
                     ))}
 
-                    {draft.meals.length < MAX_MEALS_PER_ORDER ? (
+                    {draft.meals.length < maxMealsPerOrder ? (
                       <Pressable
                         style={styles.addMealButton}
                         onPress={() =>
@@ -729,7 +736,7 @@ export default function CreateOrderScreen() {
                         }
                       >
                         <Text style={styles.addMealButtonText}>
-                          + Add 2nd Meal (base{" "}
+                          + Add Meal (base{" "}
                           {formatCurrency(activeMeal.basicBoxPrice)})
                         </Text>
                       </Pressable>

@@ -7,7 +7,6 @@ import {
   GlobalSetting,
   Order,
   OrderMeal,
-  RunningNoControl,
   StoreLocation,
   Timeslot,
   TransactionHistoryItem,
@@ -33,6 +32,7 @@ export type CustomerDto = {
   phone: string;
   email: string;
   externalId?: string;
+  mustResetPassword?: boolean;
   creditCount: number;
   currentTaken: number;
   totalTaken: number;
@@ -62,11 +62,6 @@ export type UserDto = {
   updatedAt?: string;
 };
 
-export type PrefixDto = {
-  id: string;
-  currentNumber: number;
-};
-
 export type StoreLocationDto = {
   id: string;
   name: string;
@@ -83,7 +78,10 @@ export type TimeslotDto = {
 export type GlobalSettingDto = {
   orderWhatsappNumber?: string;
   dailyCutOffTime?: string;
+  maxMealsPerOrder?: number;
   welcomeMessage?: string;
+  hasWelcomeImage?: boolean;
+  welcomeImageUpdatedAt?: number;
   timeslots?: TimeslotDto[];
   storeLocations?: StoreLocationDto[];
 };
@@ -158,6 +156,7 @@ export const mapCustomer = (dto: CustomerDto): Customer => ({
   phone: dto.phone,
   email: dto.email,
   externalId: dto.externalId ?? null,
+  mustResetPassword: dto.mustResetPassword ?? false,
   creditCount: dto.creditCount,
   currentTaken: dto.currentTaken,
   totalTaken: dto.totalTaken,
@@ -187,11 +186,6 @@ export const mapUser = (dto: UserDto): User => ({
   updatedAt: dto.updatedAt,
 });
 
-export const mapPrefix = (dto: PrefixDto): RunningNoControl => ({
-  id: dto.id,
-  currentNumber: dto.currentNumber,
-});
-
 export const mapStoreLocation = (dto: StoreLocationDto): StoreLocation => ({
   id: dto.id,
   name: dto.name,
@@ -208,7 +202,13 @@ export const mapTimeslot = (dto: TimeslotDto): Timeslot => ({
 export const mapGlobalSetting = (dto: GlobalSettingDto): GlobalSetting => ({
   orderWhatsappNumber: dto.orderWhatsappNumber ?? "",
   dailyCutOffTime: dto.dailyCutOffTime ?? "",
+  maxMealsPerOrder:
+    typeof dto.maxMealsPerOrder === "number" && dto.maxMealsPerOrder > 0
+      ? dto.maxMealsPerOrder
+      : 2,
   welcomeMessage: dto.welcomeMessage ?? "",
+  hasWelcomeImage: Boolean(dto.hasWelcomeImage),
+  welcomeImageUpdatedAt: dto.welcomeImageUpdatedAt ?? 0,
   timeslots: (dto.timeslots ?? []).map(mapTimeslot),
   storeLocations: (dto.storeLocations ?? []).map(mapStoreLocation),
 });

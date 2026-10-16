@@ -8,8 +8,17 @@ export const WEEK_DAYS: WeekDay[] = [
   "Friday",
 ];
 
-export const MAX_MEALS_PER_ORDER = 2;
+/** Fallback when global settings have not loaded or omit a value. */
+export const DEFAULT_MAX_MEALS_PER_ORDER = 2;
+export const MAX_MEALS_PER_ORDER_CAP = 10;
 export const MAX_ORDER_FOOTNOTE_LENGTH = 100;
+
+export function effectiveMaxMealsPerOrder(value?: number | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+    return DEFAULT_MAX_MEALS_PER_ORDER;
+  }
+  return Math.min(Math.floor(value), MAX_MEALS_PER_ORDER_CAP);
+}
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();

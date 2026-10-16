@@ -1,6 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
-import { HeaderActionsWithCreate } from "@/ui/HeaderActionsWithCreate";
 import { HeaderOverflowMenu } from "@/ui/HeaderOverflowMenu";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
@@ -48,9 +47,7 @@ export default function TabsLayout() {
         name="inventory"
         options={{
           title: "Inventory",
-          headerRight: () => (
-            <HeaderActionsWithCreate label="Create" route="/(auth)/create-box" adminOnly />
-          ),
+          // headerRight is set from InventoryScreen so Export can open the status modal.
           tabBarIcon: ({ color, size }) => <Ionicons name="cube" size={size} color={color} />,
         }}
       />

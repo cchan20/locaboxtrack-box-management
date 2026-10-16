@@ -4,14 +4,16 @@ import { useAuth } from "@/store/useAuth";
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-type CreateRoute = "/(auth)/create-box" | "/(auth)/create-order";
+type CreateRoute = "/(auth)/create-order";
 
 type HeaderActionsWithCreateProps = {
-  label: string;
-  route: CreateRoute;
+  label?: string;
+  route?: CreateRoute;
   adminOnly?: boolean;
   onExport?: () => void;
   exportDisabled?: boolean;
+  onImport?: () => void;
+  importDisabled?: boolean;
 };
 
 export function HeaderActionsWithCreate({
@@ -20,20 +22,38 @@ export function HeaderActionsWithCreate({
   adminOnly = false,
   onExport,
   exportDisabled = false,
+  onImport,
+  importDisabled = false,
 }: HeaderActionsWithCreateProps) {
   const router = useRouter();
   const { isAdmin } = useAuth();
+  const canCreate = Boolean(label && route) && (!adminOnly || isAdmin);
 
-  if (adminOnly && !isAdmin) {
+  if (!canCreate && !onExport && !onImport) {
     return <HeaderOverflowMenu />;
   }
 
   return (
     <View style={styles.headerActionsWrap}>
+      {onImport ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Import CSV"
+          disabled={importDisabled}
+          style={[
+            styles.headerActionButton,
+            importDisabled ? styles.headerActionButtonDisabled : undefined,
+          ]}
+          onPress={onImport}
+        >
+          <Ionicons name="cloud-upload-outline" size={16} color="#FFFFFF" />
+          <Text style={styles.headerActionButtonText}>Import</Text>
+        </Pressable>
+      ) : null}
       {onExport ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Export orders CSV"
+          accessibilityLabel="Export CSV"
           disabled={exportDisabled}
           style={[
             styles.headerActionButton,
@@ -45,10 +65,12 @@ export function HeaderActionsWithCreate({
           <Text style={styles.headerActionButtonText}>Export</Text>
         </Pressable>
       ) : null}
-      <Pressable style={styles.headerActionButton} onPress={() => router.push(route)}>
-        <Ionicons name="add" size={16} color="#FFFFFF" />
-        <Text style={styles.headerActionButtonText}>{label}</Text>
-      </Pressable>
+      {canCreate && route ? (
+        <Pressable style={styles.headerActionButton} onPress={() => router.push(route)}>
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={styles.headerActionButtonText}>{label}</Text>
+        </Pressable>
+      ) : null}
       <HeaderOverflowMenu />
     </View>
   );

@@ -9,7 +9,6 @@ type MenuOption = {
   label: string;
   route?:
     | "/(auth)/(options)/user-management"
-    | "/(auth)/(options)/box-setting"
     | "/(auth)/(options)/store-location"
     | "/(auth)/(options)/pickup-timeslot"
     | "/(auth)/(options)/welcome-message"
@@ -19,7 +18,6 @@ type MenuOption = {
 
 const MENU_OPTIONS: MenuOption[] = [
   { key: "user-management", label: "User Management", route: "/(auth)/(options)/user-management" },
-  { key: "box-setting", label: "Box Setting", route: "/(auth)/(options)/box-setting" },
   { key: "store-location", label: "Store Location", route: "/(auth)/(options)/store-location" },
   {
     key: "pickup-timeslot",
@@ -28,7 +26,7 @@ const MENU_OPTIONS: MenuOption[] = [
   },
   {
     key: "welcome-message",
-    label: "General Message",
+    label: "General",
     route: "/(auth)/(options)/welcome-message",
   },
   { key: "menu", label: "Menu", route: "/(auth)/(options)/menu" },

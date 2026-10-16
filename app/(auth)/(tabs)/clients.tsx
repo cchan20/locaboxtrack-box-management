@@ -5,6 +5,7 @@ import {
   deleteCustomer,
   getCustomerById,
   getCustomers,
+  resetCustomerTempPassword,
   setCustomerCreditCount,
   setCustomerRiskStatus,
 } from "@/store/slices/customerSlice";
@@ -51,6 +52,12 @@ export default function ClientsScreen() {
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<Box[]>([]);
   const [isEditingCredit, setIsEditingCredit] = useState(false);
   const [creditDraft, setCreditDraft] = useState(1);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [tempPasswordDraft, setTempPasswordDraft] = useState("");
+  const [confirmTempPasswordDraft, setConfirmTempPasswordDraft] = useState("");
+  const [isTempPasswordHidden, setIsTempPasswordHidden] = useState(true);
+  const [isConfirmTempPasswordHidden, setIsConfirmTempPasswordHidden] = useState(true);
+  const [isSavingTempPassword, setIsSavingTempPassword] = useState(false);
   const [transactionsModalOpen, setTransactionsModalOpen] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionHistoryItem[]>([]);
@@ -150,7 +157,25 @@ export default function ClientsScreen() {
   useEffect(() => {
     setIsEditingCredit(false);
     setCreditDraft(1);
+    setIsResettingPassword(false);
+    setTempPasswordDraft("");
+    setConfirmTempPasswordDraft("");
+    setIsTempPasswordHidden(true);
+    setIsConfirmTempPasswordHidden(true);
+    setIsSavingTempPassword(false);
   }, [selectedClientId]);
+
+  const generateTempPassword = () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    let generated = "";
+    for (let i = 0; i < 10; i += 1) {
+      generated += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    setTempPasswordDraft(generated);
+    setConfirmTempPasswordDraft(generated);
+    setIsTempPasswordHidden(false);
+    setIsConfirmTempPasswordHidden(false);
+  };
 
   const loadMoreCustomers = () => {
     if (!hasMore || listLoading || loadingMore) {
@@ -214,6 +239,71 @@ export default function ClientsScreen() {
 
     setCreditDraft(Math.max(1, selectedClient.creditCount));
     setIsEditingCredit(true);
+  };
+
+  const openResetPassword = () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    setTempPasswordDraft("");
+    setConfirmTempPasswordDraft("");
+    setIsTempPasswordHidden(true);
+    setIsConfirmTempPasswordHidden(true);
+    setIsResettingPassword(true);
+  };
+
+  const closeResetPassword = () => {
+    if (isSavingTempPassword) {
+      return;
+    }
+    setIsResettingPassword(false);
+    setTempPasswordDraft("");
+    setConfirmTempPasswordDraft("");
+    setIsTempPasswordHidden(true);
+    setIsConfirmTempPasswordHidden(true);
+  };
+
+  const submitResetPassword = async () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    const normalizedPassword = tempPasswordDraft.trim();
+    const normalizedConfirm = confirmTempPasswordDraft.trim();
+
+    if (normalizedPassword.length < 8) {
+      Alert.alert("Invalid password", "Temporary password must be at least 8 characters.");
+      return;
+    }
+
+    if (normalizedPassword !== normalizedConfirm) {
+      Alert.alert("Password mismatch", "Temporary password and confirm password must match.");
+      return;
+    }
+
+    setIsSavingTempPassword(true);
+    try {
+      const response = await dispatch(
+        resetCustomerTempPassword({
+          id: selectedClient.id,
+          tempPassword: normalizedPassword,
+        }),
+      ).unwrap();
+      setSelectedClient(response.data);
+      void loadCustomerPage(1, false);
+      setIsResettingPassword(false);
+      setTempPasswordDraft("");
+      setConfirmTempPasswordDraft("");
+      Alert.alert(
+        "Temporary password set",
+        `Share this temporary password with ${response.data.name}. They must change it on next web login.\n\n${normalizedPassword}`,
+      );
+    } catch (error) {
+      Alert.alert("Error", getErrorMessage(error));
+    } finally {
+      setIsSavingTempPassword(false);
+    }
   };
 
   const updateCreditCount = async () => {
@@ -467,6 +557,11 @@ export default function ClientsScreen() {
                             {selectedClient.currentTaken} / {selectedClient.creditCount}
                           </Text>
                         </View>
+                        {selectedClient.mustResetPassword ? (
+                          <View style={styles.mustResetTag}>
+                            <Text style={styles.mustResetTagText}>Must reset password</Text>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                     <Text style={styles.identitySubText}>{selectedClient.phone}</Text>
@@ -557,6 +652,13 @@ export default function ClientsScreen() {
                       <Text style={styles.riskActionButtonText}>Change Credit</Text>
                     </Pressable>
 
+                    <Pressable
+                      style={[styles.riskActionButton, styles.resetPasswordActionButton]}
+                      onPress={openResetPassword}
+                    >
+                      <Text style={styles.riskActionButtonText}>Reset Temporary Password</Text>
+                    </Pressable>
+
                     {isAdmin ? (
                       <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
                         <Text style={styles.riskActionButtonText}>Delete Customer</Text>
@@ -623,6 +725,119 @@ export default function ClientsScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={isResettingPassword}
+        animationType="fade"
+        transparent
+        onRequestClose={closeResetPassword}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardAvoidingView}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.creditModalOverlay}>
+              <View style={styles.creditModalCard}>
+                <Text style={styles.creditModalTitle}>Reset Temporary Password</Text>
+                <Text style={styles.resetPasswordHint}>
+                  Customer must change this password on next web order login.
+                </Text>
+
+                <Text style={styles.creditEditorLabel}>Temporary Password</Text>
+                <ClearableTextInput
+                  value={tempPasswordDraft}
+                  onChangeText={setTempPasswordDraft}
+                  placeholder="At least 8 characters"
+                  placeholderTextColor="#6B7D76"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry={isTempPasswordHidden}
+                  editable={!isSavingTempPassword}
+                  style={styles.input}
+                  containerStyle={styles.passwordFieldWrap}
+                  endAccessoryWidth={36}
+                  endAccessory={
+                    <Pressable
+                      onPress={() => setIsTempPasswordHidden((current) => !current)}
+                      style={styles.passwordToggleButton}
+                      accessibilityLabel={isTempPasswordHidden ? "Show password" : "Hide password"}
+                    >
+                      <Ionicons
+                        name={isTempPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                        size={19}
+                        color="#0E6045"
+                      />
+                    </Pressable>
+                  }
+                />
+
+                <Text style={[styles.creditEditorLabel, styles.resetPasswordConfirmLabel]}>
+                  Confirm Temporary Password
+                </Text>
+                <ClearableTextInput
+                  value={confirmTempPasswordDraft}
+                  onChangeText={setConfirmTempPasswordDraft}
+                  placeholder="Re-enter temporary password"
+                  placeholderTextColor="#6B7D76"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry={isConfirmTempPasswordHidden}
+                  editable={!isSavingTempPassword}
+                  style={styles.input}
+                  containerStyle={styles.passwordFieldWrap}
+                  endAccessoryWidth={36}
+                  endAccessory={
+                    <Pressable
+                      onPress={() => setIsConfirmTempPasswordHidden((current) => !current)}
+                      style={styles.passwordToggleButton}
+                      accessibilityLabel={
+                        isConfirmTempPasswordHidden ? "Show password" : "Hide password"
+                      }
+                    >
+                      <Ionicons
+                        name={isConfirmTempPasswordHidden ? "eye-outline" : "eye-off-outline"}
+                        size={19}
+                        color="#0E6045"
+                      />
+                    </Pressable>
+                  }
+                />
+
+                <Pressable
+                  style={styles.generatePasswordButton}
+                  onPress={generateTempPassword}
+                  disabled={isSavingTempPassword}
+                >
+                  <Ionicons name="shuffle-outline" size={16} color="#0E6045" />
+                  <Text style={styles.generatePasswordButtonText}>Generate password</Text>
+                </Pressable>
+
+                <View style={styles.creditEditorActionsRow}>
+                  <Pressable
+                    style={[styles.creditEditorButton, styles.creditEditorCancelButton]}
+                    onPress={closeResetPassword}
+                    disabled={isSavingTempPassword}
+                  >
+                    <Text style={styles.creditEditorCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.creditEditorButton, styles.creditEditorSaveButton]}
+                    onPress={submitResetPassword}
+                    disabled={isSavingTempPassword}
+                  >
+                    {isSavingTempPassword ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.creditEditorSaveText}>Set Password</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -893,8 +1108,24 @@ const styles = StyleSheet.create({
   creditActionButton: {
     backgroundColor: "#2F6EA3",
   },
+  resetPasswordActionButton: {
+    backgroundColor: "#1F6F78",
+  },
   deleteCustomerActionButton: {
     backgroundColor: "#BD2323",
+  },
+  mustResetTag: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "#E6F4F5",
+    borderWidth: 1,
+    borderColor: "#B7D8DC",
+  },
+  mustResetTagText: {
+    color: "#1F6F78",
+    fontSize: 11,
+    fontWeight: "700",
   },
   creditModalOverlay: {
     flex: 1,
@@ -921,6 +1152,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 10,
   },
+  resetPasswordHint: {
+    color: "#577066",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  resetPasswordConfirmLabel: {
+    marginTop: 10,
+  },
   creditEditorLabel: {
     color: "#35574A",
     fontSize: 12,
@@ -937,6 +1177,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     paddingHorizontal: 6,
+  },
+  generatePasswordButton: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  generatePasswordButtonText: {
+    color: "#0E6045",
+    fontSize: 13,
+    fontWeight: "700",
   },
   modalInput: {
     paddingRight: 44,

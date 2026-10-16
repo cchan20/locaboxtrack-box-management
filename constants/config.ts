@@ -18,5 +18,8 @@ export const CUSTOMER_PAGE_SIZE = 20;
 
 export const BOX_PAGE_SIZE = 20;
 
+/** Page size used when exporting the full box list (matches backend MaxBoxPageLimit). */
+export const BOX_EXPORT_PAGE_SIZE = 100;
+
 /** Sentinel customer id for walk-in orders (matches backend WalkInCustomerId). */
 export const WALK_IN_CUSTOMER_ID = "WALK-IN";

@@ -201,6 +201,30 @@ export const setBoxAvailability = createAsyncThunk(
   },
 );
 
+export type ImportBoxesPayload = {
+  boxes: Array<{ id: string; status: BoxStatus }>;
+};
+
+export type ImportBoxesResult = {
+  created: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+  total: number;
+};
+
+export const importBoxes = createAsyncThunk(
+  "importBoxes",
+  async (payload: ImportBoxesPayload) => {
+    try {
+      const response = await axiosInstance.post<ImportBoxesResult>("boxes/import", payload);
+      return { data: response.data };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 const boxSlice = createSlice({
   name: "box",
   initialState,
@@ -275,6 +299,12 @@ const boxSlice = createSlice({
       state.selectedBox = action.payload.data;
     });
     builder.addCase(setBoxAvailability.rejected, setRejected);
+
+    builder.addCase(importBoxes.pending, setPending);
+    builder.addCase(importBoxes.fulfilled, (state) => {
+      state.loading = false;
+    });
+    builder.addCase(importBoxes.rejected, setRejected);
   },
 });
 

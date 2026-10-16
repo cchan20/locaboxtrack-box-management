@@ -18,6 +18,7 @@ export type Customer = {
   phone: string;
   email: string;
   externalId: string | null;
+  mustResetPassword: boolean;
   creditCount: number;
   currentTaken: number;
   totalTaken: number;
@@ -51,11 +52,6 @@ export type User = {
   updatedAt?: string;
 };
 
-export type RunningNoControl = {
-  id: string;
-  currentNumber: number;
-};
-
 export type StoreLocation = {
   id: string;
   name: string;
@@ -72,7 +68,10 @@ export type Timeslot = {
 export type GlobalSetting = {
   orderWhatsappNumber: string;
   dailyCutOffTime: string;
+  maxMealsPerOrder: number;
   welcomeMessage: string;
+  hasWelcomeImage: boolean;
+  welcomeImageUpdatedAt: number;
   timeslots: Timeslot[];
   storeLocations: StoreLocation[];
 };

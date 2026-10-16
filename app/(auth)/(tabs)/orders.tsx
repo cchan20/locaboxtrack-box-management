@@ -19,7 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -49,6 +49,10 @@ const ORDER_STATUS_FILTERS = [
   { key: "picked", label: "Picked" },
   { key: "cancelled", label: "Cancelled" },
 ] as const;
+
+type OrderListRow =
+  | { type: "orders"; key: string; left: Order; right?: Order }
+  | { type: "separator"; key: string };
 
 const NUMPAD_ROWS = [
   ["1", "2", "3"],
@@ -88,6 +92,23 @@ function formatOrderStatus(status: string) {
   return ORDER_STATUS_LABELS[status] ?? status;
 }
 
+function sortOrdersByTimeslot(orders: Order[], timeslots: Timeslot[]) {
+  const timeslotStartById = new Map(
+    timeslots.map((slot) => [slot.id, slot.startTime] as const),
+  );
+  return [...orders].sort((a, b) => {
+    const aStart = timeslotStartById.get(a.timeslotId) ?? "";
+    const bStart = timeslotStartById.get(b.timeslotId) ?? "";
+    const timeslotCompare = aStart.localeCompare(bStart);
+    if (timeslotCompare !== 0) {
+      return timeslotCompare;
+    }
+    return (a.customerName ?? "").localeCompare(b.customerName ?? "", undefined, {
+      sensitivity: "base",
+    });
+  });
+}
+
 export default function OrdersScreen() {
   const dispatch = useAppDispatch();
   const navigation = useNavigation();
@@ -117,6 +138,10 @@ export default function OrdersScreen() {
   const [boxesLoading, setBoxesLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [boxMismatchConfirmOpen, setBoxMismatchConfirmOpen] = useState(false);
+  const timeslotsRef = useRef(timeslots);
+  timeslotsRef.current = timeslots;
+  const handleExportOrdersRef = useRef<() => Promise<void>>(async () => {});
+  const exportDisabledRef = useRef(false);
 
   const filteredOrders = useMemo(() => {
     const query = customerSearch.trim().toLowerCase();
@@ -133,6 +158,38 @@ export default function OrdersScreen() {
       return name.includes(query) || phone.includes(query);
     });
   }, [customerSearch, orders, selectedStatus]);
+
+  const orderListRows = useMemo((): OrderListRow[] => {
+    if (filteredOrders.length === 0) {
+      return [];
+    }
+
+    const groups: Order[][] = [];
+    for (const order of filteredOrders) {
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup[0].timeslotId === order.timeslotId) {
+        lastGroup.push(order);
+      } else {
+        groups.push([order]);
+      }
+    }
+
+    const rows: OrderListRow[] = [];
+    groups.forEach((group, groupIndex) => {
+      if (groupIndex > 0) {
+        rows.push({ type: "separator", key: `sep-${group[0].timeslotId}-${groupIndex}` });
+      }
+      for (let i = 0; i < group.length; i += 2) {
+        rows.push({
+          type: "orders",
+          key: `row-${group[i].id}`,
+          left: group[i],
+          right: group[i + 1],
+        });
+      }
+    });
+    return rows;
+  }, [filteredOrders]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) ?? null,
@@ -253,11 +310,7 @@ export default function OrdersScreen() {
         dispatch(getDailyMeals({ from: dateKey, to: dateKey })).unwrap(),
       ]);
 
-      const nextOrders = [...response.data].sort((a, b) =>
-        (a.customerName ?? "").localeCompare(b.customerName ?? "", undefined, {
-          sensitivity: "base",
-        }),
-      );
+      const nextOrders = sortOrdersByTimeslot(response.data, timeslotsRef.current);
       setOrders(nextOrders);
       setDayMeal(mealsResponse.data.find((meal) => meal.date === dateKey) ?? null);
       setSelectedOrderId((prev) => {
@@ -287,16 +340,24 @@ export default function OrdersScreen() {
     }
   }, [dispatch]);
 
+  // Re-sort locally when timeslots arrive so we don't refetch (and flicker Export).
+  useEffect(() => {
+    setOrders((prev) => {
+      if (prev.length === 0 || timeslots.length === 0) {
+        return prev;
+      }
+      return sortOrdersByTimeslot(prev, timeslots);
+    });
+  }, [timeslots]);
+
   useFocusEffect(
     useCallback(() => {
-      void loadSettings();
-      void loadOrders();
+      void (async () => {
+        await loadSettings();
+        await loadOrders();
+      })();
     }, [loadSettings, loadOrders]),
   );
-
-  useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
 
   useEffect(() => {
     if (!selectedOrderId) {
@@ -641,7 +702,7 @@ export default function OrdersScreen() {
   );
 
   const handleExportOrders = useCallback(async () => {
-    if (isExporting || listLoading) {
+    if (exportDisabledRef.current) {
       return;
     }
 
@@ -687,15 +748,10 @@ export default function OrdersScreen() {
     } finally {
       setIsExporting(false);
     }
-  }, [
-    dateKey,
-    dayMeal,
-    filteredOrders,
-    isExporting,
-    listLoading,
-    resolveLocationLabel,
-    resolveTimeslotLabel,
-  ]);
+  }, [dateKey, dayMeal, filteredOrders, resolveLocationLabel, resolveTimeslotLabel]);
+
+  handleExportOrdersRef.current = handleExportOrders;
+  exportDisabledRef.current = isExporting || listLoading;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -704,13 +760,12 @@ export default function OrdersScreen() {
           label="Create"
           route="/(auth)/create-order"
           onExport={() => {
-            void handleExportOrders();
+            void handleExportOrdersRef.current();
           }}
-          exportDisabled={isExporting || listLoading}
         />
       ),
     });
-  }, [handleExportOrders, isExporting, listLoading, navigation]);
+  }, [navigation]);
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
@@ -856,12 +911,8 @@ export default function OrdersScreen() {
                 />
               </View>
               <FlatList
-                data={filteredOrders}
-                keyExtractor={(item) => item.id}
-                numColumns={2}
-                columnWrapperStyle={
-                  filteredOrders.length > 0 ? styles.orderColumnWrapper : undefined
-                }
+                data={orderListRows}
+                keyExtractor={(item) => item.key}
                 contentContainerStyle={styles.listContent}
                 keyboardShouldPersistTaps="handled"
                 initialNumToRender={16}
@@ -887,40 +938,57 @@ export default function OrdersScreen() {
                     </View>
                   )
                 }
-                renderItem={({ item }) => {
-                  const isSelected = selectedOrderId === item.id;
-                  return (
-                    <Pressable
-                      style={[styles.orderItem, isSelected ? styles.selectedItem : null]}
-                      onPress={() => setSelectedOrderId(item.id)}
-                    >
-                      <View style={styles.orderIdentity}>
-                        <View style={styles.orderNameRow}>
-                          {item.status === "picked" ? (
-                            <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
-                          ) : item.status === "cancelled" ? (
-                            <Ionicons name="close-circle" size={18} color="#B42318" />
-                          ) : null}
-                          <Text style={styles.orderName} numberOfLines={1}>
-                            {item.customerName || "Unknown customer"}
-                          </Text>
-                          <Text style={styles.orderSub} numberOfLines={1}>
-                            {item.customerPhone || "No phone"}
-                          </Text>
-                          {item.status === "picked" && item.pickedBoxIds.length > 0 ? (
-                            <Text style={[styles.orderSub, styles.orderPickedBoxes]} numberOfLines={1}>
-                              Boxes: {item.pickedBoxIds.map((id) => id.replace("BOX-", "")).join(", ")}
+                renderItem={({ item: row }) => {
+                  if (row.type === "separator") {
+                    return <View style={styles.timeslotSeparator} />;
+                  }
+
+                  const renderOrderCard = (order: Order) => {
+                    const isSelected = selectedOrderId === order.id;
+                    return (
+                      <Pressable
+                        style={[styles.orderItem, isSelected ? styles.selectedItem : null]}
+                        onPress={() => setSelectedOrderId(order.id)}
+                      >
+                        <View style={styles.orderIdentity}>
+                          <View style={styles.orderNameRow}>
+                            {order.status === "picked" ? (
+                              <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
+                            ) : order.status === "cancelled" ? (
+                              <Ionicons name="close-circle" size={18} color="#B42318" />
+                            ) : null}
+                            <Text style={styles.orderName} numberOfLines={1}>
+                              {order.customerName || "Unknown customer"}
                             </Text>
-                          ) : null}
+                            <Text style={styles.orderSub} numberOfLines={1}>
+                              {order.customerPhone || "No phone"}
+                            </Text>
+                            {order.status === "picked" && order.pickedBoxIds.length > 0 ? (
+                              <Text
+                                style={[styles.orderSub, styles.orderPickedBoxes]}
+                                numberOfLines={1}
+                              >
+                                Boxes:{" "}
+                                {order.pickedBoxIds.map((id) => id.replace("BOX-", "")).join(", ")}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.orderSub} numberOfLines={2}>
+                            {resolveLocationLabel(order.storeLocationId)} ·{" "}
+                            {resolveTimeslotLabel(order.timeslotId)} · {order.meals.length} meal
+                            {order.meals.length === 1 ? "" : "s"} ·{" "}
+                            {formatCurrency(order.totalAmount)}
+                          </Text>
                         </View>
-                        <Text style={styles.orderSub} numberOfLines={2}>
-                          {resolveLocationLabel(item.storeLocationId)} ·{" "}
-                          {resolveTimeslotLabel(item.timeslotId)} · {item.meals.length} meal
-                          {item.meals.length === 1 ? "" : "s"} ·{" "}
-                          {formatCurrency(item.totalAmount)}
-                        </Text>
-                      </View>
-                    </Pressable>
+                      </Pressable>
+                    );
+                  };
+
+                  return (
+                    <View style={styles.orderColumnWrapper}>
+                      {renderOrderCard(row.left)}
+                      {row.right ? renderOrderCard(row.right) : <View style={styles.orderItemSpacer} />}
+                    </View>
                   );
                 }}
               />
@@ -936,31 +1004,32 @@ export default function OrdersScreen() {
         onRequestClose={closeDetailsModal}
       >
         <SafeAreaView edges={["top", "left", "right", "bottom"]} style={styles.detailsModalSafe}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <KeyboardAvoidingView
-              style={styles.keyboardAvoidingView}
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-            >
-              <View style={styles.detailsModalHeader}>
-                <Text style={styles.sectionTitle}>Order Details</Text>
-                <Pressable
-                  disabled={isSubmitting}
-                  hitSlop={8}
-                  style={styles.detailsModalClose}
-                  onPress={closeDetailsModal}
-                >
-                  <Ionicons name="close" size={22} color="#0B3D2E" />
-                </Pressable>
-              </View>
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoidingView}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <View style={styles.detailsModalHeader}>
+              <Text style={styles.sectionTitle}>Order Details</Text>
+              <Pressable
+                disabled={isSubmitting}
+                hitSlop={8}
+                style={styles.detailsModalClose}
+                onPress={closeDetailsModal}
+              >
+                <Ionicons name="close" size={22} color="#0B3D2E" />
+              </Pressable>
+            </View>
 
-              {selectedOrder ? (
-                <>
-                  <ScrollView
-                    style={styles.detailsScroll}
-                    contentContainerStyle={styles.detailsBody}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                  >
+            {selectedOrder ? (
+              <View style={styles.detailsModalBody}>
+                <ScrollView
+                  style={styles.detailsScroll}
+                  contentContainerStyle={styles.detailsBody}
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  nestedScrollEnabled
+                >
                     <View style={styles.identityBlock}>
                       <View style={styles.panelNameRow}>
                         {selectedOrder.status === "picked" ? (
@@ -1103,13 +1172,7 @@ export default function OrdersScreen() {
                                   <Text style={styles.emptyText}>No available boxes</Text>
                                 </View>
                               ) : (
-                                <ScrollView
-                                  style={styles.boxChipScroll}
-                                  contentContainerStyle={styles.boxChipGrid}
-                                  showsVerticalScrollIndicator={false}
-                                  nestedScrollEnabled
-                                  keyboardShouldPersistTaps="handled"
-                                >
+                                <View style={styles.boxChipGrid}>
                                   {displayedAvailableBoxes.map((box) => {
                                     const isSelected = selectedBoxIds.includes(box.id);
                                     return (
@@ -1134,7 +1197,7 @@ export default function OrdersScreen() {
                                       </Pressable>
                                     );
                                   })}
-                                </ScrollView>
+                                </View>
                               )}
                             </View>
                           </View>
@@ -1183,77 +1246,76 @@ export default function OrdersScreen() {
                         </Text>
                       </View>
                     )}
-                  </ScrollView>
+                </ScrollView>
 
-                  {selectedOrder.status === "confirmed" ? (
-                    <View style={styles.actionButtons}>
-                      <Pressable
-                        disabled={isSubmitting}
-                        style={[
-                          styles.cancelButton,
-                          isSubmitting ? styles.submitButtonDisabled : undefined,
-                        ]}
-                        onPress={handleCancelOrder}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel Order</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={isSubmitting}
-                        style={[
-                          styles.submitButton,
-                          styles.submitButtonFlex,
-                          isSubmitting ? styles.submitButtonDisabled : undefined,
-                        ]}
-                        onPress={handleGiveSubmit}
-                      >
-                        <Text style={styles.submitButtonText}>Confirm Give Box</Text>
-                      </Pressable>
-                    </View>
-                  ) : selectedOrder.status === "picked" ? (
-                    <View style={styles.actionButtons}>
-                      <Pressable
-                        disabled={isSubmitting}
-                        style={[
-                          styles.submitButton,
-                          styles.submitButtonFlex,
-                          isSubmitting ? styles.submitButtonDisabled : undefined,
-                        ]}
-                        onPress={handleGiveSubmit}
-                      >
-                        <Text style={styles.submitButtonText}>Update Boxes</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </>
-              ) : (
-                <View style={styles.detailsEmptyState}>
-                  <Text style={styles.detailsEmptyText}>Order not found.</Text>
-                </View>
-              )}
-
-              {isSubmitting ? (
-                <View style={styles.loadingOverlay}>
-                  <View style={styles.loadingCard}>
-                    <ActivityIndicator size="large" color="#0D7A4E" />
-                    <Text style={styles.loadingOverlayTitle}>
-                      {submitMode === "cancel"
-                        ? "Cancelling order..."
-                        : submitMode === "update"
-                          ? "Updating boxes..."
-                          : "Processing check-out..."}
-                    </Text>
-                    <Text style={styles.loadingOverlayText}>
-                      {submitMode === "cancel"
-                        ? "Please wait while the order is cancelled."
-                        : submitMode === "update"
-                          ? "Checking in removed boxes and checking out new ones."
-                          : "Please wait until all selected boxes are updated."}
-                    </Text>
+                {selectedOrder.status === "confirmed" ? (
+                  <View style={styles.actionButtons}>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={[
+                        styles.cancelButton,
+                        isSubmitting ? styles.submitButtonDisabled : undefined,
+                      ]}
+                      onPress={handleCancelOrder}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={[
+                        styles.submitButton,
+                        styles.submitButtonFlex,
+                        isSubmitting ? styles.submitButtonDisabled : undefined,
+                      ]}
+                      onPress={handleGiveSubmit}
+                    >
+                      <Text style={styles.submitButtonText}>Confirm Give Box</Text>
+                    </Pressable>
                   </View>
+                ) : selectedOrder.status === "picked" ? (
+                  <View style={styles.actionButtons}>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={[
+                        styles.submitButton,
+                        styles.submitButtonFlex,
+                        isSubmitting ? styles.submitButtonDisabled : undefined,
+                      ]}
+                      onPress={handleGiveSubmit}
+                    >
+                      <Text style={styles.submitButtonText}>Update Boxes</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.detailsEmptyState}>
+                <Text style={styles.detailsEmptyText}>Order not found.</Text>
+              </View>
+            )}
+
+            {isSubmitting ? (
+              <View style={styles.loadingOverlay}>
+                <View style={styles.loadingCard}>
+                  <ActivityIndicator size="large" color="#0D7A4E" />
+                  <Text style={styles.loadingOverlayTitle}>
+                    {submitMode === "cancel"
+                      ? "Cancelling order..."
+                      : submitMode === "update"
+                        ? "Updating boxes..."
+                        : "Processing check-out..."}
+                  </Text>
+                  <Text style={styles.loadingOverlayText}>
+                    {submitMode === "cancel"
+                      ? "Please wait while the order is cancelled."
+                      : submitMode === "update"
+                        ? "Checking in removed boxes and checking out new ones."
+                        : "Please wait until all selected boxes are updated."}
+                  </Text>
                 </View>
-              ) : null}
-            </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
+              </View>
+            ) : null}
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -1517,9 +1579,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   orderColumnWrapper: {
+    flexDirection: "row",
     gap: 8,
     justifyContent: "space-between",
     alignItems: "flex-start",
+  },
+  timeslotSeparator: {
+    height: 1,
+    backgroundColor: "#D0D5D3",
+    marginVertical: 10,
+    marginHorizontal: 2,
+  },
+  orderItemSpacer: {
+    width: "48.5%",
   },
   detailsModalSafe: {
     flex: 1,
@@ -1541,13 +1613,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#E8F6EF",
   },
+  detailsModalBody: {
+    flex: 1,
+    minHeight: 0,
+  },
   detailsScroll: {
     flex: 1,
     marginTop: 6,
     paddingHorizontal: 16,
   },
   detailsBody: {
-    paddingBottom: 12,
+    paddingBottom: 24,
     gap: 10,
     flexGrow: 1,
   },
@@ -1878,8 +1954,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   boxChipGridArea: {
-    minHeight: 180,
-    height: 220,
+    minHeight: 120,
     borderWidth: 1,
     borderColor: "#E2EEE9",
     borderRadius: 10,
@@ -1888,21 +1963,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  boxChipScroll: {
-    flex: 1,
-    alignSelf: "stretch",
-  },
   boxesEmptyState: {
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
     paddingHorizontal: 8,
+    paddingVertical: 24,
   },
   boxChipGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
     padding: 6,
+    alignSelf: "stretch",
   },
   boxChip: {
     width: "30%",
