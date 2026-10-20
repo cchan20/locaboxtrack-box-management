@@ -2,7 +2,6 @@ import { CUSTOMER_PAGE_SIZE, TRANSACTION_HISTORY_LIMIT } from "@/constants/confi
 import { useAppDispatch } from "@/store/hooks";
 import { getCheckedOutBoxes } from "@/store/slices/boxSlice";
 import {
-  deleteCustomer,
   getCustomerById,
   getCustomers,
   resetCustomerTempPassword,
@@ -10,7 +9,6 @@ import {
   setCustomerRiskStatus,
 } from "@/store/slices/customerSlice";
 import { getTransactionsByCustomer } from "@/store/slices/transactionSlice";
-import { useAuth } from "@/store/useAuth";
 import { Box, Customer, TransactionHistoryItem } from "@/types/app";
 import { getErrorMessage } from "@/utils/apiError";
 import { ClearableTextInput } from "@/ui/ClearableTextInput";
@@ -38,7 +36,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ClientsScreen() {
   const dispatch = useAppDispatch();
-  const { isAdmin } = useAuth();
   const { width } = useWindowDimensions();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -331,49 +328,6 @@ export default function ClientsScreen() {
     }
   };
 
-  const customerHasLinkedBoxes = async (customerId: string) => {
-    try {
-      const response = await dispatch(getCheckedOutBoxes("")).unwrap();
-      return response.data.some((box) => box.customerId === customerId);
-    } catch {
-      return true;
-    }
-  };
-
-  const openDeleteCustomerConfirm = async () => {
-    if (!selectedClient) {
-      return;
-    }
-
-    if (await customerHasLinkedBoxes(selectedClient.id)) {
-      Alert.alert("Cannot delete customer", "This customer is currently linked to one or more boxes.");
-      return;
-    }
-
-    Alert.alert(
-      "Delete Customer",
-      `Are you sure you want to delete ${selectedClient.name}? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await dispatch(deleteCustomer(selectedClient.id)).unwrap();
-              setSelectedClientId(null);
-              setSelectedClient(null);
-              void loadCustomerPage(1, false);
-              Alert.alert("Success", "Customer deleted.");
-            } catch (error) {
-              Alert.alert("Error", getErrorMessage(error));
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const renderEmptyState = () => {
     const query = search.trim();
 
@@ -658,12 +612,6 @@ export default function ClientsScreen() {
                     >
                       <Text style={styles.riskActionButtonText}>Reset Temporary Password</Text>
                     </Pressable>
-
-                    {isAdmin ? (
-                      <Pressable style={[styles.riskActionButton, styles.deleteCustomerActionButton]} onPress={openDeleteCustomerConfirm}>
-                        <Text style={styles.riskActionButtonText}>Delete Customer</Text>
-                      </Pressable>
-                    ) : null}
                   </View>
                   </>
                 )}
@@ -1110,9 +1058,6 @@ const styles = StyleSheet.create({
   },
   resetPasswordActionButton: {
     backgroundColor: "#1F6F78",
-  },
-  deleteCustomerActionButton: {
-    backgroundColor: "#BD2323",
   },
   mustResetTag: {
     borderRadius: 999,

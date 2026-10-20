@@ -27,8 +27,11 @@ import {
   firstOrderableDay,
   formatCurrency,
   getCurrentWeekRange,
+  isOrderWeekAllowed,
   mealsByDay,
   orderCost,
+  orderWeekAnchor,
+  shiftWeek,
 } from "@/utils/orderWeek";
 import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { Ionicons } from "@expo/vector-icons";
@@ -77,7 +80,9 @@ export default function CreateOrderScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [listLoading, setListLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
   const listRequestIdRef = useRef(0);
 
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -90,9 +95,15 @@ export default function CreateOrderScreen() {
   const [availability, setAvailability] = useState<
     Partial<Record<WeekDay, DayAvailability>>
   >({});
-  const [weekDates] = useState(() => datesByDay());
+  const [anchorDate, setAnchorDate] = useState(() => orderWeekAnchor());
+  const weekDates = useMemo(() => datesByDay(anchorDate), [anchorDate]);
+  const weekRange = useMemo(
+    () => getCurrentWeekRange(anchorDate),
+    [anchorDate],
+  );
+  const canGoPrevWeek = isOrderWeekAllowed(shiftWeek(anchorDate, -1));
   const [activeDay, setActiveDay] = useState<WeekDay>(() =>
-    firstOrderableDay(datesByDay()),
+    firstOrderableDay(datesByDay(orderWeekAnchor())),
   );
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,7 +137,9 @@ export default function CreateOrderScreen() {
           return;
         }
 
-        setCustomers((prev) => (append ? [...prev, ...response.data] : response.data));
+        setCustomers((prev) =>
+          append ? [...prev, ...response.data] : response.data,
+        );
         setPage(response.page);
         setHasMore(response.hasMore);
       } catch {
@@ -170,7 +183,8 @@ export default function CreateOrderScreen() {
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     try {
-      const { from, to } = getCurrentWeekRange();
+      const { from, to } = getCurrentWeekRange(anchorDate);
+      const dates = datesByDay(anchorDate);
       const [settingsRes, mealsRes, availRes] = await Promise.all([
         dispatch(getGlobalSettings()).unwrap(),
         dispatch(getDailyMeals({ from, to })).unwrap(),
@@ -183,14 +197,29 @@ export default function CreateOrderScreen() {
       );
       setMeals(mealsByDay(mealsRes.data));
       setAvailability(availabilityByDay(availRes.data));
-      setActiveDay(firstOrderableDay(weekDates));
+      setActiveDay(firstOrderableDay(dates));
       setDraft(null);
     } catch (error) {
       Alert.alert("Unable to load menu", getErrorMessage(error));
     } finally {
       setCatalogLoading(false);
     }
-  }, [dispatch, weekDates]);
+  }, [anchorDate, dispatch]);
+
+  useEffect(() => {
+    if (step !== 2) {
+      return;
+    }
+    void loadCatalog();
+  }, [loadCatalog, step]);
+
+  const changeWeek = (delta: number) => {
+    const next = shiftWeek(anchorDate, delta);
+    if (delta < 0 && !isOrderWeekAllowed(next)) {
+      return;
+    }
+    setAnchorDate(next);
+  };
 
   const loadMoreCustomers = () => {
     if (!hasMore || listLoading || loadingMore) {
@@ -212,7 +241,10 @@ export default function CreateOrderScreen() {
   const goToStep2 = () => {
     if (customerMode === "walkin") {
       if (!walkInName.trim()) {
-        Alert.alert("Walk-in name required", "Please enter the walk-in customer name.");
+        Alert.alert(
+          "Walk-in name required",
+          "Please enter the walk-in customer name.",
+        );
         return;
       }
     } else if (!selectedCustomer) {
@@ -220,13 +252,13 @@ export default function CreateOrderScreen() {
       return;
     }
     setStep(2);
-    void loadCatalog();
   };
 
   const activeMeal = meals[activeDay];
   const activeAddons = activeMeal ? addonsFromDailyMeal(activeMeal) : [];
   const dayAvail = availability[activeDay];
-  const dayCap = dayAvail?.basicBox.original ?? activeMeal?.basicBoxInventory ?? 0;
+  const dayCap =
+    dayAvail?.basicBox.original ?? activeMeal?.basicBoxInventory ?? 0;
   const dayRemaining = dayAvail?.basicBox.remaining ?? 0;
 
   const getSlotAvail = (slotId: string) => {
@@ -269,7 +301,10 @@ export default function CreateOrderScreen() {
     }
     if (customerMode === "walkin") {
       if (!walkInName.trim()) {
-        Alert.alert("Walk-in name required", "Please enter the walk-in customer name.");
+        Alert.alert(
+          "Walk-in name required",
+          "Please enter the walk-in customer name.",
+        );
         return;
       }
     } else if (!selectedCustomer) {
@@ -349,14 +384,34 @@ export default function CreateOrderScreen() {
       <Stack.Screen options={{ title: "Create Order" }} />
 
       <View style={styles.stepBar}>
-        <View style={[styles.stepChip, step === 1 ? styles.stepChipActive : undefined]}>
-          <Text style={[styles.stepChipText, step === 1 ? styles.stepChipTextActive : undefined]}>
+        <View
+          style={[
+            styles.stepChip,
+            step === 1 ? styles.stepChipActive : undefined,
+          ]}
+        >
+          <Text
+            style={[
+              styles.stepChipText,
+              step === 1 ? styles.stepChipTextActive : undefined,
+            ]}
+          >
             1. Customer
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color="#7A8F87" />
-        <View style={[styles.stepChip, step === 2 ? styles.stepChipActive : undefined]}>
-          <Text style={[styles.stepChipText, step === 2 ? styles.stepChipTextActive : undefined]}>
+        <View
+          style={[
+            styles.stepChip,
+            step === 2 ? styles.stepChipActive : undefined,
+          ]}
+        >
+          <Text
+            style={[
+              styles.stepChipText,
+              step === 2 ? styles.stepChipTextActive : undefined,
+            ]}
+          >
             2. Order
           </Text>
         </View>
@@ -422,13 +477,23 @@ export default function CreateOrderScreen() {
                             <Text style={styles.customerName}>{item.name}</Text>
                             <Text style={styles.customerSub}>{item.phone}</Text>
                             {item.email ? (
-                              <Text style={styles.customerSub}>{item.email}</Text>
+                              <Text style={styles.customerSub}>
+                                {item.email}
+                              </Text>
                             ) : null}
                           </View>
                           {selected ? (
-                            <Ionicons name="checkmark-circle" size={22} color="#0D7A4E" />
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={22}
+                              color="#0D7A4E"
+                            />
                           ) : (
-                            <Ionicons name="ellipse-outline" size={22} color="#C7D8D1" />
+                            <Ionicons
+                              name="ellipse-outline"
+                              size={22}
+                              color="#C7D8D1"
+                            />
                           )}
                         </Pressable>
                       );
@@ -488,12 +553,55 @@ export default function CreateOrderScreen() {
             <Text style={styles.selectedBannerText} numberOfLines={1}>
               {selectedCustomerLabel}
             </Text>
+            <View style={styles.weekBar}>
+              <Pressable
+                hitSlop={8}
+                disabled={!canGoPrevWeek || catalogLoading}
+                style={[
+                  styles.weekArrowButton,
+                  !canGoPrevWeek || catalogLoading
+                    ? styles.weekArrowButtonDisabled
+                    : undefined,
+                ]}
+                onPress={() => changeWeek(-1)}
+                accessibilityLabel="Previous week"
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={16}
+                  color={
+                    canGoPrevWeek && !catalogLoading ? "#42685D" : "#C7D8D1"
+                  }
+                />
+              </Pressable>
+              <Text style={styles.weekTitle} numberOfLines={1}>
+                {weekRange.from} to {weekRange.to}
+              </Text>
+              <Pressable
+                hitSlop={8}
+                disabled={catalogLoading}
+                style={[
+                  styles.weekArrowButton,
+                  catalogLoading ? styles.weekArrowButtonDisabled : undefined,
+                ]}
+                onPress={() => changeWeek(1)}
+                accessibilityLabel="Next week"
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={!catalogLoading ? "#42685D" : "#C7D8D1"}
+                />
+              </Pressable>
+            </View>
           </View>
 
           {catalogLoading ? (
             <View style={styles.catalogLoading}>
               <ActivityIndicator size="large" color="#0D7A4E" />
-              <Text style={styles.catalogLoadingText}>Loading this week's menu…</Text>
+              <Text style={styles.catalogLoadingText}>
+                Loading this week's menu…
+              </Text>
             </View>
           ) : (
             <ScrollView
@@ -507,7 +615,10 @@ export default function CreateOrderScreen() {
                   return (
                     <Pressable
                       key={day}
-                      style={[styles.dayChip, active ? styles.dayChipActive : undefined]}
+                      style={[
+                        styles.dayChip,
+                        active ? styles.dayChipActive : undefined,
+                      ]}
                       onPress={() => {
                         setActiveDay(day);
                         setDraft(null);
@@ -541,10 +652,14 @@ export default function CreateOrderScreen() {
                   activeMeal.dishesIngredients) ? (
                   <View style={styles.menuBlock}>
                     {activeMeal.dishesName ? (
-                      <Text style={styles.menuTitle}>{activeMeal.dishesName}</Text>
+                      <Text style={styles.menuTitle}>
+                        {activeMeal.dishesName}
+                      </Text>
                     ) : null}
                     {activeMeal.dishesDescription ? (
-                      <Text style={styles.menuBody}>{activeMeal.dishesDescription}</Text>
+                      <Text style={styles.menuBody}>
+                        {activeMeal.dishesDescription}
+                      </Text>
                     ) : null}
                     {activeMeal.dishesIngredients ? (
                       <Text style={styles.menuIngredients}>
@@ -563,13 +678,18 @@ export default function CreateOrderScreen() {
                 <View style={styles.dayMetaRow}>
                   <Text style={styles.sectionTitle}>{activeDay}</Text>
                   <Text style={styles.availBadge}>
-                    {Math.max(dayRemaining - (draft?.meals.length ?? 0), 0)} of {dayCap} left
+                    {Math.max(dayRemaining - (draft?.meals.length ?? 0), 0)} of{" "}
+                    {dayCap} left
                   </Text>
                 </View>
 
                 {!activeMeal ? (
                   <View style={styles.emptyState}>
-                    <Ionicons name="restaurant-outline" size={36} color="#C7D8D1" />
+                    <Ionicons
+                      name="restaurant-outline"
+                      size={36}
+                      color="#C7D8D1"
+                    />
                     <Text style={styles.emptyText}>
                       Ordering is unavailable until a meal is published.
                     </Text>
@@ -577,12 +697,21 @@ export default function CreateOrderScreen() {
                 ) : !draft ? (
                   <View style={styles.emptyState}>
                     <Ionicons name="cart-outline" size={36} color="#C7D8D1" />
-                    <Text style={styles.emptyText}>No order draft for {activeDay}</Text>
+                    <Text style={styles.emptyText}>
+                      No order draft for {activeDay}
+                    </Text>
                     {dayRemaining <= 0 ? (
-                      <Text style={styles.errorText}>This day is fully booked.</Text>
+                      <Text style={styles.errorText}>
+                        This day is fully booked.
+                      </Text>
                     ) : (
-                      <Pressable style={styles.primaryButton} onPress={startDraft}>
-                        <Text style={styles.primaryButtonText}>+ Add {activeDay} Order</Text>
+                      <Pressable
+                        style={styles.primaryButton}
+                        onPress={startDraft}
+                      >
+                        <Text style={styles.primaryButtonText}>
+                          + Add {activeDay} Order
+                        </Text>
                       </Pressable>
                     )}
                   </View>
@@ -604,12 +733,16 @@ export default function CreateOrderScreen() {
                               selected ? styles.optionItemSelected : undefined,
                               full ? styles.optionItemDisabled : undefined,
                             ]}
-                            onPress={() => updateDraft({ ...draft, slot: slot.id })}
+                            onPress={() =>
+                              updateDraft({ ...draft, slot: slot.id })
+                            }
                           >
                             <Text
                               style={[
                                 styles.optionItemText,
-                                selected ? styles.optionItemTextSelected : undefined,
+                                selected
+                                  ? styles.optionItemTextSelected
+                                  : undefined,
                               ]}
                             >
                               {slot.label}
@@ -634,12 +767,16 @@ export default function CreateOrderScreen() {
                               styles.optionItem,
                               selected ? styles.optionItemSelected : undefined,
                             ]}
-                            onPress={() => updateDraft({ ...draft, location: loc.id })}
+                            onPress={() =>
+                              updateDraft({ ...draft, location: loc.id })
+                            }
                           >
                             <Text
                               style={[
                                 styles.optionItemText,
-                                selected ? styles.optionItemTextSelected : undefined,
+                                selected
+                                  ? styles.optionItemTextSelected
+                                  : undefined,
                               ]}
                             >
                               {loc.name}
@@ -653,7 +790,7 @@ export default function CreateOrderScreen() {
                       <View key={`meal-${mi}`} style={styles.mealCard}>
                         <View style={styles.mealHeader}>
                           <Text style={styles.mealTitle}>
-                            Meal {mi + 1}{" "}
+                            LocaBox {mi + 1}{" "}
                             <Text style={styles.mealBase}>
                               (base {formatCurrency(activeMeal.basicBoxPrice)})
                             </Text>
@@ -665,7 +802,8 @@ export default function CreateOrderScreen() {
                                   meal.addons.reduce(
                                     (sum, id) =>
                                       sum +
-                                      (activeAddons.find((a) => a.id === id)?.price ?? 0),
+                                      (activeAddons.find((a) => a.id === id)
+                                        ?.price ?? 0),
                                     0,
                                   ),
                               )}
@@ -675,11 +813,17 @@ export default function CreateOrderScreen() {
                                 onPress={() =>
                                   updateDraft({
                                     ...draft,
-                                    meals: draft.meals.filter((_, i) => i !== mi),
+                                    meals: draft.meals.filter(
+                                      (_, i) => i !== mi,
+                                    ),
                                   })
                                 }
                               >
-                                <Ionicons name="close" size={18} color="#C0392B" />
+                                <Ionicons
+                                  name="close"
+                                  size={18}
+                                  color="#C0392B"
+                                />
                               </Pressable>
                             ) : null}
                           </View>
@@ -719,7 +863,9 @@ export default function CreateOrderScreen() {
                             );
                           })}
                           {activeAddons.length === 0 ? (
-                            <Text style={styles.mutedText}>No extras for this meal.</Text>
+                            <Text style={styles.mutedText}>
+                              No extras for this meal.
+                            </Text>
                           ) : null}
                         </View>
                       </View>
@@ -736,7 +882,7 @@ export default function CreateOrderScreen() {
                         }
                       >
                         <Text style={styles.addMealButtonText}>
-                          + Add Meal (base{" "}
+                          + Add LocaBox (base{" "}
                           {formatCurrency(activeMeal.basicBoxPrice)})
                         </Text>
                       </Pressable>
@@ -763,7 +909,9 @@ export default function CreateOrderScreen() {
 
                     <View style={styles.totalRow}>
                       <Text style={styles.totalLabel}>Day total</Text>
-                      <Text style={styles.totalValue}>{formatCurrency(dayTotal)}</Text>
+                      <Text style={styles.totalValue}>
+                        {formatCurrency(dayTotal)}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -783,7 +931,11 @@ export default function CreateOrderScreen() {
               style={[
                 styles.primaryButton,
                 styles.flex,
-                !draft || !draft.slot || !draft.location || isSubmitting || catalogLoading
+                !draft ||
+                !draft.slot ||
+                !draft.location ||
+                isSubmitting ||
+                catalogLoading
                   ? styles.primaryButtonDisabled
                   : undefined,
               ]}
@@ -1004,12 +1156,12 @@ const styles = StyleSheet.create({
   selectedBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     marginBottom: 10,
     backgroundColor: "#EAF7F1",
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: "#C7E6D6",
   },
@@ -1025,6 +1177,7 @@ const styles = StyleSheet.create({
   },
   selectedBannerText: {
     flex: 1,
+    minWidth: 0,
     color: "#0B3D2E",
     fontWeight: "700",
     fontSize: 14,
@@ -1041,6 +1194,31 @@ const styles = StyleSheet.create({
   },
   step2Content: {
     paddingBottom: 16,
+  },
+  weekBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  weekTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0B3D2E",
+    paddingHorizontal: 2,
+  },
+  weekArrowButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D8D1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weekArrowButtonDisabled: {
+    opacity: 0.45,
   },
   dayRow: {
     flexDirection: "row",

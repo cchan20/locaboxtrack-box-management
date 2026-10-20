@@ -147,6 +147,7 @@ export type Order = {
   footnote: string;
   meals: OrderMeal[];
   status: string;
+  paymentStatus: string;
   pickedBoxIds: string[];
   totalAmount: number;
   createdAt: string;

@@ -83,11 +83,27 @@ type WeekDay = {
   date: Date;
 };
 
+type MealCombinationCustomer = {
+  orderId: string;
+  customerName: string;
+  mealCount: number;
+  footnote: string;
+};
+
 type MealCombinationCount = {
   key: string;
   label: string;
   count: number;
+  customers: MealCombinationCustomer[];
 };
+
+function orderCustomerDisplayName(order: Order) {
+  return (
+    order.customerName?.trim() ||
+    order.walkInCustomerName?.trim() ||
+    "Unknown customer"
+  );
+}
 
 function formatDateKey(value: Date) {
   const year = value.getFullYear();
@@ -173,8 +189,11 @@ function countMealCombinations(
   const counts = new Map<string, MealCombinationCount>();
 
   for (const order of orders) {
+    const comboMealCounts = new Map<string, number>();
     for (const meal of order.meals) {
       const key = mealCombinationKey(meal.addons);
+      comboMealCounts.set(key, (comboMealCounts.get(key) ?? 0) + 1);
+
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
@@ -183,14 +202,35 @@ function countMealCombinations(
           key,
           label: mealCombinationLabel(meal.addons, dailyMeal),
           count: 1,
+          customers: [],
         });
       }
     }
+
+    for (const [key, mealCountForCombo] of comboMealCounts) {
+      const combo = counts.get(key);
+      if (!combo) {
+        continue;
+      }
+      combo.customers.push({
+        orderId: order.id,
+        customerName: orderCustomerDisplayName(order),
+        mealCount: mealCountForCombo,
+        footnote: order.footnote?.trim() ?? "",
+      });
+    }
   }
 
-  return Array.from(counts.values()).sort(
-    (a, b) => b.count - a.count || a.label.localeCompare(b.label),
-  );
+  return Array.from(counts.values())
+    .map((combo) => ({
+      ...combo,
+      customers: [...combo.customers].sort((a, b) =>
+        a.customerName.localeCompare(b.customerName, undefined, {
+          sensitivity: "base",
+        }),
+      ),
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 export default function DashboardScreen() {
@@ -206,6 +246,8 @@ export default function DashboardScreen() {
   const [detailsModalType, setDetailsModalType] = useState<
     "total-out" | "safe" | "warning" | "overdue" | null
   >(null);
+  const [selectedMealCombination, setSelectedMealCombination] =
+    useState<MealCombinationCount | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_STATS);
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<CheckedOutBoxDetails[]>([]);
   const chartRef = useRef<any>(null);
@@ -235,6 +277,10 @@ export default function DashboardScreen() {
 
   const closeDetailsModal = useCallback(() => {
     setDetailsModalType(null);
+  }, []);
+
+  const closeMealCombinationModal = useCallback(() => {
+    setSelectedMealCombination(null);
   }, []);
 
   const safeBoxes = useMemo(
@@ -360,6 +406,7 @@ export default function DashboardScreen() {
       setSelectedWeekDate(nextDate);
       setSelectedDayKey(defaultWeekdayKey(nextWeek, nextDate));
       setOrderScopeTab("overall");
+      setSelectedMealCombination(null);
     },
     [],
   );
@@ -381,6 +428,23 @@ export default function DashboardScreen() {
           <Text style={styles.modalMetaLabel}>Days Out</Text>
           <Text style={styles.modalMetaValue}>{getDaysOut(item.dateOut)}</Text>
         </View>
+      </View>
+    ),
+    [],
+  );
+
+  const renderMealCombinationCustomer = useCallback(
+    ({ item }: { item: MealCombinationCustomer }) => (
+      <View style={styles.modalItem}>
+        <View style={styles.modalMetaRow}>
+          <Text style={styles.modalCustomerName}>{item.customerName}</Text>
+          {item.mealCount > 1 ? (
+            <Text style={styles.modalCustomerMealCount}>×{item.mealCount}</Text>
+          ) : null}
+        </View>
+        {item.footnote ? (
+          <Text style={styles.modalCustomerFootnote}>{item.footnote}</Text>
+        ) : null}
       </View>
     ),
     [],
@@ -468,6 +532,10 @@ export default function DashboardScreen() {
       setSelectedDayKey(defaultWeekdayKey(weekDays, selectedWeekDate));
     }
   }, [selectedDayKey, selectedWeekDate, weekDays]);
+
+  useEffect(() => {
+    setSelectedMealCombination(null);
+  }, [selectedDayKey, orderScopeTab]);
 
   useFocusEffect(
     useCallback(() => {
@@ -830,16 +898,20 @@ export default function DashboardScreen() {
                     </View>
                   ) : (
                     mealCombinations.map((item, index) => (
-                      <View
+                      <Pressable
                         key={item.key}
                         style={[
                           styles.combinationRow,
                           index === 0 ? styles.combinationRowFirst : null,
                         ]}
+                        onPress={() => setSelectedMealCombination(item)}
                       >
                         <Text style={styles.combinationLabel}>{item.label}</Text>
-                        <Text style={styles.combinationCount}>×{item.count}</Text>
-                      </View>
+                        <View style={styles.combinationCountRow}>
+                          <Text style={styles.combinationCount}>×{item.count}</Text>
+                          <Ionicons name="chevron-forward" size={16} color="#8A9A93" />
+                        </View>
+                      </Pressable>
                     ))
                   )}
                 </View>
@@ -891,6 +963,66 @@ export default function DashboardScreen() {
             <Pressable
               style={styles.modalCloseButton}
               onPress={closeDetailsModal}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={selectedMealCombination !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeMealCombinationModal}
+        statusBarTranslucent
+        hardwareAccelerated
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeMealCombinationModal}
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {selectedMealCombination?.label ?? "Meal Combination"}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              {selectedMealCombination
+                ? `${selectedMealCombination.customers.length} customer${
+                    selectedMealCombination.customers.length === 1 ? "" : "s"
+                  } · ${selectedMealCombination.count} meal${
+                    selectedMealCombination.count === 1 ? "" : "s"
+                  }`
+                : ""}
+            </Text>
+
+            {!selectedMealCombination ||
+            selectedMealCombination.customers.length === 0 ? (
+              <View style={styles.modalEmptyState}>
+                <Text style={styles.modalEmptyText}>No customers found.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={selectedMealCombination.customers}
+                keyExtractor={(item) => item.orderId}
+                style={styles.modalList}
+                contentContainerStyle={styles.modalListContent}
+                renderItem={renderMealCombinationCustomer}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                windowSize={7}
+                removeClippedSubviews
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+              />
+            )}
+
+            <Pressable
+              style={styles.modalCloseButton}
+              onPress={closeMealCombinationModal}
             >
               <Text style={styles.modalCloseButtonText}>Close</Text>
             </Pressable>
@@ -1258,6 +1390,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#13493A",
   },
+  combinationCountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
   combinationCount: {
     fontSize: 14,
     fontWeight: "800",
@@ -1325,6 +1462,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0B3D2E",
   },
+  modalSubtitle: {
+    marginTop: -4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#5B7268",
+  },
   modalList: {
     flexGrow: 0,
   },
@@ -1357,6 +1500,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flexShrink: 1,
     textAlign: "right",
+  },
+  modalCustomerName: {
+    flex: 1,
+    color: "#13493A",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modalCustomerMealCount: {
+    color: "#0D7A4E",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  modalCustomerFootnote: {
+    color: "#5B7268",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 17,
   },
   modalEmptyState: {
     borderWidth: 1,

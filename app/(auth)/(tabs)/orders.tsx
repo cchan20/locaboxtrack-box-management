@@ -4,7 +4,9 @@ import { getDailyMeals } from "@/store/slices/dailyMealSlice";
 import {
   cancelOrderForCustomer,
   getOrders,
+  markOrderPaid,
   markOrderPicked,
+  markOrderUnpaid,
 } from "@/store/slices/orderSlice";
 import { getGlobalSettings } from "@/store/slices/settingsSlice";
 import { Box, DailyMeal, Order, StoreLocation, Timeslot } from "@/types/app";
@@ -43,6 +45,11 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+const ORDER_PAYMENT_STATUS_LABELS: Record<string, string> = {
+  unpaid: "Not Paid",
+  paid: "Paid",
+};
+
 const ORDER_STATUS_FILTERS = [
   { key: null as string | null, label: "All" },
   { key: "confirmed", label: "Confirmed" },
@@ -51,8 +58,10 @@ const ORDER_STATUS_FILTERS = [
 ] as const;
 
 type OrderListRow =
-  | { type: "orders"; key: string; left: Order; right?: Order }
+  | { type: "orders"; key: string; orders: Order[] }
   | { type: "separator"; key: string };
+
+const ORDER_LIST_COLUMNS = 3;
 
 const NUMPAD_ROWS = [
   ["1", "2", "3"],
@@ -90,6 +99,14 @@ function formatCurrency(amount: number) {
 
 function formatOrderStatus(status: string) {
   return ORDER_STATUS_LABELS[status] ?? status;
+}
+
+function formatPaymentStatus(status: string) {
+  return ORDER_PAYMENT_STATUS_LABELS[status] ?? status;
+}
+
+function isOrderPaid(order: Order) {
+  return order.paymentStatus === "paid";
 }
 
 function sortOrdersByTimeslot(orders: Order[], timeslots: Timeslot[]) {
@@ -134,7 +151,9 @@ export default function OrdersScreen() {
   const [boxSearch, setBoxSearch] = useState("");
   const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitMode, setSubmitMode] = useState<"checkout" | "update" | "cancel" | null>(null);
+  const [submitMode, setSubmitMode] = useState<
+    "checkout" | "update" | "cancel" | "paid" | "unpaid" | null
+  >(null);
   const [boxesLoading, setBoxesLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [boxMismatchConfirmOpen, setBoxMismatchConfirmOpen] = useState(false);
@@ -179,12 +198,11 @@ export default function OrdersScreen() {
       if (groupIndex > 0) {
         rows.push({ type: "separator", key: `sep-${group[0].timeslotId}-${groupIndex}` });
       }
-      for (let i = 0; i < group.length; i += 2) {
+      for (let i = 0; i < group.length; i += ORDER_LIST_COLUMNS) {
         rows.push({
           type: "orders",
           key: `row-${group[i].id}`,
-          left: group[i],
-          right: group[i + 1],
+          orders: group.slice(i, i + ORDER_LIST_COLUMNS),
         });
       }
     });
@@ -393,6 +411,17 @@ export default function OrdersScreen() {
     }
 
     setSelectedDate(selected);
+  };
+
+  const shiftSelectedDate = (days: number) => {
+    if (isSubmitting) {
+      return;
+    }
+    setSelectedDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + days);
+      return next;
+    });
   };
 
   const selectTimeslot = (timeslotId: string | null) => {
@@ -691,13 +720,116 @@ export default function OrdersScreen() {
     );
   };
 
+  const handleMarkOrderPaid = () => {
+    if (isSubmitting || !selectedOrder) {
+      return;
+    }
+
+    if (isOrderPaid(selectedOrder)) {
+      return;
+    }
+
+    if (selectedOrder.status === "cancelled") {
+      Alert.alert("Unavailable", "Cancelled orders cannot be marked as paid.");
+      return;
+    }
+
+    const customerName = selectedOrder.customerName?.trim() || "this customer";
+
+    Alert.alert("Mark as paid", `Mark the order for ${customerName} as paid?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Mark as paid",
+        onPress: () => {
+          void (async () => {
+            setIsSubmitting(true);
+            setSubmitMode("paid");
+            try {
+              const paidResponse = await dispatch(
+                markOrderPaid({
+                  customerId: selectedOrder.customerId,
+                  date: selectedOrder.date,
+                  orderId: selectedOrder.id,
+                }),
+              ).unwrap();
+              setOrders((prev) =>
+                prev.map((order) =>
+                  order.id === selectedOrder.id
+                    ? { ...order, ...paidResponse.data, paymentStatus: "paid" }
+                    : order,
+                ),
+              );
+            } catch (error) {
+              Alert.alert("Update failed", getErrorMessage(error));
+            } finally {
+              setIsSubmitting(false);
+              setSubmitMode(null);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const handleMarkOrderUnpaid = () => {
+    if (isSubmitting || !selectedOrder) {
+      return;
+    }
+
+    if (!isOrderPaid(selectedOrder)) {
+      return;
+    }
+
+    if (selectedOrder.status === "cancelled") {
+      Alert.alert("Unavailable", "Cancelled orders cannot update payment status.");
+      return;
+    }
+
+    const customerName = selectedOrder.customerName?.trim() || "this customer";
+
+    Alert.alert("Mark as not paid", `Mark the order for ${customerName} as not paid?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Mark as not paid",
+        onPress: () => {
+          void (async () => {
+            setIsSubmitting(true);
+            setSubmitMode("unpaid");
+            try {
+              const unpaidResponse = await dispatch(
+                markOrderUnpaid({
+                  customerId: selectedOrder.customerId,
+                  date: selectedOrder.date,
+                  orderId: selectedOrder.id,
+                }),
+              ).unwrap();
+              setOrders((prev) =>
+                prev.map((order) =>
+                  order.id === selectedOrder.id
+                    ? { ...order, ...unpaidResponse.data, paymentStatus: "unpaid" }
+                    : order,
+                ),
+              );
+            } catch (error) {
+              Alert.alert("Update failed", getErrorMessage(error));
+            } finally {
+              setIsSubmitting(false);
+              setSubmitMode(null);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   const resolveTimeslotLabel = useCallback(
     (timeslotId: string) => timeslots.find((slot) => slot.id === timeslotId)?.label ?? timeslotId,
     [timeslots],
   );
 
   const resolveLocationLabel = useCallback(
-    (storeLocationId: string) => storeLocationNames[storeLocationId] ?? storeLocationId,
+    (storeLocationId: string) =>
+      storeLocationNames[storeLocationId] ?? "(Location Deleted)",
     [storeLocationNames],
   );
 
@@ -784,14 +916,32 @@ export default function OrdersScreen() {
               >
                 <View style={styles.filterField}>
                   <Text style={styles.label}>Date</Text>
-                  <Pressable
-                    disabled={isSubmitting}
-                    style={styles.dateSelector}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text style={styles.dateSelectorText}>{dateKey}</Text>
-                    <Ionicons name="calendar-outline" size={16} color="#42685D" />
-                  </Pressable>
+                  <View style={styles.dateSelectorRow}>
+                    <Pressable
+                      disabled={isSubmitting}
+                      hitSlop={8}
+                      style={styles.dateArrowButton}
+                      onPress={() => shiftSelectedDate(-1)}
+                    >
+                      <Ionicons name="chevron-back" size={18} color="#42685D" />
+                    </Pressable>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={styles.dateSelector}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Text style={styles.dateSelectorText}>{dateKey}</Text>
+                      <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                    </Pressable>
+                    <Pressable
+                      disabled={isSubmitting}
+                      hitSlop={8}
+                      style={styles.dateArrowButton}
+                      onPress={() => shiftSelectedDate(1)}
+                    >
+                      <Ionicons name="chevron-forward" size={18} color="#42685D" />
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={styles.filterField}>
@@ -957,6 +1107,9 @@ export default function OrdersScreen() {
                             ) : order.status === "cancelled" ? (
                               <Ionicons name="close-circle" size={18} color="#B42318" />
                             ) : null}
+                            {isOrderPaid(order) ? (
+                              <Text style={styles.paidDollarIcon}>$</Text>
+                            ) : null}
                             <Text style={styles.orderName} numberOfLines={1}>
                               {order.customerName || "Unknown customer"}
                             </Text>
@@ -974,20 +1127,25 @@ export default function OrdersScreen() {
                             ) : null}
                           </View>
                           <Text style={styles.orderSub} numberOfLines={2}>
-                            {resolveLocationLabel(order.storeLocationId)} ·{" "}
-                            {resolveTimeslotLabel(order.timeslotId)} · {order.meals.length} meal
-                            {order.meals.length === 1 ? "" : "s"} ·{" "}
-                            {formatCurrency(order.totalAmount)}
+                            {resolveLocationLabel(order.storeLocationId)} · {order.meals.length}{" "}
+                            meal{order.meals.length === 1 ? "" : "s"}
                           </Text>
                         </View>
                       </Pressable>
                     );
                   };
 
+                  const fillers = Math.max(0, ORDER_LIST_COLUMNS - row.orders.length);
                   return (
                     <View style={styles.orderColumnWrapper}>
-                      {renderOrderCard(row.left)}
-                      {row.right ? renderOrderCard(row.right) : <View style={styles.orderItemSpacer} />}
+                      {row.orders.map((order) => (
+                        <View key={order.id} style={styles.orderItemSlot}>
+                          {renderOrderCard(order)}
+                        </View>
+                      ))}
+                      {Array.from({ length: fillers }, (_, index) => (
+                        <View key={`spacer-${row.key}-${index}`} style={styles.orderItemSpacer} />
+                      ))}
                     </View>
                   );
                 }}
@@ -1037,6 +1195,9 @@ export default function OrdersScreen() {
                         ) : selectedOrder.status === "cancelled" ? (
                           <Ionicons name="close-circle" size={20} color="#B42318" />
                         ) : null}
+                        {isOrderPaid(selectedOrder) ? (
+                          <Text style={[styles.paidDollarIcon, styles.paidDollarIconLarge]}>$</Text>
+                        ) : null}
                         <Text style={styles.panelName} numberOfLines={1}>
                           {selectedOrder.customerName || "Unknown customer"}
                         </Text>
@@ -1057,11 +1218,27 @@ export default function OrdersScreen() {
                             {formatOrderStatus(selectedOrder.status)}
                           </Text>
                         </View>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            isOrderPaid(selectedOrder)
+                              ? styles.paymentBadgePaid
+                              : styles.paymentBadgeUnpaid,
+                          ]}
+                        >
+                          <Text style={styles.statusBadgeText}>
+                            {formatPaymentStatus(
+                              isOrderPaid(selectedOrder) ? "paid" : "unpaid",
+                            )}
+                          </Text>
+                        </View>
                       </View>
                       <Text style={styles.identitySubText}>
                         {resolveLocationLabel(selectedOrder.storeLocationId)} ·{" "}
                         {resolveTimeslotLabel(selectedOrder.timeslotId)} ·{" "}
-                        {formatCurrency(selectedOrder.totalAmount)}
+                        <Text style={styles.identityPrice}>
+                          {formatCurrency(selectedOrder.totalAmount)}
+                        </Text>
                       </Text>
                     </View>
 
@@ -1105,56 +1282,58 @@ export default function OrdersScreen() {
                           ) : null}
                         </View>
 
-                        <View style={styles.selectedBoxesArea}>
-                          {selectedBoxIds.length === 0 ? (
-                            <Text style={styles.tagPlaceholder}>Tap boxes below to select</Text>
-                          ) : (
-                            <View style={styles.tagContainer}>
-                              {selectedBoxIds.map((id) => (
-                                <Pressable
-                                  key={id}
-                                  disabled={isSubmitting}
-                                  style={styles.tag}
-                                  onPress={() => removeGiveBox(id)}
-                                >
-                                  <Text style={styles.tagText}>{id.replace("BOX-", "")}</Text>
-                                  <Ionicons
-                                    name="close"
-                                    size={12}
-                                    color="#0B5D44"
-                                    style={styles.tagIcon}
-                                  />
-                                </Pressable>
-                              ))}
-                            </View>
-                          )}
+                        <View style={styles.selectedAndSearchRow}>
+                          <View style={styles.selectedBoxesArea}>
+                            {selectedBoxIds.length === 0 ? (
+                              <Text style={styles.tagPlaceholder}>Tap boxes below to select</Text>
+                            ) : (
+                              <View style={styles.tagContainer}>
+                                {selectedBoxIds.map((id) => (
+                                  <Pressable
+                                    key={id}
+                                    disabled={isSubmitting}
+                                    style={styles.tag}
+                                    onPress={() => removeGiveBox(id)}
+                                  >
+                                    <Text style={styles.tagText}>{id.replace("BOX-", "")}</Text>
+                                    <Ionicons
+                                      name="close"
+                                      size={12}
+                                      color="#0B5D44"
+                                      style={styles.tagIcon}
+                                    />
+                                  </Pressable>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+
+                          <View style={styles.boxSearchDisplay}>
+                            <Text
+                              style={[
+                                styles.boxSearchDisplayText,
+                                !boxSearch ? styles.boxSearchDisplayPlaceholder : undefined,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {boxSearch || "Box ID"}
+                            </Text>
+                            {boxSearch ? (
+                              <Pressable
+                                disabled={isSubmitting}
+                                hitSlop={8}
+                                onPress={() => setBoxSearch("")}
+                              >
+                                <Ionicons name="close-circle" size={18} color="#7A8F87" />
+                              </Pressable>
+                            ) : (
+                              <Ionicons name="keypad-outline" size={18} color="#7A8F87" />
+                            )}
+                          </View>
                         </View>
 
                         <View style={styles.boxSearchWorkArea}>
                           <View style={styles.boxSearchLeft}>
-                            <View style={styles.boxSearchDisplay}>
-                              <Text
-                                style={[
-                                  styles.boxSearchDisplayText,
-                                  !boxSearch ? styles.boxSearchDisplayPlaceholder : undefined,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {boxSearch || "Box ID"}
-                              </Text>
-                              {boxSearch ? (
-                                <Pressable
-                                  disabled={isSubmitting}
-                                  hitSlop={8}
-                                  onPress={() => setBoxSearch("")}
-                                >
-                                  <Ionicons name="close-circle" size={18} color="#7A8F87" />
-                                </Pressable>
-                              ) : (
-                                <Ionicons name="keypad-outline" size={18} color="#7A8F87" />
-                              )}
-                            </View>
-
                             <Text style={styles.availableBoxesLabel}>
                               Available ({displayedAvailableBoxes.length}
                               {filteredAvailableBoxes.length > displayedAvailableBoxes.length
@@ -1219,7 +1398,7 @@ export default function OrdersScreen() {
                                       ]}
                                     >
                                       {key === "back" ? (
-                                        <Ionicons name="backspace-outline" size={15} color="#0B3D2E" />
+                                        <Ionicons name="backspace-outline" size={22} color="#0B3D2E" />
                                       ) : (
                                         <Text
                                           style={[
@@ -1248,43 +1427,74 @@ export default function OrdersScreen() {
                     )}
                 </ScrollView>
 
-                {selectedOrder.status === "confirmed" ? (
+                {selectedOrder.status === "confirmed" ||
+                selectedOrder.status === "picked" ||
+                selectedOrder.status !== "cancelled" ? (
                   <View style={styles.actionButtons}>
-                    <Pressable
-                      disabled={isSubmitting}
-                      style={[
-                        styles.cancelButton,
-                        isSubmitting ? styles.submitButtonDisabled : undefined,
-                      ]}
-                      onPress={handleCancelOrder}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel Order</Text>
-                    </Pressable>
-                    <Pressable
-                      disabled={isSubmitting}
-                      style={[
-                        styles.submitButton,
-                        styles.submitButtonFlex,
-                        isSubmitting ? styles.submitButtonDisabled : undefined,
-                      ]}
-                      onPress={handleGiveSubmit}
-                    >
-                      <Text style={styles.submitButtonText}>Confirm Give Box</Text>
-                    </Pressable>
-                  </View>
-                ) : selectedOrder.status === "picked" ? (
-                  <View style={styles.actionButtons}>
-                    <Pressable
-                      disabled={isSubmitting}
-                      style={[
-                        styles.submitButton,
-                        styles.submitButtonFlex,
-                        isSubmitting ? styles.submitButtonDisabled : undefined,
-                      ]}
-                      onPress={handleGiveSubmit}
-                    >
-                      <Text style={styles.submitButtonText}>Update Boxes</Text>
-                    </Pressable>
+                    {selectedOrder.status === "confirmed" ? (
+                      <Pressable
+                        disabled={isSubmitting}
+                        style={[
+                          styles.cancelButton,
+                          isSubmitting ? styles.submitButtonDisabled : undefined,
+                        ]}
+                        onPress={handleCancelOrder}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                      </Pressable>
+                    ) : null}
+                    {selectedOrder.status !== "cancelled" ? (
+                      isOrderPaid(selectedOrder) ? (
+                        <Pressable
+                          disabled={isSubmitting}
+                          style={[
+                            styles.unpaidButton,
+                            styles.submitButtonFlex,
+                            isSubmitting ? styles.submitButtonDisabled : undefined,
+                          ]}
+                          onPress={handleMarkOrderUnpaid}
+                        >
+                          <Text style={styles.unpaidButtonText}>Mark as Not Paid</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          disabled={isSubmitting}
+                          style={[
+                            styles.paidButton,
+                            styles.submitButtonFlex,
+                            isSubmitting ? styles.submitButtonDisabled : undefined,
+                          ]}
+                          onPress={handleMarkOrderPaid}
+                        >
+                          <Text style={styles.paidButtonText}>Mark as Paid</Text>
+                        </Pressable>
+                      )
+                    ) : null}
+                    {selectedOrder.status === "confirmed" ? (
+                      <Pressable
+                        disabled={isSubmitting}
+                        style={[
+                          styles.submitButton,
+                          styles.submitButtonFlex,
+                          isSubmitting ? styles.submitButtonDisabled : undefined,
+                        ]}
+                        onPress={handleGiveSubmit}
+                      >
+                        <Text style={styles.submitButtonText}>Confirm Give Box</Text>
+                      </Pressable>
+                    ) : selectedOrder.status === "picked" ? (
+                      <Pressable
+                        disabled={isSubmitting}
+                        style={[
+                          styles.submitButton,
+                          styles.submitButtonFlex,
+                          isSubmitting ? styles.submitButtonDisabled : undefined,
+                        ]}
+                        onPress={handleGiveSubmit}
+                      >
+                        <Text style={styles.submitButtonText}>Update Boxes</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -1301,16 +1511,20 @@ export default function OrdersScreen() {
                   <Text style={styles.loadingOverlayTitle}>
                     {submitMode === "cancel"
                       ? "Cancelling order..."
-                      : submitMode === "update"
-                        ? "Updating boxes..."
-                        : "Processing check-out..."}
+                      : submitMode === "paid" || submitMode === "unpaid"
+                        ? "Updating payment..."
+                        : submitMode === "update"
+                          ? "Updating boxes..."
+                          : "Processing check-out..."}
                   </Text>
                   <Text style={styles.loadingOverlayText}>
                     {submitMode === "cancel"
                       ? "Please wait while the order is cancelled."
-                      : submitMode === "update"
-                        ? "Checking in removed boxes and checking out new ones."
-                        : "Please wait until all selected boxes are updated."}
+                      : submitMode === "paid" || submitMode === "unpaid"
+                        ? "Please wait while payment status is updated."
+                        : submitMode === "update"
+                          ? "Checking in removed boxes and checking out new ones."
+                          : "Please wait until all selected boxes are updated."}
                   </Text>
                 </View>
               </View>
@@ -1429,7 +1643,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   filterPanel: {
-    width: "30%",
+    width: "22%",
     flexShrink: 0,
   },
   filterCard: {
@@ -1581,8 +1795,11 @@ const styles = StyleSheet.create({
   orderColumnWrapper: {
     flexDirection: "row",
     gap: 8,
-    justifyContent: "space-between",
     alignItems: "flex-start",
+  },
+  orderItemSlot: {
+    flex: 1,
+    minWidth: 0,
   },
   timeslotSeparator: {
     height: 1,
@@ -1591,7 +1808,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   orderItemSpacer: {
-    width: "48.5%",
+    flex: 1,
+    minWidth: 0,
   },
   detailsModalSafe: {
     flex: 1,
@@ -1637,21 +1855,40 @@ const styles = StyleSheet.create({
     color: "#39584F",
     fontWeight: "600",
   },
+  dateSelectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dateArrowButton: {
+    width: 34,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C6D6D0",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   dateSelector: {
+    flex: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 4,
   },
   dateSelectorText: {
+    flexShrink: 1,
     color: "#1E2A26",
     fontWeight: "600",
-    fontSize: 14,
+    fontSize: 13,
   },
   timeslotChip: {
     borderWidth: 1,
@@ -1674,15 +1911,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   orderItem: {
-    width: "48.5%",
+    width: "100%",
     borderWidth: 1,
     borderColor: "#E2EEE9",
     borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     marginBottom: 8,
     backgroundColor: "#FAFCFB",
-    alignSelf: "flex-start",
   },
   selectedItem: {
     borderColor: "#0D7A4E",
@@ -1696,6 +1932,16 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     gap: 6,
     flexWrap: "wrap",
+  },
+  paidDollarIcon: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#B45309",
+    lineHeight: 18,
+  },
+  paidDollarIconLarge: {
+    fontSize: 18,
+    lineHeight: 20,
   },
   orderName: {
     fontSize: 14,
@@ -1757,6 +2003,11 @@ const styles = StyleSheet.create({
   identitySubText: {
     fontSize: 12,
     color: "#60726A",
+  },
+  identityPrice: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B3D2E",
   },
   mealsWrap: {
     flexDirection: "row",
@@ -1824,7 +2075,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#0D7A4E",
   },
+  selectedAndSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   selectedBoxesArea: {
+    flex: 1,
     height: 44,
     borderWidth: 1,
     borderColor: "#C6D6D0",
@@ -1833,6 +2090,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
+    minWidth: 0,
   },
   boxSearchWorkArea: {
     flexDirection: "row",
@@ -1845,6 +2103,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   boxSearchDisplay: {
+    width: 180,
+    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1855,7 +2115,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
     gap: 8,
-    height: 34,
+    height: 44,
   },
   boxSearchDisplayText: {
     flex: 1,
@@ -1871,19 +2131,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   numpad: {
-    width: 148,
-    gap: 4,
+    width: 180,
+    gap: 6,
     flexShrink: 0,
   },
   numpadRow: {
     flexDirection: "row",
-    gap: 4,
-    height: 48,
+    gap: 6,
+    height: 58,
   },
   numpadKey: {
     flex: 1,
-    height: 48,
-    borderRadius: 7,
+    height: 58,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#C6D6D0",
     backgroundColor: "#FFFFFF",
@@ -1898,12 +2158,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#D7EEE4",
   },
   numpadKeyText: {
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: "700",
     color: "#0B3D2E",
   },
   numpadKeyActionText: {
-    fontSize: 12,
+    fontSize: 16,
     color: "#0D7A4E",
   },
   tagContainer: {
@@ -1954,7 +2214,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   boxChipGridArea: {
-    minHeight: 120,
+    minHeight: 160,
     borderWidth: 1,
     borderColor: "#E2EEE9",
     borderRadius: 10,
@@ -1973,18 +2233,18 @@ const styles = StyleSheet.create({
   boxChipGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    padding: 6,
+    gap: 8,
+    padding: 8,
     alignSelf: "stretch",
   },
   boxChip: {
     width: "30%",
-    minWidth: 52,
+    minWidth: 64,
     borderWidth: 1,
     borderColor: "#C6D6D0",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
@@ -1995,7 +2255,7 @@ const styles = StyleSheet.create({
   boxChipText: {
     color: "#0B3D2E",
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 16,
   },
   boxChipTextActive: {
     color: "#FFFFFF",
@@ -2032,6 +2292,34 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
+  paidButton: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#B45309",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  paidButtonText: {
+    color: "#B45309",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  unpaidButton: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#6B7280",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  unpaidButtonText: {
+    color: "#4B5563",
+    fontWeight: "700",
+    fontSize: 14,
+  },
   submitButtonDisabled: {
     opacity: 0.7,
   },
@@ -2053,6 +2341,12 @@ const styles = StyleSheet.create({
   },
   statusBadgeCancelled: {
     backgroundColor: "#FEE4E2",
+  },
+  paymentBadgePaid: {
+    backgroundColor: "#FEF3C7",
+  },
+  paymentBadgeUnpaid: {
+    backgroundColor: "#F3F4F6",
   },
   statusBadgeText: {
     fontSize: 10,

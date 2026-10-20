@@ -131,6 +131,7 @@ export type OrderDto = {
   footnote?: string;
   meals?: OrderMealDto[];
   status: string;
+  paymentStatus?: string;
   pickedBoxIds?: string[];
   totalAmount: number;
   createdAt: string;
@@ -258,6 +259,7 @@ export const mapOrder = (dto: OrderDto): Order => ({
   footnote: dto.footnote ?? "",
   meals: (dto.meals ?? []).map(mapOrderMeal),
   status: dto.status,
+  paymentStatus: dto.paymentStatus === "paid" ? "paid" : "unpaid",
   pickedBoxIds: dto.pickedBoxIds ?? [],
   totalAmount: dto.totalAmount,
   createdAt: dto.createdAt,

@@ -65,6 +65,21 @@ export const batchUpdateDailyMeals = createAsyncThunk(
   },
 );
 
+export const batchDeleteDailyMeals = createAsyncThunk(
+  "batchDeleteDailyMeals",
+  async (dates: string[]) => {
+    try {
+      const response = await axiosInstance.delete<{ deletedDates: string[] }>(
+        "daily-meals/batch",
+        { data: { dates } },
+      );
+      return { data: response.data?.deletedDates ?? dates };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 export const downloadDailyMealsTemplate = createAsyncThunk(
   "downloadDailyMealsTemplate",
   async () => {
@@ -122,6 +137,12 @@ const dailyMealSlice = createSlice({
       state.loading = false;
     });
     builder.addCase(batchUpdateDailyMeals.rejected, setRejected);
+
+    builder.addCase(batchDeleteDailyMeals.pending, setPending);
+    builder.addCase(batchDeleteDailyMeals.fulfilled, (state) => {
+      state.loading = false;
+    });
+    builder.addCase(batchDeleteDailyMeals.rejected, setRejected);
   },
 });
 

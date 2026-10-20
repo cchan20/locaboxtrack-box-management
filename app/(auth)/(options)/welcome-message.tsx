@@ -3,6 +3,7 @@ import { useAppDispatch } from "@/store/hooks";
 import {
   deleteWelcomeImage,
   getGlobalSettings,
+  updateDailyCutOffTime,
   updateMaxMealsPerOrder,
   updateOrderWhatsappNumber,
   updateWelcomeMessage,
@@ -16,6 +17,10 @@ import {
   MAX_MEALS_PER_ORDER_CAP,
   effectiveMaxMealsPerOrder,
 } from "@/utils/orderWeek";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerChangeEvent,
+} from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
@@ -24,6 +29,8 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,6 +42,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const MAX_WELCOME_MESSAGE_LENGTH = 500;
 const MAX_WELCOME_IMAGE_BYTES = 2 * 1024 * 1024;
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const DEFAULT_DAILY_CUT_OFF_TIME = "11:30";
+
+const isValidTime = (value: string) => TIME_PATTERN.test(value.trim());
+
+const normalizeCutOffTime = (value: string | undefined | null) => {
+  const trimmed = value?.trim() ?? "";
+  return isValidTime(trimmed) ? trimmed : DEFAULT_DAILY_CUT_OFF_TIME;
+};
+
+const parseTimeToDate = (value: string) => {
+  const date = new Date();
+  const normalized = normalizeCutOffTime(value);
+  const [hours, minutes] = normalized.split(":").map(Number);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+};
+
+const formatTime = (date: Date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
 
 function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
@@ -62,6 +92,16 @@ export default function WelcomeMessageScreen() {
   const [savedMaxMealsPerOrder, setSavedMaxMealsPerOrder] = useState(
     DEFAULT_MAX_MEALS_PER_ORDER,
   );
+  const [dailyCutOffTime, setDailyCutOffTime] = useState(
+    DEFAULT_DAILY_CUT_OFF_TIME,
+  );
+  const [savedDailyCutOffTime, setSavedDailyCutOffTime] = useState(
+    DEFAULT_DAILY_CUT_OFF_TIME,
+  );
+  const [showCutOffPicker, setShowCutOffPicker] = useState(false);
+  const [cutOffPickerValue, setCutOffPickerValue] = useState(() =>
+    parseTimeToDate(DEFAULT_DAILY_CUT_OFF_TIME),
+  );
   const [hasWelcomeImage, setHasWelcomeImage] = useState(false);
   const [welcomeImageUpdatedAt, setWelcomeImageUpdatedAt] = useState(0);
   const [pendingImage, setPendingImage] = useState<WelcomeImageUpload | null>(
@@ -80,16 +120,20 @@ export default function WelcomeMessageScreen() {
       const nextMaxMeals = effectiveMaxMealsPerOrder(
         response.data.maxMealsPerOrder,
       );
+      const nextCutOff = normalizeCutOffTime(response.data.dailyCutOffTime);
       setMessage(nextMessage);
       setSavedMessage(nextMessage);
       setWhatsappNumber(nextWhatsapp);
       setSavedWhatsappNumber(nextWhatsapp);
       setMaxMealsPerOrder(String(nextMaxMeals));
       setSavedMaxMealsPerOrder(nextMaxMeals);
+      setDailyCutOffTime(nextCutOff);
+      setSavedDailyCutOffTime(nextCutOff);
       setHasWelcomeImage(Boolean(response.data.hasWelcomeImage));
       setWelcomeImageUpdatedAt(response.data.welcomeImageUpdatedAt ?? 0);
       setPendingImage(null);
       setPendingRemove(false);
+      setShowCutOffPicker(false);
     } catch {
       setMessage("");
       setSavedMessage("");
@@ -97,10 +141,13 @@ export default function WelcomeMessageScreen() {
       setSavedWhatsappNumber("");
       setMaxMealsPerOrder(String(DEFAULT_MAX_MEALS_PER_ORDER));
       setSavedMaxMealsPerOrder(DEFAULT_MAX_MEALS_PER_ORDER);
+      setDailyCutOffTime(DEFAULT_DAILY_CUT_OFF_TIME);
+      setSavedDailyCutOffTime(DEFAULT_DAILY_CUT_OFF_TIME);
       setHasWelcomeImage(false);
       setWelcomeImageUpdatedAt(0);
       setPendingImage(null);
       setPendingRemove(false);
+      setShowCutOffPicker(false);
     } finally {
       setIsFetching(false);
     }
@@ -168,10 +215,48 @@ export default function WelcomeMessageScreen() {
     }
   };
 
+  const openCutOffPicker = () => {
+    setCutOffPickerValue(parseTimeToDate(dailyCutOffTime));
+    setShowCutOffPicker(true);
+  };
+
+  const closeCutOffPicker = () => {
+    setShowCutOffPicker(false);
+  };
+
+  const applyCutOffTime = (date: Date) => {
+    setDailyCutOffTime(formatTime(date));
+  };
+
+  const onCutOffTimeChange = (
+    _event: DateTimePickerChangeEvent,
+    selected?: Date,
+  ) => {
+    if (!selected) {
+      if (Platform.OS !== "ios") {
+        closeCutOffPicker();
+      }
+      return;
+    }
+
+    setCutOffPickerValue(selected);
+
+    if (Platform.OS !== "ios") {
+      applyCutOffTime(selected);
+      closeCutOffPicker();
+    }
+  };
+
+  const confirmCutOffPicker = () => {
+    applyCutOffTime(cutOffPickerValue);
+    closeCutOffPicker();
+  };
+
   const handleSave = async () => {
     const nextMessage = message.trim();
     const nextWhatsapp = digitsOnly(whatsappNumber);
     const parsedMaxMeals = Number.parseInt(maxMealsPerOrder.trim(), 10);
+    const nextCutOff = dailyCutOffTime.trim();
 
     if (nextMessage.length > MAX_WELCOME_MESSAGE_LENGTH) {
       Alert.alert(
@@ -198,11 +283,20 @@ export default function WelcomeMessageScreen() {
       return;
     }
 
+    if (!isValidTime(nextCutOff)) {
+      Alert.alert(
+        "Invalid cut-off time",
+        "Please select a valid daily cut-off time (HH:mm).",
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       const messageDirty = nextMessage !== savedMessage.trim();
       const whatsappDirty = nextWhatsapp !== savedWhatsappNumber;
       const maxMealsDirty = parsedMaxMeals !== savedMaxMealsPerOrder;
+      const cutOffDirty = nextCutOff !== savedDailyCutOffTime;
       const imageDirty = pendingImage != null || pendingRemove;
 
       if (messageDirty) {
@@ -228,6 +322,15 @@ export default function WelcomeMessageScreen() {
         const saved = effectiveMaxMealsPerOrder(response.data.maxMealsPerOrder);
         setMaxMealsPerOrder(String(saved));
         setSavedMaxMealsPerOrder(saved);
+      }
+
+      if (cutOffDirty) {
+        const response = await dispatch(
+          updateDailyCutOffTime(nextCutOff),
+        ).unwrap();
+        const saved = normalizeCutOffTime(response.data.dailyCutOffTime);
+        setDailyCutOffTime(saved);
+        setSavedDailyCutOffTime(saved);
       }
 
       if (imageDirty) {
@@ -257,6 +360,7 @@ export default function WelcomeMessageScreen() {
     message.trim() !== savedMessage.trim() ||
     digitsOnly(whatsappNumber) !== savedWhatsappNumber ||
     Number.parseInt(maxMealsPerOrder.trim(), 10) !== savedMaxMealsPerOrder ||
+    dailyCutOffTime !== savedDailyCutOffTime ||
     pendingImage != null ||
     pendingRemove;
 
@@ -363,6 +467,21 @@ export default function WelcomeMessageScreen() {
               style={styles.whatsappInput}
             />
 
+            <Text style={styles.fieldLabel}>Daily Cut-Off Time</Text>
+            <Text style={styles.fieldHint}>
+              Orders for today lock at this local time. Shown on the web order
+              page (e.g. “Orders are accepted until 11:30 AM on each pickup day,
+              or until sold out”).
+            </Text>
+            <Pressable
+              style={[styles.timeSelector, isSaving && styles.saveButtonDisabled]}
+              onPress={openCutOffPicker}
+              disabled={isSaving}
+            >
+              <Text style={styles.timeSelectorText}>{dailyCutOffTime}</Text>
+              <Ionicons name="time-outline" size={18} color="#42685D" />
+            </Pressable>
+
             <Pressable
               style={[styles.saveButton, (!dirty || isSaving) && styles.saveButtonDisabled]}
               onPress={() => {
@@ -378,6 +497,48 @@ export default function WelcomeMessageScreen() {
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
+
+      {Platform.OS === "android" && showCutOffPicker ? (
+        <DateTimePicker
+          value={cutOffPickerValue}
+          mode="time"
+          display="default"
+          is24Hour
+          onValueChange={onCutOffTimeChange}
+          onDismiss={closeCutOffPicker}
+        />
+      ) : null}
+
+      <Modal
+        visible={Platform.OS === "ios" && showCutOffPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCutOffPicker}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeCutOffPicker}>
+          <Pressable
+            style={styles.modalCard}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <Text style={styles.modalTitle}>Select cut-off time</Text>
+            <DateTimePicker
+              value={cutOffPickerValue}
+              mode="time"
+              display="spinner"
+              is24Hour
+              onValueChange={onCutOffTimeChange}
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelButton} onPress={closeCutOffPicker}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalConfirmButton} onPress={confirmCutOffPicker}>
+                <Text style={styles.modalConfirmText}>Done</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -514,6 +675,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A2A24",
   },
+  timeSelector: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#C7D8D1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  timeSelectorText: {
+    fontSize: 15,
+    color: "#1A2A24",
+    fontWeight: "600",
+  },
   saveButton: {
     marginTop: 16,
     backgroundColor: "#0D7A4E",
@@ -527,6 +705,47 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   saveButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0B3D2E",
+    marginBottom: 8,
+  },
+  modalActions: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalCancelText: {
+    color: "#577066",
+    fontWeight: "600",
+  },
+  modalConfirmButton: {
+    backgroundColor: "#0D7A4E",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalConfirmText: {
     color: "#FFFFFF",
     fontWeight: "700",
   },

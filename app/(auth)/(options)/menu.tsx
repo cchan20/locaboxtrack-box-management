@@ -1,5 +1,6 @@
 import { useAppDispatch } from "@/store/hooks";
 import {
+  batchDeleteDailyMeals,
   batchInsertDailyMeals,
   batchUpdateDailyMeals,
   downloadDailyMealsTemplate,
@@ -179,6 +180,7 @@ export default function MenuScreen() {
   const [meals, setMeals] = useState<DailyMeal[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [importOpen, setImportOpen] = useState(false);
@@ -389,6 +391,36 @@ export default function MenuScreen() {
     resetSelection();
   };
 
+  const handleDelete = () => {
+    if (!selectedDateKey || !isEditingExisting || isSaving || isDeleting) {
+      return;
+    }
+
+    Alert.alert(
+      "Remove daily meal",
+      `Delete the menu for ${selectedDateKey}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await dispatch(batchDeleteDailyMeals([selectedDateKey])).unwrap();
+              resetSelection();
+              await loadWeekMeals();
+            } catch (error) {
+              Alert.alert("Unable to remove", getErrorMessage(error));
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleSelectDay = (day: WeekDay) => {
     if (selectedDateKey === day.dateKey) {
       return;
@@ -539,7 +571,7 @@ export default function MenuScreen() {
             value={form[priceKey]}
             onChangeText={(value) => updateField(priceKey, value)}
             keyboardType="decimal-pad"
-            editable={hasSelection && !isSaving}
+            editable={hasSelection && !isSaving && !isDeleting}
             style={styles.input}
             placeholder="0"
           />
@@ -550,7 +582,7 @@ export default function MenuScreen() {
             value={form[inventoryKey]}
             onChangeText={(value) => updateField(inventoryKey, value)}
             keyboardType="number-pad"
-            editable={hasSelection && !isSaving}
+            editable={hasSelection && !isSaving && !isDeleting}
             style={styles.input}
             placeholder="0"
           />
@@ -571,7 +603,7 @@ export default function MenuScreen() {
       <ClearableTextInput
         value={form[nameKey]}
         onChangeText={(value) => updateField(nameKey, value)}
-        editable={hasSelection && !isSaving}
+        editable={hasSelection && !isSaving && !isDeleting}
         style={styles.input}
         placeholder="e.g. Extra Protein"
       />
@@ -582,7 +614,7 @@ export default function MenuScreen() {
             value={form[priceKey]}
             onChangeText={(value) => updateField(priceKey, value)}
             keyboardType="decimal-pad"
-            editable={hasSelection && !isSaving}
+            editable={hasSelection && !isSaving && !isDeleting}
             style={styles.input}
             placeholder="0"
           />
@@ -593,7 +625,7 @@ export default function MenuScreen() {
             value={form[inventoryKey]}
             onChangeText={(value) => updateField(inventoryKey, value)}
             keyboardType="number-pad"
-            editable={hasSelection && !isSaving}
+            editable={hasSelection && !isSaving && !isDeleting}
             style={styles.input}
             placeholder="0"
           />
@@ -601,6 +633,8 @@ export default function MenuScreen() {
       </View>
     </View>
   );
+
+  const formBusy = isSaving || isDeleting;
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
@@ -665,7 +699,7 @@ export default function MenuScreen() {
             <ClearableTextInput
               value={form.dishesName}
               onChangeText={(value) => updateField("dishesName", value)}
-              editable={hasSelection && !isSaving}
+              editable={hasSelection && !formBusy}
               placeholder="e.g. Grilled Chicken Bowl"
               style={styles.input}
             />
@@ -674,7 +708,7 @@ export default function MenuScreen() {
             <ClearableTextInput
               value={form.dishesDescription}
               onChangeText={(value) => updateField("dishesDescription", value)}
-              editable={hasSelection && !isSaving}
+              editable={hasSelection && !formBusy}
               placeholder="Short description"
               multiline
               style={[styles.input, styles.multilineInput]}
@@ -684,7 +718,7 @@ export default function MenuScreen() {
             <ClearableTextInput
               value={form.dishesIngredients}
               onChangeText={(value) => updateField("dishesIngredients", value)}
-              editable={hasSelection && !isSaving}
+              editable={hasSelection && !formBusy}
               placeholder="Comma-separated ingredients"
               multiline
               style={[styles.input, styles.multilineInput]}
@@ -733,23 +767,43 @@ export default function MenuScreen() {
           </ScrollView>
 
           {hasSelection ? (
-            <View style={styles.actionRow}>
-              <Pressable
-                style={[styles.cancelButton, styles.actionButton]}
-                disabled={isSaving}
-                onPress={handleCancel}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.addButton, styles.actionButton, isSaving ? styles.buttonDisabled : null]}
-                disabled={isSaving}
-                onPress={handleSave}
-              >
-                <Text style={styles.addButtonText}>
-                  {isSaving ? "Saving..." : isEditingExisting ? "Save" : "Create"}
-                </Text>
-              </Pressable>
+            <View style={styles.actionsBlock}>
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.cancelButton, styles.actionButton]}
+                  disabled={formBusy}
+                  onPress={handleCancel}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.addButton,
+                    styles.actionButton,
+                    formBusy ? styles.buttonDisabled : null,
+                  ]}
+                  disabled={formBusy}
+                  onPress={handleSave}
+                >
+                  <Text style={styles.addButtonText}>
+                    {isSaving ? "Saving..." : isEditingExisting ? "Save" : "Create"}
+                  </Text>
+                </Pressable>
+              </View>
+              {isEditingExisting ? (
+                <Pressable
+                  style={[
+                    styles.deleteButton,
+                    formBusy ? styles.buttonDisabled : null,
+                  ]}
+                  disabled={formBusy}
+                  onPress={handleDelete}
+                >
+                  <Text style={styles.deleteButtonText}>
+                    {isDeleting ? "Removing..." : "Remove Daily Meal"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -1051,8 +1105,11 @@ const styles = StyleSheet.create({
   halfField: {
     flex: 1,
   },
-  actionRow: {
+  actionsBlock: {
     marginTop: 12,
+    gap: 10,
+  },
+  actionRow: {
     flexDirection: "row",
     gap: 10,
   },
@@ -1083,6 +1140,20 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: "#577066",
+    fontWeight: "700",
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: "#EBC2BE",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FCECEA",
+  },
+  deleteButtonText: {
+    color: "#B42318",
     fontWeight: "700",
   },
   buttonDisabled: {

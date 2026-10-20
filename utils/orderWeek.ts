@@ -27,20 +27,52 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Anchor used for order-week menus. After Sunday 12:00 noon local time,
+ * the next calendar week is treated as the current order week.
+ */
+export function orderWeekAnchor(ref: Date = new Date()): Date {
+  if (ref.getDay() === 0 && ref.getHours() * 60 + ref.getMinutes() >= 12 * 60) {
+    const next = new Date(ref);
+    next.setDate(ref.getDate() + 1);
+    return next;
+  }
+  return ref;
+}
+
 export function getCurrentWeekRange(ref: Date = new Date()): {
   from: string;
   to: string;
 } {
-  const day = ref.getDay();
+  const anchor = orderWeekAnchor(ref);
+  const day = anchor.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = new Date(ref);
+  const monday = new Date(anchor);
   monday.setHours(0, 0, 0, 0);
-  monday.setDate(ref.getDate() + mondayOffset);
+  monday.setDate(anchor.getDate() + mondayOffset);
 
   const friday = new Date(monday);
   friday.setDate(monday.getDate() + 4);
 
   return { from: formatDate(monday), to: formatDate(friday) };
+}
+
+/** Shift `ref` by `weeks` calendar weeks (positive = future). */
+export function shiftWeek(ref: Date, weeks: number): Date {
+  const next = new Date(ref);
+  next.setDate(ref.getDate() + weeks * 7);
+  return next;
+}
+
+/**
+ * True when `candidate`'s order week is at or after the earliest allowed
+ * order week (current week after Sunday-noon rollover).
+ */
+export function isOrderWeekAllowed(
+  candidate: Date,
+  now: Date = new Date(),
+): boolean {
+  return getCurrentWeekRange(candidate).from >= getCurrentWeekRange(now).from;
 }
 
 export function datesByDay(ref: Date = new Date()): Record<WeekDay, string> {

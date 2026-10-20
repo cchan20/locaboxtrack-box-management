@@ -107,6 +107,21 @@ export const updateMaxMealsPerOrder = createAsyncThunk(
   },
 );
 
+export const updateDailyCutOffTime = createAsyncThunk(
+  "updateDailyCutOffTime",
+  async (dailyCutOffTime: string) => {
+    try {
+      const response = await axiosInstance.put<GlobalSettingDto>(
+        "settings/daily-cutoff-time",
+        { dailyCutOffTime },
+      );
+      return { data: mapGlobalSetting(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 export type WelcomeImageUpload = {
   uri: string;
   name: string;
@@ -209,6 +224,10 @@ const settingsSlice = createSlice({
     builder.addCase(updateMaxMealsPerOrder.pending, setPending);
     builder.addCase(updateMaxMealsPerOrder.fulfilled, setFulfilledSettings);
     builder.addCase(updateMaxMealsPerOrder.rejected, setRejected);
+
+    builder.addCase(updateDailyCutOffTime.pending, setPending);
+    builder.addCase(updateDailyCutOffTime.fulfilled, setFulfilledSettings);
+    builder.addCase(updateDailyCutOffTime.rejected, setRejected);
 
     builder.addCase(uploadWelcomeImage.pending, setPending);
     builder.addCase(uploadWelcomeImage.fulfilled, setFulfilledSettings);

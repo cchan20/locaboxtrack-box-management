@@ -125,6 +125,52 @@ export const markOrderPicked = createAsyncThunk(
   },
 );
 
+export type MarkOrderPaidParams = {
+  customerId: string;
+  date: string;
+  orderId?: string;
+};
+
+export const markOrderPaid = createAsyncThunk(
+  "markOrderPaid",
+  async ({ customerId, date, orderId }: MarkOrderPaidParams) => {
+    try {
+      const query = orderId?.trim()
+        ? `?orderId=${encodeURIComponent(orderId.trim())}`
+        : "";
+      const response = await axiosInstance.post<OrderDto>(
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}/paid${query}`,
+      );
+      return { data: mapOrder(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export type MarkOrderUnpaidParams = {
+  customerId: string;
+  date: string;
+  orderId?: string;
+};
+
+export const markOrderUnpaid = createAsyncThunk(
+  "markOrderUnpaid",
+  async ({ customerId, date, orderId }: MarkOrderUnpaidParams) => {
+    try {
+      const query = orderId?.trim()
+        ? `?orderId=${encodeURIComponent(orderId.trim())}`
+        : "";
+      const response = await axiosInstance.post<OrderDto>(
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}/unpaid${query}`,
+      );
+      return { data: mapOrder(response.data) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 export const getAvailability = createAsyncThunk(
   "getAvailability",
   async (params: GetAvailabilityParams) => {
@@ -188,6 +234,22 @@ const orderSlice = createSlice({
     });
 
     builder.addCase(markOrderPicked.fulfilled, (state, action) => {
+      const updated = action.payload.data;
+      const index = state.orders.findIndex((item) => item.id === updated.id);
+      if (index >= 0) {
+        state.orders[index] = updated;
+      }
+    });
+
+    builder.addCase(markOrderPaid.fulfilled, (state, action) => {
+      const updated = action.payload.data;
+      const index = state.orders.findIndex((item) => item.id === updated.id);
+      if (index >= 0) {
+        state.orders[index] = updated;
+      }
+    });
+
+    builder.addCase(markOrderUnpaid.fulfilled, (state, action) => {
       const updated = action.payload.data;
       const index = state.orders.findIndex((item) => item.id === updated.id);
       if (index >= 0) {
