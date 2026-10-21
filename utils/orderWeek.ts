@@ -216,6 +216,55 @@ export function addonsFromDailyMeal(meal: DailyMeal): AddonOption[] {
   return addons;
 }
 
+type AddonStockKey = Extract<
+  keyof DayAvailability,
+  | "extraLarge"
+  | "extraField1"
+  | "extraField2"
+  | "extraField3"
+  | "extraField4"
+  | "extraField5"
+>;
+
+const ADDON_AVAIL_KEY: Record<string, AddonStockKey> = {
+  xl: "extraLarge",
+  ef1: "extraField1",
+  ef2: "extraField2",
+  ef3: "extraField3",
+  ef4: "extraField4",
+  ef5: "extraField5",
+};
+
+export function countAddonInMeals(
+  meals: { addons: string[] }[] | undefined,
+  addonId: string,
+): number {
+  if (!meals?.length) {
+    return 0;
+  }
+  return meals.reduce(
+    (n, meal) => n + (meal.addons.includes(addonId) ? 1 : 0),
+    0,
+  );
+}
+
+/** Effective remaining for an addon, adjusting for draft vs already-sold selection. */
+export function getAddonRemaining(
+  dayAvail: DayAvailability | undefined,
+  addonId: string,
+  draftMeals: { addons: string[] }[] | undefined,
+  savedMeals?: { addons: string[] }[] | undefined,
+): number {
+  const key = ADDON_AVAIL_KEY[addonId];
+  if (!key) {
+    return 0;
+  }
+  const server = dayAvail?.[key]?.remaining ?? 0;
+  const savedCount = countAddonInMeals(savedMeals, addonId);
+  const draftCount = countAddonInMeals(draftMeals, addonId);
+  return server + savedCount - draftCount;
+}
+
 export function mealCost(
   basicBoxPrice: number,
   addons: string[],

@@ -4,6 +4,7 @@ import { getCustomers } from "@/store/slices/customerSlice";
 import { getDailyMeals } from "@/store/slices/dailyMealSlice";
 import {
   getAvailability,
+  getOrders,
   upsertOrderForCustomer,
 } from "@/store/slices/orderSlice";
 import { getGlobalSettings } from "@/store/slices/settingsSlice";
@@ -11,6 +12,7 @@ import {
   Customer,
   DailyMeal,
   DayAvailability,
+  Order,
   StoreLocation,
   Timeslot,
   WeekDay,
@@ -26,6 +28,7 @@ import {
   effectiveMaxMealsPerOrder,
   firstOrderableDay,
   formatCurrency,
+  getAddonRemaining,
   getCurrentWeekRange,
   isOrderWeekAllowed,
   mealsByDay,
@@ -33,6 +36,8 @@ import {
   orderWeekAnchor,
   shiftWeek,
 } from "@/utils/orderWeek";
+
+const LOW_STOCK_THRESHOLD = 5;
 import { ClearableTextInput } from "@/ui/ClearableTextInput";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -107,6 +112,7 @@ export default function CreateOrderScreen() {
   );
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -185,10 +191,16 @@ export default function CreateOrderScreen() {
     try {
       const { from, to } = getCurrentWeekRange(anchorDate);
       const dates = datesByDay(anchorDate);
-      const [settingsRes, mealsRes, availRes] = await Promise.all([
+      const loadCustomerOrders =
+        customerMode === "existing" && selectedCustomer != null;
+
+      const [settingsRes, mealsRes, availRes, ordersRes] = await Promise.all([
         dispatch(getGlobalSettings()).unwrap(),
         dispatch(getDailyMeals({ from, to })).unwrap(),
         dispatch(getAvailability({ from, to })).unwrap(),
+        loadCustomerOrders
+          ? dispatch(getOrders({ from, to })).unwrap()
+          : Promise.resolve({ data: [] as Order[] }),
       ]);
       setTimeslots(settingsRes.data.timeslots ?? []);
       setStoreLocations(settingsRes.data.storeLocations ?? []);
@@ -197,6 +209,13 @@ export default function CreateOrderScreen() {
       );
       setMeals(mealsByDay(mealsRes.data));
       setAvailability(availabilityByDay(availRes.data));
+      setCustomerOrders(
+        loadCustomerOrders && selectedCustomer
+          ? ordersRes.data.filter(
+              (order) => order.customerId === selectedCustomer.id,
+            )
+          : [],
+      );
       setActiveDay(firstOrderableDay(dates));
       setDraft(null);
     } catch (error) {
@@ -204,7 +223,7 @@ export default function CreateOrderScreen() {
     } finally {
       setCatalogLoading(false);
     }
-  }, [anchorDate, dispatch]);
+  }, [anchorDate, customerMode, dispatch, selectedCustomer]);
 
   useEffect(() => {
     if (step !== 2) {
@@ -259,15 +278,47 @@ export default function CreateOrderScreen() {
   const dayAvail = availability[activeDay];
   const dayCap =
     dayAvail?.basicBox.original ?? activeMeal?.basicBoxInventory ?? 0;
-  const dayRemaining = dayAvail?.basicBox.remaining ?? 0;
+  const activeDate = weekDates[activeDay];
+  const existingOrder = useMemo(() => {
+    if (!activeDate || customerMode !== "existing") {
+      return null;
+    }
+    return (
+      customerOrders.find(
+        (order) =>
+          order.date === activeDate &&
+          (order.status === "confirmed" || order.status === "picked"),
+      ) ?? null
+    );
+  }, [activeDate, customerMode, customerOrders]);
+  const activeDayPicked = existingOrder?.status === "picked";
+  const savedMealsForAvail =
+    existingOrder?.status === "confirmed" ? existingOrder.meals : undefined;
+  const dayRemaining =
+    (dayAvail?.basicBox.remaining ?? 0) +
+    (savedMealsForAvail?.length ?? 0) -
+    (draft?.meals.length ?? 0);
 
   const getSlotAvail = (slotId: string) => {
     const server =
       availability[activeDay]?.timeslots.find((t) => t.timeslotId === slotId)
         ?.remaining ?? 0;
+    const savedMeals =
+      existingOrder?.status === "confirmed" &&
+      existingOrder.timeslotId === slotId
+        ? existingOrder.meals.length
+        : 0;
     const draftMeals = draft?.slot === slotId ? draft.meals.length : 0;
-    return server - draftMeals;
+    return server + savedMeals - draftMeals;
   };
+
+  const getAddonAvail = (addonId: string) =>
+    getAddonRemaining(
+      dayAvail,
+      addonId,
+      draft?.meals,
+      savedMealsForAvail,
+    );
 
   const getSlotCap = (slotId: string) =>
     availability[activeDay]?.timeslots.find((t) => t.timeslotId === slotId)
@@ -297,6 +348,13 @@ export default function CreateOrderScreen() {
 
   const handlePlaceOrder = async () => {
     if (!draft) {
+      return;
+    }
+    if (activeDayPicked) {
+      Alert.alert(
+        "Order already picked up",
+        "This order has been picked up and can no longer be changed.",
+      );
       return;
     }
     if (customerMode === "walkin") {
@@ -678,10 +736,18 @@ export default function CreateOrderScreen() {
                 <View style={styles.dayMetaRow}>
                   <Text style={styles.sectionTitle}>{activeDay}</Text>
                   <Text style={styles.availBadge}>
-                    {Math.max(dayRemaining - (draft?.meals.length ?? 0), 0)} of{" "}
-                    {dayCap} left
+                    {Math.max(dayRemaining, 0)} of {dayCap} remaining
                   </Text>
                 </View>
+
+                {activeDayPicked ? (
+                  <View style={styles.pickedBanner}>
+                    <Text style={styles.pickedBannerText}>
+                      This order has been picked up and can no longer be
+                      changed.
+                    </Text>
+                  </View>
+                ) : null}
 
                 {!activeMeal ? (
                   <View style={styles.emptyState}>
@@ -692,6 +758,17 @@ export default function CreateOrderScreen() {
                     />
                     <Text style={styles.emptyText}>
                       Ordering is unavailable until a meal is published.
+                    </Text>
+                  </View>
+                ) : activeDayPicked ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="checkmark-done-outline"
+                      size={36}
+                      color="#C7D8D1"
+                    />
+                    <Text style={styles.emptyText}>
+                      {activeDay} order was already picked up.
                     </Text>
                   </View>
                 ) : !draft ? (
@@ -831,14 +908,30 @@ export default function CreateOrderScreen() {
                         <View style={styles.addonRow}>
                           {activeAddons.map((addon) => {
                             const on = meal.addons.includes(addon.id);
+                            const addonAvail = getAddonAvail(addon.id);
+                            const soldOut = !on && addonAvail <= 0;
+                            const showRemaining =
+                              !on &&
+                              addonAvail > 0 &&
+                              addonAvail <= LOW_STOCK_THRESHOLD;
                             return (
                               <Pressable
                                 key={addon.id}
+                                disabled={soldOut}
                                 style={[
                                   styles.addonChip,
                                   on ? styles.addonChipActive : undefined,
+                                  soldOut
+                                    ? styles.addonChipDisabled
+                                    : undefined,
                                 ]}
                                 onPress={() => {
+                                  if (soldOut) {
+                                    return;
+                                  }
+                                  if (!on && getAddonAvail(addon.id) <= 0) {
+                                    return;
+                                  }
                                   const newAddons = on
                                     ? meal.addons.filter((x) => x !== addon.id)
                                     : [...meal.addons, addon.id];
@@ -854,10 +947,17 @@ export default function CreateOrderScreen() {
                                   style={[
                                     styles.addonChipText,
                                     on ? styles.addonChipTextActive : undefined,
+                                    soldOut
+                                      ? styles.addonChipTextDisabled
+                                      : undefined,
                                   ]}
                                 >
                                   {on ? "✓ " : "+"}
                                   {addon.label} +{formatCurrency(addon.price)}
+                                  {showRemaining
+                                    ? ` (${addonAvail} remaining)`
+                                    : ""}
+                                  {soldOut ? " — FULL" : ""}
                                 </Text>
                               </Pressable>
                             );
@@ -931,6 +1031,7 @@ export default function CreateOrderScreen() {
               style={[
                 styles.primaryButton,
                 styles.flex,
+                activeDayPicked ||
                 !draft ||
                 !draft.slot ||
                 !draft.location ||
@@ -940,6 +1041,7 @@ export default function CreateOrderScreen() {
                   : undefined,
               ]}
               disabled={
+                activeDayPicked ||
                 !draft ||
                 !draft.slot ||
                 !draft.location ||
@@ -1384,6 +1486,11 @@ const styles = StyleSheet.create({
     borderColor: "#0D7A4E",
     backgroundColor: "#DFF3E9",
   },
+  addonChipDisabled: {
+    borderColor: "#D5DEDA",
+    backgroundColor: "#F0F3F2",
+    opacity: 0.7,
+  },
   addonChipText: {
     color: "#5C7269",
     fontSize: 12,
@@ -1391,6 +1498,23 @@ const styles = StyleSheet.create({
   addonChipTextActive: {
     color: "#0B5D44",
     fontWeight: "700",
+  },
+  addonChipTextDisabled: {
+    color: "#9AAEA6",
+  },
+  pickedBanner: {
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#D5DEDA",
+    backgroundColor: "#F0F3F2",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickedBannerText: {
+    color: "#5C7269",
+    fontSize: 12,
+    lineHeight: 18,
   },
   addMealButton: {
     marginTop: 10,
