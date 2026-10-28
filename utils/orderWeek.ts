@@ -159,14 +159,18 @@ type ExtraFieldNameKey =
   | "extraField2Name"
   | "extraField3Name"
   | "extraField4Name"
-  | "extraField5Name";
+  | "extraField5Name"
+  | "optionField1Name"
+  | "optionField2Name";
 
 type ExtraFieldPriceKey =
   | "extraField1Price"
   | "extraField2Price"
   | "extraField3Price"
   | "extraField4Price"
-  | "extraField5Price";
+  | "extraField5Price"
+  | "optionField1Price"
+  | "optionField2Price";
 
 type ExtraFieldDef = {
   id: string;
@@ -181,14 +185,47 @@ const EXTRA_FIELDS: ExtraFieldDef[] = [
   { id: "ef3", nameKey: "extraField3Name", priceKey: "extraField3Price", fallback: "Extra Field 3" },
   { id: "ef4", nameKey: "extraField4Name", priceKey: "extraField4Price", fallback: "Extra Field 4" },
   { id: "ef5", nameKey: "extraField5Name", priceKey: "extraField5Price", fallback: "Extra Field 5" },
+  { id: "of1", nameKey: "optionField1Name", priceKey: "optionField1Price", fallback: "Option Field 1" },
+  { id: "of2", nameKey: "optionField2Name", priceKey: "optionField2Price", fallback: "Option Field 2" },
 ];
+
+/** Option fields are mutually exclusive on a single meal. */
+export const OPTION_FIELD_PAIR: Record<string, string> = {
+  of1: "of2",
+  of2: "of1",
+};
+
+export function toggleMealAddon(
+  addons: string[],
+  addonId: string,
+  currentlyOn: boolean,
+): string[] {
+  if (currentlyOn) {
+    return addons.filter((x) => x !== addonId);
+  }
+  const conflict = OPTION_FIELD_PAIR[addonId];
+  const next = conflict ? addons.filter((x) => x !== conflict) : [...addons];
+  return [...next, addonId];
+}
+
+export function isOptionFieldBlocked(
+  addons: string[],
+  addonId: string,
+  currentlyOn: boolean,
+): boolean {
+  if (currentlyOn) {
+    return false;
+  }
+  const conflict = OPTION_FIELD_PAIR[addonId];
+  return conflict ? addons.includes(conflict) : false;
+}
 
 export function addonLabelFromMeal(
   addonId: string,
   meal?: Pick<DailyMeal, ExtraFieldNameKey> | null,
 ): string {
   if (addonId === "xl") {
-    return "Extra Large";
+    return "BigBox Upgrade";
   }
   const field = EXTRA_FIELDS.find((item) => item.id === addonId);
   if (!field) {
@@ -201,7 +238,7 @@ export function addonLabelFromMeal(
 export function addonsFromDailyMeal(meal: DailyMeal): AddonOption[] {
   const addons: AddonOption[] = [];
   if (meal.extraLargePrice > 0) {
-    addons.push({ id: "xl", label: "Extra Large", price: meal.extraLargePrice });
+    addons.push({ id: "xl", label: "BigBox Upgrade", price: meal.extraLargePrice });
   }
   for (const field of EXTRA_FIELDS) {
     const price = meal[field.priceKey];
@@ -224,6 +261,8 @@ type AddonStockKey = Extract<
   | "extraField3"
   | "extraField4"
   | "extraField5"
+  | "optionField1"
+  | "optionField2"
 >;
 
 const ADDON_AVAIL_KEY: Record<string, AddonStockKey> = {
@@ -233,6 +272,8 @@ const ADDON_AVAIL_KEY: Record<string, AddonStockKey> = {
   ef3: "extraField3",
   ef4: "extraField4",
   ef5: "extraField5",
+  of1: "optionField1",
+  of2: "optionField2",
 };
 
 export function countAddonInMeals(

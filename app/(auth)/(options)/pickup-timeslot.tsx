@@ -308,14 +308,14 @@ export default function PickupTimeslotScreen() {
               <Text style={styles.createFieldLabel}>Start</Text>
               <Pressable style={styles.timeSelector} onPress={() => openTimePicker("start")}>
                 <Text style={styles.timeSelectorText}>{startTime}</Text>
-                <Ionicons name="time-outline" size={16} color="#42685D" />
+                <Ionicons name="time-outline" size={16} color="#6B5348" />
               </Pressable>
             </View>
             <View style={styles.createTimeField}>
               <Text style={styles.createFieldLabel}>End</Text>
               <Pressable style={styles.timeSelector} onPress={() => openTimePicker("end")}>
                 <Text style={styles.timeSelectorText}>{endTime}</Text>
-                <Ionicons name="time-outline" size={16} color="#42685D" />
+                <Ionicons name="time-outline" size={16} color="#6B5348" />
               </Pressable>
             </View>
           </View>
@@ -430,7 +430,7 @@ export default function PickupTimeslotScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
@@ -441,15 +441,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -465,11 +465,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   subtitle: {
     marginTop: 8,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 14,
   },
   stackedInput: {
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   createFieldLabel: {
-    color: "#577066",
+    color: "#74675F",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
   },
   timeSelector: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   timeSelectorText: {
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   cancelButtonText: {
-    color: "#577066",
+    color: "#74675F",
     fontWeight: "700",
   },
   listContent: {
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
   },
   row: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -584,8 +584,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   rowSelected: {
-    borderColor: "#0D7A4E",
-    backgroundColor: "#E6F2ED",
+    borderColor: "#8A553E",
+    backgroundColor: "#F0E8E3",
   },
   rowText: {
     flex: 1,
@@ -593,12 +593,12 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 15,
   },
   secondaryText: {
     marginTop: 2,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 12,
   },
   deleteButton: {
@@ -615,7 +615,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 8,
-    color: "#6E7C76",
+    color: "#7C6E67",
   },
   modalBackdrop: {
     flex: 1,
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     marginBottom: 8,
   },
   modalActions: {

@@ -72,7 +72,7 @@ export default function UserManagementScreen() {
         <Text style={styles.title}>User List</Text>
         {!users.length && isSuccess ? (
           <Pressable style={styles.emptyState} onPress={openCreate}>
-            <Ionicons name="person-add" size={34} color="#0D7A4E" />
+            <Ionicons name="person-add" size={34} color="#8A553E" />
             <Text style={styles.emptyTitle}>No users yet</Text>
             <Text style={styles.emptyText}>Tap to create your first user account.</Text>
           </Pressable>
@@ -91,7 +91,7 @@ export default function UserManagementScreen() {
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={18} color="#7A8F87" />
+              <Ionicons name="chevron-forward" size={18} color="#8F7A72" />
             </Pressable>
           )}
         />
@@ -103,21 +103,21 @@ export default function UserManagementScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
   },
@@ -129,13 +129,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   emptyState: {
     marginTop: 12,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#BFD7CE",
+    borderColor: "#D4C8C0",
     borderRadius: 12,
     paddingVertical: 24,
     alignItems: "center",
@@ -144,12 +144,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 17,
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   emptyText: {
     marginTop: 4,
     fontSize: 13,
-    color: "#577066",
+    color: "#74675F",
   },
   listContent: {
     marginTop: 10,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   listRow: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -171,11 +171,11 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   userMeta: {
     marginTop: 2,
     fontSize: 13,
-    color: "#577066",
+    color: "#74675F",
   },
 });

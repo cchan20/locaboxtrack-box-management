@@ -112,6 +112,12 @@ export type DailyMealDto = {
   extraField5Name?: string;
   extraField5Price?: number;
   extraField5Inventory?: number;
+  optionField1Name?: string;
+  optionField1Price?: number;
+  optionField1Inventory?: number;
+  optionField2Name?: string;
+  optionField2Price?: number;
+  optionField2Inventory?: number;
 };
 
 export type OrderMealDto = {
@@ -240,6 +246,12 @@ export const mapDailyMeal = (dto: DailyMealDto): DailyMeal => ({
   extraField5Name: dto.extraField5Name ?? "",
   extraField5Price: dto.extraField5Price ?? 0,
   extraField5Inventory: dto.extraField5Inventory ?? 0,
+  optionField1Name: dto.optionField1Name ?? "",
+  optionField1Price: dto.optionField1Price ?? 0,
+  optionField1Inventory: dto.optionField1Inventory ?? 0,
+  optionField2Name: dto.optionField2Name ?? "",
+  optionField2Price: dto.optionField2Price ?? 0,
+  optionField2Inventory: dto.optionField2Inventory ?? 0,
 });
 
 export const mapOrderMeal = (dto: OrderMealDto): OrderMeal => ({

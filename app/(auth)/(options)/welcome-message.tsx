@@ -479,7 +479,7 @@ export default function WelcomeMessageScreen() {
               disabled={isSaving}
             >
               <Text style={styles.timeSelectorText}>{dailyCutOffTime}</Text>
-              <Ionicons name="time-outline" size={18} color="#42685D" />
+              <Ionicons name="time-outline" size={18} color="#6B5348" />
             </Pressable>
 
             <Pressable
@@ -546,7 +546,7 @@ export default function WelcomeMessageScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
   },
   dismissArea: {
@@ -557,15 +557,15 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -573,11 +573,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   subtitle: {
     marginTop: 8,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 14,
   },
   input: {
@@ -585,29 +585,29 @@ const styles = StyleSheet.create({
     minHeight: 120,
     textAlignVertical: "top",
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
     fontSize: 15,
-    color: "#1A2A24",
+    color: "#2A221E",
   },
   counter: {
     marginTop: 8,
     textAlign: "right",
-    color: "#6E7C76",
+    color: "#7C6E67",
     fontSize: 12,
   },
   fieldLabel: {
     marginTop: 20,
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   fieldHint: {
     marginTop: 6,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 13,
   },
   preview: {
@@ -615,24 +615,24 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 180,
     borderRadius: 10,
-    backgroundColor: "#F0F5F3",
+    backgroundColor: "#F5F0EC",
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   previewPlaceholder: {
     marginTop: 12,
     width: "100%",
     height: 120,
     borderRadius: 10,
-    backgroundColor: "#F0F5F3",
+    backgroundColor: "#F5F0EC",
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
   previewPlaceholderText: {
-    color: "#6E7C76",
+    color: "#7C6E67",
     fontSize: 13,
   },
   imageActions: {
@@ -642,14 +642,14 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 11,
     alignItems: "center",
   },
   secondaryButtonText: {
-    color: "#0B3D2E",
+    color: "#3F2419",
     fontWeight: "700",
   },
   dangerButton: {
@@ -667,18 +667,18 @@ const styles = StyleSheet.create({
   whatsappInput: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
     fontSize: 15,
-    color: "#1A2A24",
+    color: "#2A221E",
   },
   timeSelector: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -689,12 +689,12 @@ const styles = StyleSheet.create({
   },
   timeSelectorText: {
     fontSize: 15,
-    color: "#1A2A24",
+    color: "#2A221E",
     fontWeight: "600",
   },
   saveButton: {
     marginTop: 16,
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     marginBottom: 8,
   },
   modalActions: {
@@ -736,11 +736,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   modalCancelText: {
-    color: "#577066",
+    color: "#74675F",
     fontWeight: "600",
   },
   modalConfirmButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,

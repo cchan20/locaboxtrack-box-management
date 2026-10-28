@@ -5,7 +5,7 @@ import {
   cancelOrderForCustomer,
   getOrders,
   markOrderPaid,
-  markOrderPicked,
+  markOrderCollected,
   markOrderUnpaid,
 } from "@/store/slices/orderSlice";
 import { getGlobalSettings } from "@/store/slices/settingsSlice";
@@ -41,7 +41,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   confirmed: "Confirmed",
-  picked: "Picked",
+  collected: "Collected",
   cancelled: "Cancelled",
 };
 
@@ -51,10 +51,14 @@ const ORDER_PAYMENT_STATUS_LABELS: Record<string, string> = {
 };
 
 const ORDER_STATUS_FILTERS = [
-  { key: null as string | null, label: "All" },
   { key: "confirmed", label: "Confirmed" },
-  { key: "picked", label: "Picked" },
+  { key: "collected", label: "Collected" },
   { key: "cancelled", label: "Cancelled" },
+] as const;
+
+const ORDER_PAYMENT_STATUS_FILTERS = [
+  { key: "unpaid", label: "Not Paid" },
+  { key: "paid", label: "Paid" },
 ] as const;
 
 type OrderListRow =
@@ -145,7 +149,8 @@ export default function OrdersScreen() {
   const [listLoading, setListLoading] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<string[]>([]);
 
   const [availableBoxes, setAvailableBoxes] = useState<Box[]>([]);
   const [boxSearch, setBoxSearch] = useState("");
@@ -164,9 +169,17 @@ export default function OrdersScreen() {
 
   const filteredOrders = useMemo(() => {
     const query = customerSearch.trim().toLowerCase();
+    const statusSet =
+      selectedStatuses.length > 0 ? new Set(selectedStatuses) : null;
+    const paymentStatusSet =
+      selectedPaymentStatuses.length > 0 ? new Set(selectedPaymentStatuses) : null;
 
     return orders.filter((order) => {
-      if (selectedStatus && order.status !== selectedStatus) {
+      if (statusSet && !statusSet.has(order.status)) {
+        return false;
+      }
+      const paymentStatus = isOrderPaid(order) ? "paid" : "unpaid";
+      if (paymentStatusSet && !paymentStatusSet.has(paymentStatus)) {
         return false;
       }
       if (!query) {
@@ -176,7 +189,7 @@ export default function OrdersScreen() {
       const phone = (order.customerPhone ?? "").toLowerCase();
       return name.includes(query) || phone.includes(query);
     });
-  }, [customerSearch, orders, selectedStatus]);
+  }, [customerSearch, orders, selectedPaymentStatuses, selectedStatuses]);
 
   const orderListRows = useMemo((): OrderListRow[] => {
     if (filteredOrders.length === 0) {
@@ -290,7 +303,8 @@ export default function OrdersScreen() {
     setSelectedDate(nextDate);
     setSelectedTimeslotId(null);
     setSelectedStoreLocationId(null);
-    setSelectedStatus(null);
+    setSelectedStatuses([]);
+    setSelectedPaymentStatuses([]);
     setSelectedOrderId(null);
     setCustomerSearch("");
   }, [dateParam]);
@@ -392,7 +406,7 @@ export default function OrdersScreen() {
       return;
     }
     const order = orders.find((item) => item.id === selectedOrderId);
-    if (order?.status === "picked") {
+    if (order?.status === "collected") {
       setSelectedBoxIds([...(order.pickedBoxIds ?? [])]);
       return;
     }
@@ -439,11 +453,39 @@ export default function OrdersScreen() {
     setLocationModalOpen(false);
   };
 
-  const selectStatus = (status: string | null) => {
+  const toggleStatusFilter = (status: string | null) => {
     if (isSubmitting) {
       return;
     }
-    setSelectedStatus(status);
+    if (status === null) {
+      setSelectedStatuses([]);
+      return;
+    }
+    setSelectedStatuses((prev) =>
+      prev.includes(status) ? prev.filter((item) => item !== status) : [...prev, status],
+    );
+  };
+
+  const togglePaymentStatusFilter = (paymentStatus: string | null) => {
+    if (isSubmitting) {
+      return;
+    }
+    if (paymentStatus === null) {
+      setSelectedPaymentStatuses([]);
+      return;
+    }
+    setSelectedPaymentStatuses((prev) =>
+      prev.includes(paymentStatus)
+        ? prev.filter((item) => item !== paymentStatus)
+        : [...prev, paymentStatus],
+    );
+  };
+
+  const handleRefreshOrders = () => {
+    if (isSubmitting || listLoading) {
+      return;
+    }
+    void loadOrders();
   };
 
   const closeDetailsModal = () => {
@@ -519,7 +561,7 @@ export default function OrdersScreen() {
     setSelectedBoxIds((prev) => prev.filter((id) => id !== boxId));
   };
 
-  const applyPickedOrderUpdate = (
+  const applyCollectedOrderUpdate = (
     orderId: string,
     updated: Order,
     fallbackBoxIds: string[],
@@ -530,7 +572,7 @@ export default function OrdersScreen() {
           ? {
               ...order,
               ...updated,
-              status: "picked",
+              status: "collected",
               pickedBoxIds: updated.pickedBoxIds ?? fallbackBoxIds,
             }
           : order,
@@ -545,8 +587,8 @@ export default function OrdersScreen() {
       return;
     }
 
-    if (selectedOrder.status !== "confirmed" && selectedOrder.status !== "picked") {
-      Alert.alert("Unavailable", "Only confirmed or picked orders can update boxes.");
+    if (selectedOrder.status !== "confirmed" && selectedOrder.status !== "collected") {
+      Alert.alert("Unavailable", "Only confirmed or collected orders can update boxes.");
       return;
     }
 
@@ -567,7 +609,7 @@ export default function OrdersScreen() {
       return;
     }
 
-    const isUpdate = selectedOrder.status === "picked";
+    const isUpdate = selectedOrder.status === "collected";
     const previousBoxIds = (selectedOrder.pickedBoxIds ?? []).map((id) => normalizeBoxId(id));
     const previousSet = new Set(previousBoxIds);
     const nextSet = new Set(nextBoxIds);
@@ -617,14 +659,14 @@ export default function OrdersScreen() {
 
       try {
         const pickedResponse = await dispatch(
-          markOrderPicked({
+          markOrderCollected({
             customerId: selectedOrder.customerId,
             date: selectedOrder.date,
             orderId: selectedOrder.id,
             boxIds: nextBoxIds,
           }),
         ).unwrap();
-        applyPickedOrderUpdate(selectedOrder.id, pickedResponse.data, nextBoxIds);
+        applyCollectedOrderUpdate(selectedOrder.id, pickedResponse.data, nextBoxIds);
       } catch (error) {
         Alert.alert(
           "Partial success",
@@ -642,8 +684,8 @@ export default function OrdersScreen() {
       return;
     }
 
-    if (selectedOrder.status !== "confirmed" && selectedOrder.status !== "picked") {
-      Alert.alert("Unavailable", "Only confirmed or picked orders can update boxes.");
+    if (selectedOrder.status !== "confirmed" && selectedOrder.status !== "collected") {
+      Alert.alert("Unavailable", "Only confirmed or collected orders can update boxes.");
       return;
     }
 
@@ -734,41 +776,31 @@ export default function OrdersScreen() {
       return;
     }
 
-    const customerName = selectedOrder.customerName?.trim() || "this customer";
-
-    Alert.alert("Mark as paid", `Mark the order for ${customerName} as paid?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Mark as paid",
-        onPress: () => {
-          void (async () => {
-            setIsSubmitting(true);
-            setSubmitMode("paid");
-            try {
-              const paidResponse = await dispatch(
-                markOrderPaid({
-                  customerId: selectedOrder.customerId,
-                  date: selectedOrder.date,
-                  orderId: selectedOrder.id,
-                }),
-              ).unwrap();
-              setOrders((prev) =>
-                prev.map((order) =>
-                  order.id === selectedOrder.id
-                    ? { ...order, ...paidResponse.data, paymentStatus: "paid" }
-                    : order,
-                ),
-              );
-            } catch (error) {
-              Alert.alert("Update failed", getErrorMessage(error));
-            } finally {
-              setIsSubmitting(false);
-              setSubmitMode(null);
-            }
-          })();
-        },
-      },
-    ]);
+    void (async () => {
+      setIsSubmitting(true);
+      setSubmitMode("paid");
+      try {
+        const paidResponse = await dispatch(
+          markOrderPaid({
+            customerId: selectedOrder.customerId,
+            date: selectedOrder.date,
+            orderId: selectedOrder.id,
+          }),
+        ).unwrap();
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === selectedOrder.id
+              ? { ...order, ...paidResponse.data, paymentStatus: "paid" }
+              : order,
+          ),
+        );
+      } catch (error) {
+        Alert.alert("Update failed", getErrorMessage(error));
+      } finally {
+        setIsSubmitting(false);
+        setSubmitMode(null);
+      }
+    })();
   };
 
   const handleMarkOrderUnpaid = () => {
@@ -923,7 +955,7 @@ export default function OrdersScreen() {
                       style={styles.dateArrowButton}
                       onPress={() => shiftSelectedDate(-1)}
                     >
-                      <Ionicons name="chevron-back" size={18} color="#42685D" />
+                      <Ionicons name="chevron-back" size={18} color="#6B5348" />
                     </Pressable>
                     <Pressable
                       disabled={isSubmitting}
@@ -931,7 +963,7 @@ export default function OrdersScreen() {
                       onPress={() => setShowDatePicker(true)}
                     >
                       <Text style={styles.dateSelectorText}>{dateKey}</Text>
-                      <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                      <Ionicons name="calendar-outline" size={16} color="#6B5348" />
                     </Pressable>
                     <Pressable
                       disabled={isSubmitting}
@@ -939,7 +971,7 @@ export default function OrdersScreen() {
                       style={styles.dateArrowButton}
                       onPress={() => shiftSelectedDate(1)}
                     >
-                      <Ionicons name="chevron-forward" size={18} color="#42685D" />
+                      <Ionicons name="chevron-forward" size={18} color="#6B5348" />
                     </Pressable>
                   </View>
                 </View>
@@ -954,24 +986,93 @@ export default function OrdersScreen() {
                     <Text style={styles.locationSelectorText} numberOfLines={1}>
                       {selectedLocationLabel}
                     </Text>
-                    <Ionicons name="chevron-down" size={16} color="#42685D" />
+                    <Ionicons name="chevron-down" size={16} color="#6B5348" />
                   </Pressable>
                 </View>
 
                 <View style={styles.filterField}>
                   <Text style={styles.label}>Status</Text>
                   <View style={styles.chipWrap}>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={[
+                        styles.timeslotChip,
+                        selectedStatuses.length === 0 ? styles.timeslotChipActive : undefined,
+                      ]}
+                      onPress={() => toggleStatusFilter(null)}
+                    >
+                      <Text
+                        style={[
+                          styles.timeslotChipText,
+                          selectedStatuses.length === 0
+                            ? styles.timeslotChipTextActive
+                            : undefined,
+                        ]}
+                      >
+                        All
+                      </Text>
+                    </Pressable>
                     {ORDER_STATUS_FILTERS.map((filter) => {
-                      const isActive = selectedStatus === filter.key;
+                      const isActive = selectedStatuses.includes(filter.key);
                       return (
                         <Pressable
-                          key={filter.label}
+                          key={filter.key}
                           disabled={isSubmitting}
                           style={[
                             styles.timeslotChip,
                             isActive ? styles.timeslotChipActive : undefined,
                           ]}
-                          onPress={() => selectStatus(filter.key)}
+                          onPress={() => toggleStatusFilter(filter.key)}
+                        >
+                          <Text
+                            style={[
+                              styles.timeslotChipText,
+                              isActive ? styles.timeslotChipTextActive : undefined,
+                            ]}
+                          >
+                            {filter.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={styles.filterField}>
+                  <Text style={styles.label}>Payment</Text>
+                  <View style={styles.chipWrap}>
+                    <Pressable
+                      disabled={isSubmitting}
+                      style={[
+                        styles.timeslotChip,
+                        selectedPaymentStatuses.length === 0
+                          ? styles.timeslotChipActive
+                          : undefined,
+                      ]}
+                      onPress={() => togglePaymentStatusFilter(null)}
+                    >
+                      <Text
+                        style={[
+                          styles.timeslotChipText,
+                          selectedPaymentStatuses.length === 0
+                            ? styles.timeslotChipTextActive
+                            : undefined,
+                        ]}
+                      >
+                        All
+                      </Text>
+                    </Pressable>
+                    {ORDER_PAYMENT_STATUS_FILTERS.map((filter) => {
+                      const isActive = selectedPaymentStatuses.includes(filter.key);
+                      return (
+                        <Pressable
+                          key={filter.key}
+                          disabled={isSubmitting}
+                          style={[
+                            styles.timeslotChip,
+                            isActive ? styles.timeslotChipActive : undefined,
+                          ]}
+                          onPress={() => togglePaymentStatusFilter(filter.key)}
                         >
                           <Text
                             style={[
@@ -1050,13 +1151,25 @@ export default function OrdersScreen() {
                 <Text style={styles.sectionTitle}>
                   Orders ({filteredOrders.length})
                 </Text>
+                <Pressable
+                  disabled={isSubmitting || listLoading}
+                  hitSlop={8}
+                  style={styles.refreshButton}
+                  onPress={handleRefreshOrders}
+                >
+                  {listLoading ? (
+                    <ActivityIndicator size="small" color="#6B5348" />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color="#6B5348" />
+                  )}
+                </Pressable>
                 <ClearableTextInput
                   containerStyle={styles.customerSearchWrap}
                   value={customerSearch}
                   onChangeText={setCustomerSearch}
                   editable={!isSubmitting}
                   placeholder="Name / phone"
-                  placeholderTextColor="#7A8F87"
+                  placeholderTextColor="#8F7A72"
                   style={[styles.input, styles.customerSearchInput]}
                 />
               </View>
@@ -1072,14 +1185,16 @@ export default function OrdersScreen() {
                 ListEmptyComponent={
                   listLoading ? (
                     <View style={styles.emptyState}>
-                      <ActivityIndicator size="large" color="#0D7A4E" />
+                      <ActivityIndicator size="large" color="#8A553E" />
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
-                      <Ionicons name="receipt-outline" size={36} color="#0D7A4E" />
+                      <Ionicons name="receipt-outline" size={36} color="#8A553E" />
                       <Text style={styles.emptyTitle}>No orders</Text>
                       <Text style={styles.emptyText}>
-                        {customerSearch.trim() || selectedStatus
+                        {customerSearch.trim() ||
+                        selectedStatuses.length > 0 ||
+                        selectedPaymentStatuses.length > 0
                           ? "No orders match the current filters."
                           : `No customers ordered on this day${
                               selectedTimeslotId ? " for the selected timeslot" : ""
@@ -1102,8 +1217,8 @@ export default function OrdersScreen() {
                       >
                         <View style={styles.orderIdentity}>
                           <View style={styles.orderNameRow}>
-                            {order.status === "picked" ? (
-                              <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
+                            {order.status === "collected" ? (
+                              <Ionicons name="checkmark-circle" size={18} color="#8A553E" />
                             ) : order.status === "cancelled" ? (
                               <Ionicons name="close-circle" size={18} color="#B42318" />
                             ) : null}
@@ -1116,7 +1231,7 @@ export default function OrdersScreen() {
                             <Text style={styles.orderSub} numberOfLines={1}>
                               {order.customerPhone || "No phone"}
                             </Text>
-                            {order.status === "picked" && order.pickedBoxIds.length > 0 ? (
+                            {order.status === "collected" && order.pickedBoxIds.length > 0 ? (
                               <Text
                                 style={[styles.orderSub, styles.orderPickedBoxes]}
                                 numberOfLines={1}
@@ -1174,7 +1289,7 @@ export default function OrdersScreen() {
                 style={styles.detailsModalClose}
                 onPress={closeDetailsModal}
               >
-                <Ionicons name="close" size={22} color="#0B3D2E" />
+                <Ionicons name="close" size={22} color="#3F2419" />
               </Pressable>
             </View>
 
@@ -1190,8 +1305,8 @@ export default function OrdersScreen() {
                 >
                     <View style={styles.identityBlock}>
                       <View style={styles.panelNameRow}>
-                        {selectedOrder.status === "picked" ? (
-                          <Ionicons name="checkmark-circle" size={20} color="#0D7A4E" />
+                        {selectedOrder.status === "collected" ? (
+                          <Ionicons name="checkmark-circle" size={20} color="#8A553E" />
                         ) : selectedOrder.status === "cancelled" ? (
                           <Ionicons name="close-circle" size={20} color="#B42318" />
                         ) : null}
@@ -1207,7 +1322,7 @@ export default function OrdersScreen() {
                         <View
                           style={[
                             styles.statusBadge,
-                            selectedOrder.status === "picked"
+                            selectedOrder.status === "collected"
                               ? styles.statusBadgePicked
                               : selectedOrder.status === "cancelled"
                                 ? styles.statusBadgeCancelled
@@ -1245,7 +1360,7 @@ export default function OrdersScreen() {
                     <View style={styles.mealsWrap}>
                       {selectedOrder.meals.map((meal, index) => (
                         <View key={`${selectedOrder.id}-meal-${index}`} style={styles.mealCard}>
-                          <Text style={styles.mealTitle}>Meal {index + 1}</Text>
+                          <Text style={styles.mealTitle}>LocaBox {index + 1}</Text>
                           {meal.addons.length === 0 ? (
                             <Text style={styles.mealAddonEmpty}>Basic</Text>
                           ) : (
@@ -1268,11 +1383,11 @@ export default function OrdersScreen() {
                       </View>
                     ) : null}
 
-                    {selectedOrder.status === "confirmed" || selectedOrder.status === "picked" ? (
+                    {selectedOrder.status === "confirmed" || selectedOrder.status === "collected" ? (
                       <View style={styles.giveBoxSection}>
                         <View style={styles.labelRow}>
                           <Text style={styles.label}>
-                            {selectedOrder.status === "picked" ? "Update Box" : "Give Box"} (
+                            {selectedOrder.status === "collected" ? "Update Box" : "Give Box"} (
                             {selectedBoxIds.length}/{maxSelectedBoxes})
                           </Text>
                           {selectedBoxIds.length > 0 ? (
@@ -1299,7 +1414,7 @@ export default function OrdersScreen() {
                                     <Ionicons
                                       name="close"
                                       size={12}
-                                      color="#0B5D44"
+                                      color="#6E4331"
                                       style={styles.tagIcon}
                                     />
                                   </Pressable>
@@ -1324,10 +1439,10 @@ export default function OrdersScreen() {
                                 hitSlop={8}
                                 onPress={() => setBoxSearch("")}
                               >
-                                <Ionicons name="close-circle" size={18} color="#7A8F87" />
+                                <Ionicons name="close-circle" size={18} color="#8F7A72" />
                               </Pressable>
                             ) : (
-                              <Ionicons name="keypad-outline" size={18} color="#7A8F87" />
+                              <Ionicons name="keypad-outline" size={18} color="#8F7A72" />
                             )}
                           </View>
                         </View>
@@ -1344,10 +1459,10 @@ export default function OrdersScreen() {
 
                             <View style={styles.boxChipGridArea}>
                               {boxesLoading ? (
-                                <ActivityIndicator size="small" color="#0D7A4E" />
+                                <ActivityIndicator size="small" color="#8A553E" />
                               ) : displayedAvailableBoxes.length === 0 ? (
                                 <View style={styles.boxesEmptyState}>
-                                  <Ionicons name="cube-outline" size={22} color="#7A8F87" />
+                                  <Ionicons name="cube-outline" size={22} color="#8F7A72" />
                                   <Text style={styles.emptyText}>No available boxes</Text>
                                 </View>
                               ) : (
@@ -1398,7 +1513,7 @@ export default function OrdersScreen() {
                                       ]}
                                     >
                                       {key === "back" ? (
-                                        <Ionicons name="backspace-outline" size={22} color="#0B3D2E" />
+                                        <Ionicons name="backspace-outline" size={22} color="#3F2419" />
                                       ) : (
                                         <Text
                                           style={[
@@ -1428,7 +1543,7 @@ export default function OrdersScreen() {
                 </ScrollView>
 
                 {selectedOrder.status === "confirmed" ||
-                selectedOrder.status === "picked" ||
+                selectedOrder.status === "collected" ||
                 selectedOrder.status !== "cancelled" ? (
                   <View style={styles.actionButtons}>
                     {selectedOrder.status === "confirmed" ? (
@@ -1482,7 +1597,7 @@ export default function OrdersScreen() {
                       >
                         <Text style={styles.submitButtonText}>Confirm Give Box</Text>
                       </Pressable>
-                    ) : selectedOrder.status === "picked" ? (
+                    ) : selectedOrder.status === "collected" ? (
                       <Pressable
                         disabled={isSubmitting}
                         style={[
@@ -1507,7 +1622,7 @@ export default function OrdersScreen() {
             {isSubmitting ? (
               <View style={styles.loadingOverlay}>
                 <View style={styles.loadingCard}>
-                  <ActivityIndicator size="large" color="#0D7A4E" />
+                  <ActivityIndicator size="large" color="#8A553E" />
                   <Text style={styles.loadingOverlayTitle}>
                     {submitMode === "cancel"
                       ? "Cancelling order..."
@@ -1568,7 +1683,7 @@ export default function OrdersScreen() {
                     >
                       {item.name}
                     </Text>
-                    {isActive ? <Ionicons name="checkmark" size={18} color="#0D7A4E" /> : null}
+                    {isActive ? <Ionicons name="checkmark" size={18} color="#8A553E" /> : null}
                   </Pressable>
                 );
               }}
@@ -1631,7 +1746,7 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
   },
   keyboardAvoidingView: {
@@ -1651,7 +1766,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   filterCardContent: {
     padding: 14,
@@ -1667,7 +1782,7 @@ const styles = StyleSheet.create({
   },
   locationSelector: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1679,7 +1794,7 @@ const styles = StyleSheet.create({
   },
   locationSelectorText: {
     flex: 1,
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "600",
     fontSize: 14,
   },
@@ -1699,32 +1814,32 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   modalOption: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#E2EEE9",
+    borderColor: "#EDE5E0",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 12,
     marginBottom: 8,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
   },
   modalOptionActive: {
-    borderColor: "#0D7A4E",
-    backgroundColor: "#E8F6EF",
+    borderColor: "#8A553E",
+    backgroundColor: "#F3E9E3",
   },
   modalOptionText: {
     flex: 1,
     fontSize: 14,
     fontWeight: "600",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   modalOptionTextActive: {
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   confirmModalCard: {
     backgroundColor: "#FFFFFF",
@@ -1735,7 +1850,7 @@ const styles = StyleSheet.create({
   confirmModalText: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#39584F",
+    color: "#5C463C",
   },
   confirmModalActions: {
     flexDirection: "row",
@@ -1751,15 +1866,15 @@ const styles = StyleSheet.create({
   confirmModalCancelButton: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
   },
   confirmModalCancelText: {
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "700",
     fontSize: 14,
   },
   confirmModalContinueButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   confirmModalContinueText: {
     color: "#FFFFFF",
@@ -1772,7 +1887,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     padding: 14,
   },
   listHeaderRow: {
@@ -1780,6 +1895,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     marginBottom: 8,
+  },
+  refreshButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D4C9C2",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   customerSearchWrap: {
     flex: 1,
@@ -1803,7 +1928,7 @@ const styles = StyleSheet.create({
   },
   timeslotSeparator: {
     height: 1,
-    backgroundColor: "#D0D5D3",
+    backgroundColor: "#D4CFCC",
     marginVertical: 10,
     marginHorizontal: 2,
   },
@@ -1813,7 +1938,7 @@ const styles = StyleSheet.create({
   },
   detailsModalSafe: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
   },
   detailsModalHeader: {
     flexDirection: "row",
@@ -1829,7 +1954,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E8F6EF",
+    backgroundColor: "#F3E9E3",
   },
   detailsModalBody: {
     flex: 1,
@@ -1848,11 +1973,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   label: {
     fontSize: 13,
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "600",
   },
   dateSelectorRow: {
@@ -1865,7 +1990,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1874,7 +1999,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 10,
@@ -1886,24 +2011,24 @@ const styles = StyleSheet.create({
   },
   dateSelectorText: {
     flexShrink: 1,
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "600",
     fontSize: 13,
   },
   timeslotChip: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
     backgroundColor: "#FFFFFF",
   },
   timeslotChipActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   timeslotChipText: {
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "700",
     fontSize: 12,
   },
@@ -1913,16 +2038,16 @@ const styles = StyleSheet.create({
   orderItem: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "#E2EEE9",
+    borderColor: "#EDE5E0",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 10,
     marginBottom: 8,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
   },
   selectedItem: {
-    borderColor: "#0D7A4E",
-    backgroundColor: "#E8F6EF",
+    borderColor: "#8A553E",
+    backgroundColor: "#F3E9E3",
   },
   orderIdentity: {
     gap: 3,
@@ -1946,16 +2071,16 @@ const styles = StyleSheet.create({
   orderName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     flexShrink: 1,
   },
   orderSub: {
     fontSize: 12,
-    color: "#60726A",
+    color: "#766962",
     flexShrink: 1,
   },
   orderPickedBoxes: {
-    color: "#0D7A4E",
+    color: "#8A553E",
     fontWeight: "600",
   },
   emptyState: {
@@ -1967,11 +2092,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   emptyText: {
     fontSize: 13,
-    color: "#7A8F87",
+    color: "#8F7A72",
     textAlign: "center",
   },
   detailsEmptyState: {
@@ -1982,7 +2107,7 @@ const styles = StyleSheet.create({
   },
   detailsEmptyText: {
     fontSize: 13,
-    color: "#7A8F87",
+    color: "#8F7A72",
     textAlign: "center",
   },
   identityBlock: {
@@ -1997,17 +2122,17 @@ const styles = StyleSheet.create({
   panelName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     flexShrink: 1,
   },
   identitySubText: {
     fontSize: 12,
-    color: "#60726A",
+    color: "#766962",
   },
   identityPrice: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   mealsWrap: {
     flexDirection: "row",
@@ -2018,27 +2143,27 @@ const styles = StyleSheet.create({
   },
   footnoteText: {
     fontSize: 13,
-    color: "#1E2A26",
+    color: "#2A221E",
     lineHeight: 18,
   },
   mealCard: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#E2EEE9",
+    borderColor: "#EDE5E0",
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
     gap: 4,
   },
   mealTitle: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   mealAddonEmpty: {
     fontSize: 11,
-    color: "#7A8F87",
+    color: "#8F7A72",
   },
   addonWrap: {
     flexDirection: "row",
@@ -2046,15 +2171,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addonTag: {
-    backgroundColor: "#E0F2EA",
+    backgroundColor: "#EFE4DE",
     borderWidth: 1,
-    borderColor: "#A8D8C0",
+    borderColor: "#D2B8AC",
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
   addonTagText: {
-    color: "#0B5D44",
+    color: "#6E4331",
     fontWeight: "700",
     fontSize: 10,
   },
@@ -2062,7 +2187,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#E2EEE9",
+    borderTopColor: "#EDE5E0",
     paddingTop: 10,
   },
   labelRow: {
@@ -2073,7 +2198,7 @@ const styles = StyleSheet.create({
   clearAllText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   selectedAndSearchRow: {
     flexDirection: "row",
@@ -2084,9 +2209,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -2109,7 +2234,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -2119,13 +2244,13 @@ const styles = StyleSheet.create({
   },
   boxSearchDisplayText: {
     flex: 1,
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "700",
     fontSize: 15,
     letterSpacing: 1,
   },
   boxSearchDisplayPlaceholder: {
-    color: "#7A8F87",
+    color: "#8F7A72",
     fontWeight: "600",
     letterSpacing: 0,
     fontSize: 12,
@@ -2145,26 +2270,26 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   numpadKeyAction: {
-    backgroundColor: "#E8F6EF",
-    borderColor: "#A8D8C0",
+    backgroundColor: "#F3E9E3",
+    borderColor: "#D2B8AC",
   },
   numpadKeyPressed: {
-    backgroundColor: "#D7EEE4",
+    backgroundColor: "#EBDCD4",
   },
   numpadKeyText: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   numpadKeyActionText: {
     fontSize: 16,
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   tagContainer: {
     flexDirection: "row",
@@ -2175,7 +2300,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tagPlaceholder: {
-    color: "#7A8F87",
+    color: "#8F7A72",
     fontSize: 13,
     textAlign: "center",
     width: "100%",
@@ -2183,16 +2308,16 @@ const styles = StyleSheet.create({
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E0F2EA",
+    backgroundColor: "#EFE4DE",
     borderWidth: 1,
-    borderColor: "#A8D8C0",
+    borderColor: "#D2B8AC",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     gap: 4,
   },
   tagText: {
-    color: "#0B5D44",
+    color: "#6E4331",
     fontWeight: "700",
     fontSize: 12,
   },
@@ -2201,24 +2326,24 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
-    color: "#1E2A26",
+    color: "#2A221E",
   },
   availableBoxesLabel: {
     fontSize: 12,
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "600",
   },
   boxChipGridArea: {
     minHeight: 160,
     borderWidth: 1,
-    borderColor: "#E2EEE9",
+    borderColor: "#EDE5E0",
     borderRadius: 10,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
@@ -2241,7 +2366,7 @@ const styles = StyleSheet.create({
     width: "30%",
     minWidth: 64,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 6,
@@ -2249,11 +2374,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   boxChipActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   boxChipText: {
-    color: "#0B3D2E",
+    color: "#3F2419",
     fontWeight: "700",
     fontSize: 16,
   },
@@ -2262,7 +2387,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 10,
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
@@ -2334,7 +2459,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statusBadgeConfirmed: {
-    backgroundColor: "#E0F2EA",
+    backgroundColor: "#EFE4DE",
   },
   statusBadgePicked: {
     backgroundColor: "#DBEAFE",
@@ -2351,19 +2476,19 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   statusNotice: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#E2EEE9",
+    borderColor: "#EDE5E0",
     borderRadius: 8,
     padding: 12,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
   },
   statusNoticeText: {
     fontSize: 13,
-    color: "#60726A",
+    color: "#766962",
     lineHeight: 18,
   },
   loadingOverlay: {
@@ -2385,11 +2510,11 @@ const styles = StyleSheet.create({
   loadingOverlayTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   loadingOverlayText: {
     fontSize: 13,
-    color: "#60726A",
+    color: "#766962",
     textAlign: "center",
   },
 });

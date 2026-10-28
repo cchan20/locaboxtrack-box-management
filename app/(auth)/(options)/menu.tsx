@@ -66,6 +66,12 @@ type FormState = {
   extraField5Name: string;
   extraField5Price: string;
   extraField5Inventory: string;
+  optionField1Name: string;
+  optionField1Price: string;
+  optionField1Inventory: string;
+  optionField2Name: string;
+  optionField2Price: string;
+  optionField2Inventory: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -91,6 +97,12 @@ const EMPTY_FORM: FormState = {
   extraField5Name: "",
   extraField5Price: "0",
   extraField5Inventory: "0",
+  optionField1Name: "",
+  optionField1Price: "0",
+  optionField1Inventory: "0",
+  optionField2Name: "",
+  optionField2Price: "0",
+  optionField2Inventory: "0",
 };
 
 function formatDateKey(value: Date) {
@@ -146,6 +158,12 @@ function mealToForm(meal: DailyMeal): FormState {
     extraField5Name: meal.extraField5Name,
     extraField5Price: String(meal.extraField5Price),
     extraField5Inventory: String(meal.extraField5Inventory),
+    optionField1Name: meal.optionField1Name,
+    optionField1Price: String(meal.optionField1Price),
+    optionField1Inventory: String(meal.optionField1Inventory),
+    optionField2Name: meal.optionField2Name,
+    optionField2Price: String(meal.optionField2Price),
+    optionField2Inventory: String(meal.optionField2Inventory),
   };
 }
 
@@ -299,21 +317,25 @@ export default function MenuScreen() {
 
     const priceFields: Array<[keyof FormState, string]> = [
       ["basicBoxPrice", "Basic box price"],
-      ["extraLargePrice", "Extra large price"],
+      ["extraLargePrice", "BigBox Upgrade price"],
       ["extraField1Price", "Extra field 1 price"],
       ["extraField2Price", "Extra field 2 price"],
       ["extraField3Price", "Extra field 3 price"],
       ["extraField4Price", "Extra field 4 price"],
       ["extraField5Price", "Extra field 5 price"],
+      ["optionField1Price", "Option field 1 price"],
+      ["optionField2Price", "Option field 2 price"],
     ];
     const inventoryFields: Array<[keyof FormState, string]> = [
       ["basicBoxInventory", "Basic box inventory"],
-      ["extraLargeInventory", "Extra large inventory"],
+      ["extraLargeInventory", "BigBox Upgrade inventory"],
       ["extraField1Inventory", "Extra field 1 inventory"],
       ["extraField2Inventory", "Extra field 2 inventory"],
       ["extraField3Inventory", "Extra field 3 inventory"],
       ["extraField4Inventory", "Extra field 4 inventory"],
       ["extraField5Inventory", "Extra field 5 inventory"],
+      ["optionField1Inventory", "Option field 1 inventory"],
+      ["optionField2Inventory", "Option field 2 inventory"],
     ];
 
     const prices: Record<string, number> = {};
@@ -360,6 +382,12 @@ export default function MenuScreen() {
       extraField5Name: form.extraField5Name.trim(),
       extraField5Price: prices.extraField5Price,
       extraField5Inventory: inventories.extraField5Inventory,
+      optionField1Name: form.optionField1Name.trim(),
+      optionField1Price: prices.optionField1Price,
+      optionField1Inventory: inventories.optionField1Inventory,
+      optionField2Name: form.optionField2Name.trim(),
+      optionField2Price: prices.optionField2Price,
+      optionField2Inventory: inventories.optionField2Inventory,
     };
   };
 
@@ -662,7 +690,7 @@ export default function MenuScreen() {
         </View>
         <Pressable style={styles.dateSelector} onPress={openDatePicker}>
           <Text style={styles.dateSelectorText}>{formatDateKey(anchorDate)}</Text>
-          <Ionicons name="calendar-outline" size={16} color="#42685D" />
+          <Ionicons name="calendar-outline" size={16} color="#6B5348" />
         </Pressable>
       </View>
 
@@ -730,7 +758,7 @@ export default function MenuScreen() {
               "basicBoxInventory",
             )}
             {renderPriceInventoryRow(
-              "Extra Large",
+              "BigBox Upgrade",
               "extraLargePrice",
               "extraLargeInventory",
             )}
@@ -763,6 +791,18 @@ export default function MenuScreen() {
               "extraField5Name",
               "extraField5Price",
               "extraField5Inventory",
+            )}
+            {renderExtraFieldRow(
+              "Option Field 1",
+              "optionField1Name",
+              "optionField1Price",
+              "optionField1Inventory",
+            )}
+            {renderExtraFieldRow(
+              "Option Field 2",
+              "optionField2Name",
+              "optionField2Price",
+              "optionField2Inventory",
             )}
           </ScrollView>
 
@@ -927,7 +967,7 @@ export default function MenuScreen() {
 
             {importBusy ? (
               <View style={styles.importBusyRow}>
-                <ActivityIndicator color="#0D7A4E" />
+                <ActivityIndicator color="#8A553E" />
                 <Text style={styles.importBusyText}>Working...</Text>
               </View>
             ) : null}
@@ -937,7 +977,7 @@ export default function MenuScreen() {
               disabled={importBusy}
               onPress={handleDownloadTemplate}
             >
-              <Ionicons name="download-outline" size={18} color="#0D7A4E" />
+              <Ionicons name="download-outline" size={18} color="#8A553E" />
               <Text style={styles.secondaryButtonText}>Download Template</Text>
             </Pressable>
 
@@ -966,7 +1006,7 @@ export default function MenuScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
@@ -986,7 +1026,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 14,
@@ -999,16 +1039,16 @@ const styles = StyleSheet.create({
   weekTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   weekSubtitle: {
     marginTop: 2,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 13,
   },
   dateSelector: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1018,7 +1058,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateSelectorText: {
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -1029,15 +1069,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -1054,12 +1094,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   subtitle: {
     marginTop: 8,
     marginBottom: 8,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 14,
   },
   formScroll: {
@@ -1072,24 +1112,24 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     marginTop: 4,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 13,
     fontWeight: "600",
   },
   miniLabel: {
-    color: "#6E7C76",
+    color: "#7C6E67",
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 4,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   multilineInput: {
     minHeight: 64,
@@ -1117,7 +1157,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1130,7 +1170,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1139,7 +1179,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   cancelButtonText: {
-    color: "#577066",
+    color: "#74675F",
     fontWeight: "700",
   },
   deleteButton: {
@@ -1170,7 +1210,7 @@ const styles = StyleSheet.create({
   },
   row: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -1180,8 +1220,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   rowSelected: {
-    borderColor: "#0D7A4E",
-    backgroundColor: "#E6F2ED",
+    borderColor: "#8A553E",
+    backgroundColor: "#F0E8E3",
   },
   rowText: {
     flex: 1,
@@ -1189,22 +1229,22 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 15,
   },
   secondaryText: {
     marginTop: 4,
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 14,
   },
   metaText: {
     marginTop: 2,
-    color: "#577066",
+    color: "#74675F",
     fontSize: 12,
   },
   emptyDayText: {
     marginTop: 4,
-    color: "#8A9A93",
+    color: "#9A8A82",
     fontSize: 13,
     fontStyle: "italic",
   },
@@ -1214,24 +1254,24 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusPillFilled: {
-    backgroundColor: "#E0F2EA",
+    backgroundColor: "#EFE4DE",
   },
   statusPillEmpty: {
-    backgroundColor: "#F0F2F1",
+    backgroundColor: "#F3EFEC",
   },
   statusPillText: {
     fontSize: 12,
     fontWeight: "700",
   },
   statusPillTextFilled: {
-    color: "#0B5D44",
+    color: "#6E4331",
   },
   statusPillTextEmpty: {
-    color: "#6E7C76",
+    color: "#7C6E67",
   },
   emptyText: {
     marginTop: 8,
-    color: "#6E7C76",
+    color: "#7C6E67",
   },
   modalBackdrop: {
     flex: 1,
@@ -1250,7 +1290,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     marginBottom: 8,
   },
   modalActions: {
@@ -1267,12 +1307,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   importSubtitle: {
-    color: "#577066",
+    color: "#74675F",
     fontSize: 14,
     lineHeight: 20,
   },
   importFileName: {
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -1282,12 +1322,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   importBusyText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#0D7A4E",
+    borderColor: "#8A553E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1295,10 +1335,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
   },
   secondaryButtonText: {
-    color: "#0D7A4E",
+    color: "#8A553E",
     fontWeight: "700",
   },
   importPrimaryButton: {

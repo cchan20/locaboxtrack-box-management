@@ -7,11 +7,11 @@ export default function TabsLayout() {
     <Tabs
       initialRouteName="dashboard"
       screenOptions={{
-        headerStyle: { backgroundColor: "#0B5D44" },
+        headerStyle: { backgroundColor: "#6E4331" },
         headerTintColor: "#FFFFFF",
         headerRight: () => <HeaderOverflowMenu />,
-        tabBarActiveTintColor: "#0D7A4E",
-        tabBarInactiveTintColor: "#60726A",
+        tabBarActiveTintColor: "#8A553E",
+        tabBarInactiveTintColor: "#766962",
       }}
     >
       <Tabs.Screen

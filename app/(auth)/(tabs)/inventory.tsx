@@ -529,7 +529,7 @@ export default function InventoryScreen() {
     if (query) {
       return (
         <View style={styles.emptyState}>
-          <Ionicons name="search-outline" size={36} color="#0D7A4E" />
+          <Ionicons name="search-outline" size={36} color="#8A553E" />
           <Text style={styles.emptyTitle}>No matching boxes</Text>
           <Text style={styles.emptyText}>Try a different keyword.</Text>
         </View>
@@ -538,7 +538,7 @@ export default function InventoryScreen() {
 
     return (
       <View style={styles.emptyState}>
-        <Ionicons name="cube-outline" size={36} color="#0D7A4E" />
+        <Ionicons name="cube-outline" size={36} color="#8A553E" />
         <Text style={styles.emptyTitle}>No boxes yet</Text>
         <Text style={styles.emptyText}>Boxes will appear here once they are available.</Text>
       </View>
@@ -584,7 +584,7 @@ export default function InventoryScreen() {
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Search box id or customer"
-                  placeholderTextColor={"#7A8F87"}
+                  placeholderTextColor={"#8F7A72"}
                   style={styles.input}
                 />
               </View>
@@ -605,7 +605,7 @@ export default function InventoryScreen() {
                   ListEmptyComponent={
                     listLoading ? (
                       <View style={styles.emptyState}>
-                        <ActivityIndicator size="large" color="#0D7A4E" />
+                        <ActivityIndicator size="large" color="#8A553E" />
                       </View>
                     ) : (
                       renderEmptyState()
@@ -614,7 +614,7 @@ export default function InventoryScreen() {
                   ListFooterComponent={
                     loadingMore ? (
                       <View style={styles.listFooter}>
-                        <ActivityIndicator size="small" color="#0D7A4E" />
+                        <ActivityIndicator size="small" color="#8A553E" />
                       </View>
                     ) : null
                   }
@@ -669,7 +669,7 @@ export default function InventoryScreen() {
                             </View>
                           ) : null}
 
-                          <Ionicons name="chevron-forward" size={18} color="#7A8F87" />
+                          <Ionicons name="chevron-forward" size={18} color="#8F7A72" />
                         </View>
                       </Pressable>
                     );
@@ -688,7 +688,7 @@ export default function InventoryScreen() {
               >
                 {!selectedBox ? (
                   <View style={styles.detailsEmptyState}>
-                    <Ionicons name="information-circle-outline" size={30} color="#7A8F87" />
+                    <Ionicons name="information-circle-outline" size={30} color="#8F7A72" />
                     <Text style={styles.detailsEmptyText}>Select a box to view details.</Text>
                   </View>
                 ) : (
@@ -900,7 +900,7 @@ export default function InventoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   listCard: {
     flex: 1,
@@ -931,12 +931,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   filterHeaderRow: {
     flexDirection: "row",
@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     // paddingVertical: 10,
@@ -964,15 +964,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C7D8D1",
-    backgroundColor: "#F8FBFA",
+    borderColor: "#D6CBC4",
+    backgroundColor: "#FAF7F5",
   },
   filterTabActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   filterTabText: {
-    color: "#36584D",
+    color: "#5A443A",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -994,7 +994,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     padding: 14,
     overflow: "hidden",
   },
@@ -1004,13 +1004,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#CFE0D9",
+    borderColor: "#E0D6CF",
     borderRadius: 10,
     padding: 16,
   },
   detailsEmptyText: {
     marginTop: 8,
-    color: "#5D746A",
+    color: "#776963",
     fontSize: 13,
     textAlign: "center",
   },
@@ -1028,17 +1028,17 @@ const styles = StyleSheet.create({
   panelBoxId: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0D4A37",
+    color: "#5A3425",
     marginBottom: 3,
   },
   identitySubText: {
-    color: "#6B7D76",
+    color: "#7C6E67",
     fontSize: 12,
     marginTop: 1,
   },
   historyButton: {
     marginBottom: 12,
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#8B5E00",
   },
   makeAvailableButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   deleteBoxButton: {
     backgroundColor: "#BD2323",
@@ -1085,13 +1085,13 @@ const styles = StyleSheet.create({
   statCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E0ECE7",
+    borderColor: "#EBE4DF",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 8,
   },
   statLabel: {
-    color: "#5C7269",
+    color: "#756861",
     fontSize: 11,
     fontWeight: "600",
   },
@@ -1101,7 +1101,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   availableValue: {
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   unavailableValue: {
     color: "#8B5E00",
@@ -1110,13 +1110,13 @@ const styles = StyleSheet.create({
     color: "#1C5AA6",
   },
   daysValue: {
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   lateValue: {
     color: "#BD2323",
   },
   safeValue: {
-    color: "#2D7A4E",
+    color: "#8A553E",
   },
   warningValue: {
     color: "#A16F00",
@@ -1124,14 +1124,14 @@ const styles = StyleSheet.create({
   panelRow: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#EDF4F1",
+    borderTopColor: "#F4EFEC",
   },
   panelLabel: {
-    color: "#5C7269",
+    color: "#756861",
     fontSize: 12,
   },
   panelValue: {
-    color: "#1E2A26",
+    color: "#2A221E",
     fontSize: 15,
     fontWeight: "600",
     marginTop: 4,
@@ -1141,14 +1141,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     padding: 12,
   },
   selectedRow: {
-    borderColor: "#9ECAB6",
-    backgroundColor: "#F2FAF7",
+    borderColor: "#C9B0A4",
+    backgroundColor: "#F7F2EF",
   },
   rowRightWrap: {
     flexDirection: "row",
@@ -1156,14 +1156,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   boxId: {
-    color: "#0E4938",
+    color: "#5A3425",
     fontWeight: "700",
     fontSize: 14,
   },
   subText: {
     marginTop: 2,
     fontSize: 12,
-    color: "#60756C",
+    color: "#786A63",
   },
   statusTag: {
     paddingHorizontal: 10,
@@ -1172,8 +1172,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   availableTag: {
-    backgroundColor: "#E7F4EE",
-    borderColor: "#C4E0D2",
+    backgroundColor: "#F3E9E4",
+    borderColor: "#DACFC8",
   },
   unavailableTag: {
     backgroundColor: "#FFF2D6",
@@ -1196,7 +1196,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   availableText: {
-    color: "#0B5D44",
+    color: "#6E4331",
   },
   unavailableText: {
     color: "#8B5E00",
@@ -1205,9 +1205,9 @@ const styles = StyleSheet.create({
     color: "#285D9E",
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
     marginBottom: 12,
@@ -1216,7 +1216,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#BFD7CE",
+    borderColor: "#D4C8C0",
     borderRadius: 12,
     paddingVertical: 28,
     alignItems: "center",
@@ -1226,12 +1226,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 17,
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   emptyText: {
     marginTop: 4,
     fontSize: 13,
-    color: "#577066",
+    color: "#74675F",
   },
   warningText: {
     color: "#725300",
@@ -1251,24 +1251,24 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#D8E6E0",
-    backgroundColor: "#F9FCFB",
+    borderColor: "#E6DED9",
+    backgroundColor: "#FCFAF8",
     padding: 14,
   },
   exportModalTitle: {
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 8,
   },
   exportModalHint: {
-    color: "#577066",
+    color: "#74675F",
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 14,
   },
   exportModalLabel: {
-    color: "#35574A",
+    color: "#594339",
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 8,
@@ -1292,16 +1292,16 @@ const styles = StyleSheet.create({
     minHeight: 42,
   },
   exportModalCancelButton: {
-    backgroundColor: "#E8EFEC",
+    backgroundColor: "#EFE8E4",
   },
   exportModalConfirmButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   exportModalButtonDisabled: {
     opacity: 0.7,
   },
   exportModalCancelText: {
-    color: "#35574A",
+    color: "#594339",
     fontWeight: "700",
     fontSize: 13,
   },

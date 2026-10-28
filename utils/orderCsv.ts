@@ -35,7 +35,7 @@ function formatMeals(order: Order, meal?: DailyMeal | null): string {
         orderMeal.addons.length === 0
           ? "Basic"
           : orderMeal.addons.map((addon) => addonLabelFromMeal(addon, meal)).join(", ");
-      return `Meal ${index + 1}: ${addons}`;
+      return `LocaBox ${index + 1}: ${addons}`;
     })
     .join("; ");
 }

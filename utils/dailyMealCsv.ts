@@ -24,6 +24,12 @@ export const DAILY_MEAL_CSV_HEADERS = [
   "extraField5Name",
   "extraField5Price",
   "extraField5Inventory",
+  "optionField1Name",
+  "optionField1Price",
+  "optionField1Inventory",
+  "optionField2Name",
+  "optionField2Price",
+  "optionField2Inventory",
 ] as const;
 
 const DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})$/;
@@ -130,7 +136,19 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
     }
   });
 
+  const OPTIONAL_HEADERS = new Set([
+    "optionField1Name",
+    "optionField1Price",
+    "optionField1Inventory",
+    "optionField2Name",
+    "optionField2Price",
+    "optionField2Inventory",
+  ]);
+
   for (const required of DAILY_MEAL_CSV_HEADERS) {
+    if (OPTIONAL_HEADERS.has(required)) {
+      continue;
+    }
     if (!indexByHeader.has(required)) {
       throw new Error(`CSV is missing required column: ${required}`);
     }
@@ -244,6 +262,30 @@ export function parseDailyMealsCsv(content: string): DailyMealInput[] {
       extraField5Inventory: parseNumber(
         cell(row, "extraField5Inventory"),
         "extraField5Inventory",
+        rowNumber,
+        true,
+      ),
+      optionField1Name: cell(row, "optionField1Name"),
+      optionField1Price: parseNumber(
+        cell(row, "optionField1Price"),
+        "optionField1Price",
+        rowNumber,
+      ),
+      optionField1Inventory: parseNumber(
+        cell(row, "optionField1Inventory"),
+        "optionField1Inventory",
+        rowNumber,
+        true,
+      ),
+      optionField2Name: cell(row, "optionField2Name"),
+      optionField2Price: parseNumber(
+        cell(row, "optionField2Price"),
+        "optionField2Price",
+        rowNumber,
+      ),
+      optionField2Inventory: parseNumber(
+        cell(row, "optionField2Inventory"),
+        "optionField2Inventory",
         rowNumber,
         true,
       ),

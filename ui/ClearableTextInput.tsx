@@ -69,7 +69,7 @@ export const ClearableTextInput = forwardRef<TextInput, ClearableTextInputProps>
             ]}
             onPress={() => onChangeText?.("")}
           >
-            <Ionicons name="close-circle" size={CLEAR_ICON_SIZE} color="#7A8F87" />
+            <Ionicons name="close-circle" size={CLEAR_ICON_SIZE} color="#8F7A72" />
           </Pressable>
         ) : null}
         {endAccessory}

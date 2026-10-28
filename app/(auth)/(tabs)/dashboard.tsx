@@ -557,22 +557,22 @@ export default function DashboardScreen() {
     chart.setOption({
       legend: {
         data: ["Check-out", "Check-in"],
-        textStyle: { color: "#43635A", fontSize: 12 },
+        textStyle: { color: "#6A544C", fontSize: 12 },
         top: 0,
       },
       grid: { top: 52, bottom: 8, left: 8, right: 8, containLabel: true },
       xAxis: {
         type: "category",
         data: chartData.dates,
-        axisLabel: { color: "#577066", fontSize: 10, rotate: 40 },
-        axisLine: { lineStyle: { color: "#DCE9E4" } },
+        axisLabel: { color: "#74675F", fontSize: 10, rotate: 40 },
+        axisLine: { lineStyle: { color: "#E8DFD9" } },
         axisTick: { show: false },
       },
       yAxis: {
         type: "value",
         minInterval: 1,
-        axisLabel: { color: "#577066", fontSize: 10 },
-        splitLine: { lineStyle: { color: "#E5EFEB" } },
+        axisLabel: { color: "#74675F", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#F0EDEB" } },
       },
       series: [
         {
@@ -597,11 +597,11 @@ export default function DashboardScreen() {
           label: {
             show: true,
             position: "top",
-            color: "#0D7A4E",
+            color: "#8A553E",
             fontSize: 10,
             fontWeight: "700",
           },
-          itemStyle: { color: "#0D7A4E", borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: "#8A553E", borderRadius: [4, 4, 0, 0] },
         },
       ],
     });
@@ -672,7 +672,7 @@ export default function DashboardScreen() {
               <MetricCard
                 label="Available"
                 value={dashboardStats.availableCount}
-                color="#0D7A4E"
+                color="#8A553E"
                 width={metricCardWidth}
               />
               <MetricCard
@@ -717,7 +717,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={styles.dateSelectorText}>{weekRangeLabel}</Text>
-                <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                <Ionicons name="calendar-outline" size={16} color="#6B5348" />
               </Pressable>
             </View>
 
@@ -791,7 +791,7 @@ export default function DashboardScreen() {
                           ? "#BD2323"
                           : daySoldRatio >= 0.8
                             ? "#C48700"
-                            : "#0D7A4E",
+                            : "#8A553E",
                     },
                   ]}
                 />
@@ -846,7 +846,7 @@ export default function DashboardScreen() {
 
             {ordersLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color="#0D7A4E" />
+                <ActivityIndicator color="#8A553E" />
                 <Text style={styles.loadingText}>Loading orders...</Text>
               </View>
             ) : (
@@ -867,7 +867,7 @@ export default function DashboardScreen() {
                       onPress={openOrdersForSelectedDay}
                     >
                       <Text style={styles.viewAllOrdersButtonText}>View all Orders</Text>
-                      <Ionicons name="arrow-forward" size={14} color="#0D7A4E" />
+                      <Ionicons name="arrow-forward" size={14} color="#8A553E" />
                     </Pressable>
                   ) : null}
                 </View>
@@ -909,7 +909,7 @@ export default function DashboardScreen() {
                         <Text style={styles.combinationLabel}>{item.label}</Text>
                         <View style={styles.combinationCountRow}>
                           <Text style={styles.combinationCount}>×{item.count}</Text>
-                          <Ionicons name="chevron-forward" size={16} color="#8A9A93" />
+                          <Ionicons name="chevron-forward" size={16} color="#9A8A82" />
                         </View>
                       </Pressable>
                     ))
@@ -1083,7 +1083,7 @@ function SummaryCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
   },
   dashboardTabs: {
@@ -1092,7 +1092,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     padding: 2,
     gap: 2,
     flexShrink: 0,
@@ -1106,12 +1106,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   dashboardTabActive: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   dashboardTabText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#5B7268",
+    color: "#756861",
   },
   dashboardTabTextActive: {
     color: "#FFFFFF",
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     lineHeight: 28,
   },
   metricsGrid: {
@@ -1145,14 +1145,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
   },
   metricCardClickable: {
-    borderColor: "#BCD5CA",
+    borderColor: "#D2C5BD",
   },
   metricLabel: {
     fontSize: 12,
-    color: "#43635A",
+    color: "#6A544C",
     fontWeight: "600",
   },
   metricValue: {
@@ -1169,18 +1169,18 @@ const styles = StyleSheet.create({
     marginBottom: -2,
     fontSize: 18,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   chartContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     overflow: "hidden",
   },
   headerMeta: {
     fontSize: 12,
-    color: "#5B7268",
+    color: "#756861",
     fontWeight: "600",
     lineHeight: 16,
   },
@@ -1192,7 +1192,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     padding: 4,
     gap: 4,
   },
@@ -1203,12 +1203,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   dayTabActive: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   dayTabLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#5B7268",
+    color: "#756861",
   },
   dayTabLabelActive: {
     color: "#FFFFFF",
@@ -1216,16 +1216,16 @@ const styles = StyleSheet.create({
   dayTabCount: {
     marginTop: 2,
     fontSize: 11,
-    color: "#8A9A93",
+    color: "#9A8A82",
   },
   dayTabCountActive: {
-    color: "#B7E4C7",
+    color: "#DCC4B6",
   },
   inventoryBarCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     padding: 12,
     gap: 8,
   },
@@ -1238,19 +1238,19 @@ const styles = StyleSheet.create({
   inventoryBarTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   inventoryBarMeta: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#5B7268",
+    color: "#756861",
     flexShrink: 1,
     textAlign: "right",
   },
   inventoryBarTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#E8EFEC",
+    backgroundColor: "#EFE8E4",
     overflow: "hidden",
   },
   inventoryBarFill: {
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
   inventoryBarCaption: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#8A9A93",
+    color: "#9A8A82",
   },
   weekPickerRow: {
     gap: 6,
@@ -1268,11 +1268,11 @@ const styles = StyleSheet.create({
   weekPickerLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#43635A",
+    color: "#6A544C",
   },
   dateSelector: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1284,19 +1284,19 @@ const styles = StyleSheet.create({
   },
   dateSelectorText: {
     flex: 1,
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "600",
     fontSize: 14,
   },
   datePickerDone: {
     alignSelf: "flex-end",
-    backgroundColor: "#E8EFEC",
+    backgroundColor: "#EFE8E4",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   datePickerDoneText: {
-    color: "#35574A",
+    color: "#594339",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1306,20 +1306,20 @@ const styles = StyleSheet.create({
   },
   scopeTab: {
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   scopeTabActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   scopeTabText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#5B7268",
+    color: "#756861",
   },
   scopeTabTextActive: {
     color: "#FFFFFF",
@@ -1334,7 +1334,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   loadingState: {
     paddingVertical: 28,
@@ -1342,34 +1342,34 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: {
-    color: "#5B7268",
+    color: "#756861",
     fontSize: 13,
   },
   emptyState: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#CFE0D9",
+    borderColor: "#E0D6CF",
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: "center",
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
   },
   emptyText: {
-    color: "#617870",
+    color: "#7A6B64",
     fontSize: 13,
   },
   combinationCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     padding: 14,
     gap: 10,
   },
   combinationTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   combinationRow: {
     flexDirection: "row",
@@ -1377,7 +1377,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E5EFEB",
+    borderTopColor: "#F0EDEB",
     paddingTop: 10,
   },
   combinationRowFirst: {
@@ -1388,7 +1388,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: "600",
-    color: "#13493A",
+    color: "#4F2E21",
   },
   combinationCountRow: {
     flexDirection: "row",
@@ -1398,13 +1398,13 @@ const styles = StyleSheet.create({
   combinationCount: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   estimatedRevenueText: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "500",
-    color: "#8A9A93",
+    color: "#9A8A82",
     textAlign: "center",
   },
   viewAllOrdersButton: {
@@ -1415,7 +1415,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   viewAllOrdersButtonText: {
-    color: "#0D7A4E",
+    color: "#8A553E",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1424,18 +1424,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     alignItems: "center",
   },
   summaryValue: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   summaryLabel: {
     marginTop: 4,
     fontSize: 12,
-    color: "#8A9A93",
+    color: "#9A8A82",
     fontWeight: "600",
     textAlign: "center",
   },
@@ -1453,20 +1453,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     padding: 14,
     gap: 10,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   modalSubtitle: {
     marginTop: -4,
     fontSize: 13,
     fontWeight: "600",
-    color: "#5B7268",
+    color: "#756861",
   },
   modalList: {
     flexGrow: 0,
@@ -1477,10 +1477,10 @@ const styles = StyleSheet.create({
   },
   modalItem: {
     borderWidth: 1,
-    borderColor: "#DCE9E4",
+    borderColor: "#E8DFD9",
     borderRadius: 10,
     padding: 10,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
     gap: 4,
   },
   modalMetaRow: {
@@ -1490,12 +1490,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalMetaLabel: {
-    color: "#5B7268",
+    color: "#756861",
     fontSize: 12,
     fontWeight: "600",
   },
   modalMetaValue: {
-    color: "#13493A",
+    color: "#4F2E21",
     fontSize: 13,
     fontWeight: "700",
     flexShrink: 1,
@@ -1503,17 +1503,17 @@ const styles = StyleSheet.create({
   },
   modalCustomerName: {
     flex: 1,
-    color: "#13493A",
+    color: "#4F2E21",
     fontSize: 14,
     fontWeight: "700",
   },
   modalCustomerMealCount: {
-    color: "#0D7A4E",
+    color: "#8A553E",
     fontSize: 13,
     fontWeight: "800",
   },
   modalCustomerFootnote: {
-    color: "#5B7268",
+    color: "#756861",
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 17,
@@ -1521,24 +1521,24 @@ const styles = StyleSheet.create({
   modalEmptyState: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#CFE0D9",
+    borderColor: "#E0D6CF",
     borderRadius: 10,
     paddingVertical: 22,
     alignItems: "center",
   },
   modalEmptyText: {
-    color: "#617870",
+    color: "#7A6B64",
     fontSize: 13,
   },
   modalCloseButton: {
     marginTop: 4,
-    backgroundColor: "#E8EFEC",
+    backgroundColor: "#EFE8E4",
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
   modalCloseButtonText: {
-    color: "#35574A",
+    color: "#594339",
     fontWeight: "700",
     fontSize: 13,
   },

@@ -102,6 +102,12 @@ export type DailyMeal = {
   extraField5Name: string;
   extraField5Price: number;
   extraField5Inventory: number;
+  optionField1Name: string;
+  optionField1Price: number;
+  optionField1Inventory: number;
+  optionField2Name: string;
+  optionField2Price: number;
+  optionField2Inventory: number;
 };
 
 export type DailyMealInput = {
@@ -128,6 +134,12 @@ export type DailyMealInput = {
   extraField5Name: string;
   extraField5Price: number;
   extraField5Inventory: number;
+  optionField1Name: string;
+  optionField1Price: number;
+  optionField1Inventory: number;
+  optionField2Name: string;
+  optionField2Price: number;
+  optionField2Inventory: number;
 };
 
 export type OrderMeal = {
@@ -186,6 +198,8 @@ export type DayAvailability = {
   extraField3: StockLevel;
   extraField4: StockLevel;
   extraField5: StockLevel;
+  optionField1: StockLevel;
+  optionField2: StockLevel;
   timeslots: TimeslotAvailability[];
 };
 

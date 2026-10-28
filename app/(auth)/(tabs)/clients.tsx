@@ -334,7 +334,7 @@ export default function ClientsScreen() {
     if (query) {
       return (
         <View style={styles.emptyState}>
-          <Ionicons name="search-outline" size={36} color="#0D7A4E" />
+          <Ionicons name="search-outline" size={36} color="#8A553E" />
           <Text style={styles.emptyTitle}>No matching clients</Text>
           <Text style={styles.emptyText}>Try a different keyword.</Text>
         </View>
@@ -343,7 +343,7 @@ export default function ClientsScreen() {
 
     return (
       <View style={styles.emptyState}>
-        <Ionicons name="people-outline" size={36} color="#0D7A4E" />
+        <Ionicons name="people-outline" size={36} color="#8A553E" />
         <Text style={styles.emptyTitle}>No clients yet</Text>
         <Text style={styles.emptyText}>Customers will appear here once available.</Text>
       </View>
@@ -365,7 +365,7 @@ export default function ClientsScreen() {
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Search name, phone, email"
-                  placeholderTextColor={"#7A8F87"}
+                  placeholderTextColor={"#8F7A72"}
                   style={styles.input}
                 />
               </View>
@@ -386,7 +386,7 @@ export default function ClientsScreen() {
                     ListEmptyComponent={
                       listLoading ? (
                         <View style={styles.emptyState}>
-                          <ActivityIndicator size="large" color="#0D7A4E" />
+                          <ActivityIndicator size="large" color="#8A553E" />
                         </View>
                       ) : (
                         renderEmptyState()
@@ -395,7 +395,7 @@ export default function ClientsScreen() {
                     ListFooterComponent={
                       loadingMore ? (
                         <View style={styles.listFooter}>
-                          <ActivityIndicator size="small" color="#0D7A4E" />
+                          <ActivityIndicator size="small" color="#8A553E" />
                         </View>
                       ) : null
                     }
@@ -431,7 +431,7 @@ export default function ClientsScreen() {
                             {item.currentTaken} / {item.creditCount}
                           </Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color="#7A8F87" />
+                        <Ionicons name="chevron-forward" size={18} color="#8F7A72" />
                       </View>
                     </Pressable>
                   )}
@@ -451,7 +451,7 @@ export default function ClientsScreen() {
               >
                 {!selectedClient ? (
                   <View style={styles.detailsEmptyState}>
-                    <Ionicons name="information-circle-outline" size={30} color="#7A8F87" />
+                    <Ionicons name="information-circle-outline" size={30} color="#8F7A72" />
                     <Text style={styles.detailsEmptyText}>Select a client to view details.</Text>
                   </View>
                 ) : (
@@ -698,7 +698,7 @@ export default function ClientsScreen() {
                   value={tempPasswordDraft}
                   onChangeText={setTempPasswordDraft}
                   placeholder="At least 8 characters"
-                  placeholderTextColor="#6B7D76"
+                  placeholderTextColor="#7C6E67"
                   autoCapitalize="none"
                   autoCorrect={false}
                   secureTextEntry={isTempPasswordHidden}
@@ -715,7 +715,7 @@ export default function ClientsScreen() {
                       <Ionicons
                         name={isTempPasswordHidden ? "eye-outline" : "eye-off-outline"}
                         size={19}
-                        color="#0E6045"
+                        color="#734832"
                       />
                     </Pressable>
                   }
@@ -728,7 +728,7 @@ export default function ClientsScreen() {
                   value={confirmTempPasswordDraft}
                   onChangeText={setConfirmTempPasswordDraft}
                   placeholder="Re-enter temporary password"
-                  placeholderTextColor="#6B7D76"
+                  placeholderTextColor="#7C6E67"
                   autoCapitalize="none"
                   autoCorrect={false}
                   secureTextEntry={isConfirmTempPasswordHidden}
@@ -747,7 +747,7 @@ export default function ClientsScreen() {
                       <Ionicons
                         name={isConfirmTempPasswordHidden ? "eye-outline" : "eye-off-outline"}
                         size={19}
-                        color="#0E6045"
+                        color="#734832"
                       />
                     </Pressable>
                   }
@@ -758,7 +758,7 @@ export default function ClientsScreen() {
                   onPress={generateTempPassword}
                   disabled={isSavingTempPassword}
                 >
-                  <Ionicons name="shuffle-outline" size={16} color="#0E6045" />
+                  <Ionicons name="shuffle-outline" size={16} color="#734832" />
                   <Text style={styles.generatePasswordButtonText}>Generate password</Text>
                 </Pressable>
 
@@ -794,7 +794,7 @@ export default function ClientsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     padding: 14,
   },
   detailsTitleRow: {
@@ -829,13 +829,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#CFE0D9",
+    borderColor: "#E0D6CF",
     borderRadius: 10,
     padding: 16,
   },
   detailsEmptyText: {
     marginTop: 8,
-    color: "#5D746A",
+    color: "#776963",
     fontSize: 13,
     textAlign: "center",
   },
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
   panelName: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0D4A37",
+    color: "#5A3425",
     marginBottom: 3,
   },
   riskTag: {
@@ -889,8 +889,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   riskTagLow: {
-    backgroundColor: "#E7F4EE",
-    borderColor: "#C4E0D2",
+    backgroundColor: "#F3E9E4",
+    borderColor: "#DACFC8",
   },
   riskTagMedium: {
     backgroundColor: "#FFF3D6",
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   riskTagTextLow: {
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   riskTagTextMedium: {
     color: "#9A6A00",
@@ -920,8 +920,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   creditTagNormal: {
-    backgroundColor: "#E8F4EC",
-    borderColor: "#CBE4D5",
+    backgroundColor: "#F2EAE6",
+    borderColor: "#DFD2CA",
   },
   creditTagOverLimit: {
     backgroundColor: "#FEE3E3",
@@ -932,19 +932,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   creditTagTextNormal: {
-    color: "#0B5D44",
+    color: "#6E4331",
   },
   creditTagTextOverLimit: {
     color: "#B91C1C",
   },
   identitySubText: {
-    color: "#6B7D76",
+    color: "#7C6E67",
     fontSize: 12,
     marginTop: 1,
   },
   historyButton: {
     marginBottom: 12,
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -967,13 +967,13 @@ const styles = StyleSheet.create({
   statCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E0ECE7",
+    borderColor: "#EBE4DF",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 8,
   },
   statLabel: {
-    color: "#5C7269",
+    color: "#756861",
     fontSize: 11,
     fontWeight: "600",
   },
@@ -986,7 +986,7 @@ const styles = StyleSheet.create({
     color: "#1C5AA6",
   },
   returnedValue: {
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   lateValue: {
     color: "#BD2323",
@@ -994,10 +994,10 @@ const styles = StyleSheet.create({
   panelRow: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#EDF4F1",
+    borderTopColor: "#F4EFEC",
   },
   panelLabel: {
-    color: "#5C7269",
+    color: "#756861",
     fontSize: 12,
   },
   boxTagWrap: {
@@ -1007,20 +1007,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   boxTag: {
-    backgroundColor: "#E7F4EE",
+    backgroundColor: "#F3E9E4",
     borderWidth: 1,
-    borderColor: "#C4E0D2",
+    borderColor: "#DACFC8",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   boxTagText: {
-    color: "#0B5D44",
+    color: "#6E4331",
     fontSize: 12,
     fontWeight: "700",
   },
   boxEmptyText: {
-    color: "#5D746A",
+    color: "#776963",
     fontSize: 13,
   },
   riskActionsSection: {
@@ -1040,7 +1040,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   lowRiskActionButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   mediumRiskActionButton: {
     backgroundColor: "#C48700",
@@ -1087,18 +1087,18 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#D8E6E0",
-    backgroundColor: "#F9FCFB",
+    borderColor: "#E6DED9",
+    backgroundColor: "#FCFAF8",
     padding: 14,
   },
   creditModalTitle: {
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 10,
   },
   resetPasswordHint: {
-    color: "#577066",
+    color: "#74675F",
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
@@ -1107,7 +1107,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   creditEditorLabel: {
-    color: "#35574A",
+    color: "#594339",
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 6,
@@ -1133,7 +1133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   generatePasswordButtonText: {
-    color: "#0E6045",
+    color: "#734832",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -1153,11 +1153,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#BCD3C9",
+    borderColor: "#D0C4BC",
     backgroundColor: "#FFFFFF",
   },
   creditStepperButtonText: {
-    color: "#1D4F3E",
+    color: "#553224",
     fontSize: 22,
     lineHeight: 22,
     fontWeight: "800",
@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 24,
     fontWeight: "800",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   creditEditorActionsRow: {
     marginTop: 10,
@@ -1182,13 +1182,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   creditEditorCancelButton: {
-    backgroundColor: "#E8EFEC",
+    backgroundColor: "#EFE8E4",
   },
   creditEditorSaveButton: {
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
   },
   creditEditorCancelText: {
-    color: "#35574A",
+    color: "#594339",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1198,7 +1198,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   deleteModalText: {
-    color: "#35574A",
+    color: "#594339",
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 12,
@@ -1216,7 +1216,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   listCard: {
     flex: 1,
@@ -1224,17 +1224,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#C7D8D1",
+    borderColor: "#D6CBC4",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#BFD7CE",
+    borderColor: "#D4C8C0",
     borderRadius: 12,
     paddingVertical: 26,
     alignItems: "center",
@@ -1267,16 +1267,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 17,
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
   },
   emptyText: {
     marginTop: 4,
     fontSize: 13,
-    color: "#577066",
+    color: "#74675F",
   },
   clientItem: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -1301,8 +1301,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#BD2323",
   },
   selectedItem: {
-    borderColor: "#9ECAB6",
-    backgroundColor: "#F2FAF7",
+    borderColor: "#C9B0A4",
+    backgroundColor: "#F7F2EF",
   },
   itemRightWrap: {
     flexDirection: "row",
@@ -1311,7 +1311,7 @@ const styles = StyleSheet.create({
   },
   clientName: {
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 15,
   },
   clientNameRow: {
@@ -1320,7 +1320,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   clientSub: {
-    color: "#5F756C",
+    color: "#786A63",
     fontSize: 12,
     marginTop: 2,
   },
@@ -1330,9 +1330,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E7F4EE",
+    backgroundColor: "#F3E9E4",
     borderWidth: 1,
-    borderColor: "#C4E0D2",
+    borderColor: "#DACFC8",
     paddingHorizontal: 8,
   },
   balanceTagOverLimit: {
@@ -1340,16 +1340,16 @@ const styles = StyleSheet.create({
     borderColor: "#F4B1B1",
   },
   balanceText: {
-    color: "#0B5D44",
+    color: "#6E4331",
     fontWeight: "700",
   },
   balanceTextOverLimit: {
     color: "#B91C1C",
   },
   loadingText: {
-    color: "#2D5A4B",
+    color: "#5E4336",
     fontWeight: "600",
-    backgroundColor: "#E6F2ED",
+    backgroundColor: "#F0E8E3",
     borderRadius: 10,
     padding: 10,
   },

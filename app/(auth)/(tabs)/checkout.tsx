@@ -494,7 +494,7 @@ export default function CheckoutScreen() {
                               onPress={() => removeGiveBox(id)}
                             >
                               <Text style={styles.tagText}>{id.replace("BOX-", "")}</Text>
-                              <Ionicons name="close" size={12} color="#0B5D44" style={styles.tagIcon} />
+                              <Ionicons name="close" size={12} color="#6E4331" style={styles.tagIcon} />
                             </Pressable>
                           ))
                         )}
@@ -508,7 +508,7 @@ export default function CheckoutScreen() {
                             disabled={isSubmitting}
                             value={isWalkIn}
                             onValueChange={handleWalkInToggle}
-                            trackColor={{ false: "#C7D8D1", true: "#0D7A4E" }}
+                            trackColor={{ false: "#D6CBC4", true: "#8A553E" }}
                             thumbColor="#FFFFFF"
                           />
                         </View>
@@ -535,7 +535,7 @@ export default function CheckoutScreen() {
                           >
                             {selectedCustomer ? selectedCustomer.name : "Tap to select customer"}
                           </Text>
-                          <Ionicons name="chevron-down" size={16} color="#42685D" />
+                          <Ionicons name="chevron-down" size={16} color="#6B5348" />
                         </Pressable>
                       )}
 
@@ -546,7 +546,7 @@ export default function CheckoutScreen() {
                         onPress={() => setShowDatePicker(true)}
                       >
                         <Text style={styles.dateSelectorText}>{formatDateLabel(actionDate)}</Text>
-                        <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                        <Ionicons name="calendar-outline" size={16} color="#6B5348" />
                       </Pressable>
 
                       {showDatePicker ? (
@@ -619,7 +619,7 @@ export default function CheckoutScreen() {
                                 <Ionicons
                                   name="close"
                                   size={12}
-                                  color={isOverdue ? "#8E1F1F" : isWarning ? "#725300" : "#0B5D44"}
+                                  color={isOverdue ? "#8E1F1F" : isWarning ? "#725300" : "#6E4331"}
                                   style={styles.tagIcon}
                                 />
                               </Pressable>
@@ -635,7 +635,7 @@ export default function CheckoutScreen() {
                         onPress={() => setShowDatePicker(true)}
                       >
                         <Text style={styles.dateSelectorText}>{formatDateLabel(actionDate)}</Text>
-                        <Ionicons name="calendar-outline" size={16} color="#42685D" />
+                        <Ionicons name="calendar-outline" size={16} color="#6B5348" />
                       </Pressable>
 
                       {showDatePicker ? (
@@ -674,7 +674,7 @@ export default function CheckoutScreen() {
                     onChangeText={setBoxSearch}
                     editable={!isSubmitting}
                     placeholder={isGiveMode ? "Search box id" : "Search box id or customer"}
-                    placeholderTextColor="#7A8F87"
+                    placeholderTextColor="#8F7A72"
                     keyboardType="number-pad"
                     style={styles.input}
                   />
@@ -696,7 +696,7 @@ export default function CheckoutScreen() {
                       removeClippedSubviews
                       ListEmptyComponent={
                         <View style={styles.emptyState}>
-                          <Ionicons name="cube-outline" size={28} color="#7A8F87" />
+                          <Ionicons name="cube-outline" size={28} color="#8F7A72" />
                           <Text style={styles.emptyText}>No available boxes</Text>
                         </View>
                       }
@@ -736,7 +736,7 @@ export default function CheckoutScreen() {
                       removeClippedSubviews
                       ListEmptyComponent={
                         <View style={styles.emptyState}>
-                          <Ionicons name="archive-outline" size={28} color="#7A8F87" />
+                          <Ionicons name="archive-outline" size={28} color="#8F7A72" />
                           <Text style={styles.emptyText}>No checked-out boxes</Text>
                         </View>
                       }
@@ -807,7 +807,7 @@ export default function CheckoutScreen() {
           {isSubmitting ? (
             <View style={styles.loadingOverlay}>
               <View style={styles.loadingCard}>
-                <ActivityIndicator size="large" color="#0D7A4E" />
+                <ActivityIndicator size="large" color="#8A553E" />
                 <Text style={styles.loadingOverlayTitle}>
                   {isGiveMode ? "Processing check-out..." : "Processing check-in..."}
                 </Text>
@@ -855,7 +855,7 @@ export default function CheckoutScreen() {
               onChangeText={setCustomerSearch}
               editable={!isSubmitting}
               placeholder="Search name, phone, email"
-              placeholderTextColor="#7A8F87"
+              placeholderTextColor="#8F7A72"
               style={[styles.input, styles.modalSearch]}
             />
             <FlatList
@@ -871,14 +871,14 @@ export default function CheckoutScreen() {
               onEndReachedThreshold={0.4}
               ListEmptyComponent={
                 customerListLoading ? (
-                  <ActivityIndicator size="small" color="#0D7A4E" style={{ marginTop: 16 }} />
+                  <ActivityIndicator size="small" color="#8A553E" style={{ marginTop: 16 }} />
                 ) : (
                   <Text style={styles.emptyText}>No customers found.</Text>
                 )
               }
               ListFooterComponent={
                 customerLoadingMore ? (
-                  <ActivityIndicator size="small" color="#0D7A4E" style={{ marginVertical: 12 }} />
+                  <ActivityIndicator size="small" color="#8A553E" style={{ marginVertical: 12 }} />
                 ) : null
               }
               renderItem={({ item: c }) => (
@@ -906,7 +906,7 @@ export default function CheckoutScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F8F7",
+    backgroundColor: "#F8F4F1",
     padding: 16,
     gap: 12,
   },
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     gap: 8,
   },
   modeSwitchRow: {
@@ -947,18 +947,18 @@ const styles = StyleSheet.create({
   modeButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
   modeButtonActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   modeButtonText: {
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -970,7 +970,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     gap: 8,
   },
   boxListCard: {
@@ -979,26 +979,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   label: {
     fontSize: 13,
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "600",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
-    color: "#1E2A26",
+    color: "#2A221E",
   },
   tagContainer: {
     flexDirection: "row",
@@ -1014,22 +1014,22 @@ const styles = StyleSheet.create({
   },
   tagScroll: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
-    backgroundColor: "#FAFCFB",
+    backgroundColor: "#FCFAF8",
     maxHeight: 116,
   },
   tagPlaceholder: {
-    color: "#7A8F87",
+    color: "#8F7A72",
     fontSize: 13,
     alignSelf: "center",
   },
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E0F2EA",
+    backgroundColor: "#EFE4DE",
     borderWidth: 1,
-    borderColor: "#A8D8C0",
+    borderColor: "#D2B8AC",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1044,7 +1044,7 @@ const styles = StyleSheet.create({
     borderColor: "#E25A5A",
   },
   tagText: {
-    color: "#0B5D44",
+    color: "#6E4331",
     fontWeight: "700",
     fontSize: 12,
   },
@@ -1065,7 +1065,7 @@ const styles = StyleSheet.create({
   clearAllText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#0D7A4E",
+    color: "#8A553E",
   },
   customerHeader: {
     flexDirection: "row",
@@ -1079,12 +1079,12 @@ const styles = StyleSheet.create({
   },
   walkInLabel: {
     fontSize: 12,
-    color: "#39584F",
+    color: "#5C463C",
     fontWeight: "600",
   },
   customerSelector: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1094,17 +1094,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   customerSelectorText: {
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "600",
     fontSize: 14,
   },
   customerSelectorPlaceholder: {
-    color: "#7A8F87",
+    color: "#8F7A72",
     fontSize: 13,
   },
   dateSelector: {
     borderWidth: 1,
-    borderColor: "#C6D6D0",
+    borderColor: "#D4C9C2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1114,13 +1114,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dateSelectorText: {
-    color: "#1E2A26",
+    color: "#2A221E",
     fontWeight: "600",
     fontSize: 14,
   },
   submitButton: {
     marginTop: 4,
-    backgroundColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
@@ -1154,18 +1154,18 @@ const styles = StyleSheet.create({
     height: 60,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: "#BCD2C9",
+    borderColor: "#D0C4BC",
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   boxChipActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   boxChipText: {
-    color: "#114535",
+    color: "#4A2B1E",
     fontWeight: "700",
     fontSize: 12,
     textAlign: "center",
@@ -1178,7 +1178,7 @@ const styles = StyleSheet.create({
     minHeight: 82,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#BCD2C9",
+    borderColor: "#D0C4BC",
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     paddingHorizontal: 10,
@@ -1186,11 +1186,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   inventoryCardActive: {
-    backgroundColor: "#0D7A4E",
-    borderColor: "#0D7A4E",
+    backgroundColor: "#8A553E",
+    borderColor: "#8A553E",
   },
   inventoryCardSelectedOutline: {
-    borderColor: "#0D7A4E",
+    borderColor: "#8A553E",
     borderWidth: 2,
   },
   inventoryCardWarning: {
@@ -1202,7 +1202,7 @@ const styles = StyleSheet.create({
     borderColor: "#E25A5A",
   },
   inventoryId: {
-    color: "#114535",
+    color: "#4A2B1E",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1217,7 +1217,7 @@ const styles = StyleSheet.create({
   },
   inventoryCustomer: {
     marginTop: 4,
-    color: "#39584F",
+    color: "#5C463C",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -1228,11 +1228,11 @@ const styles = StyleSheet.create({
     color: "#9E2A2A",
   },
   inventoryCustomerActive: {
-    color: "#E4F6EE",
+    color: "#F2E8E2",
   },
   inventoryMeta: {
     marginTop: 4,
-    color: "#678279",
+    color: "#807069",
     fontSize: 11,
   },
   inventoryMetaWarning: {
@@ -1242,7 +1242,7 @@ const styles = StyleSheet.create({
     color: "#AA2E2E",
   },
   inventoryMetaActive: {
-    color: "#D0EFE1",
+    color: "#E9D8CF",
   },
   emptyState: {
     alignItems: "center",
@@ -1250,7 +1250,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyText: {
-    color: "#6E7C76",
+    color: "#7C6E67",
     fontSize: 13,
     textAlign: "center",
   },
@@ -1272,7 +1272,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#0B3D2E",
+    color: "#3F2419",
   },
   modalSearch: {
     marginBottom: 2,
@@ -1281,24 +1281,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   disabledInput: {
-    backgroundColor: "#EEF4F1",
-    color: "#527168",
+    backgroundColor: "#F4F0ED",
+    color: "#74665E",
   },
   modalItem: {
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
   },
   modalItemName: {
     fontWeight: "700",
-    color: "#0D4A37",
+    color: "#5A3425",
     fontSize: 14,
   },
   modalItemSub: {
     marginTop: 2,
-    color: "#5C7269",
+    color: "#756861",
     fontSize: 12,
   },
   loadingOverlay: {
@@ -1314,19 +1314,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#DDEBE6",
+    borderColor: "#E9E0DA",
     paddingHorizontal: 20,
     paddingVertical: 22,
     alignItems: "center",
     gap: 10,
   },
   loadingOverlayTitle: {
-    color: "#0B3D2E",
+    color: "#3F2419",
     fontSize: 16,
     fontWeight: "700",
   },
   loadingOverlayText: {
-    color: "#527168",
+    color: "#74665E",
     fontSize: 13,
     textAlign: "center",
     lineHeight: 18,

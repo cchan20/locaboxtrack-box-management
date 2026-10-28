@@ -100,22 +100,22 @@ export const cancelOrderForCustomer = createAsyncThunk(
   },
 );
 
-export type MarkOrderPickedParams = {
+export type MarkOrderCollectedParams = {
   customerId: string;
   date: string;
   boxIds: string[];
   orderId?: string;
 };
 
-export const markOrderPicked = createAsyncThunk(
-  "markOrderPicked",
-  async ({ customerId, date, boxIds, orderId }: MarkOrderPickedParams) => {
+export const markOrderCollected = createAsyncThunk(
+  "markOrderCollected",
+  async ({ customerId, date, boxIds, orderId }: MarkOrderCollectedParams) => {
     try {
       const query = orderId?.trim()
         ? `?orderId=${encodeURIComponent(orderId.trim())}`
         : "";
       const response = await axiosInstance.post<OrderDto>(
-        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}/picked${query}`,
+        `orders/${encodeURIComponent(customerId)}/${encodeURIComponent(date)}/collected${query}`,
         { boxIds },
       );
       return { data: mapOrder(response.data) };
@@ -233,7 +233,7 @@ const orderSlice = createSlice({
       }
     });
 
-    builder.addCase(markOrderPicked.fulfilled, (state, action) => {
+    builder.addCase(markOrderCollected.fulfilled, (state, action) => {
       const updated = action.payload.data;
       const index = state.orders.findIndex((item) => item.id === updated.id);
       if (index >= 0) {

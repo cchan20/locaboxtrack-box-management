@@ -24,10 +24,10 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.brandWrap}>
-        <Text style={styles.brandName}>Loca Box Tracker</Text>
+        <Text style={styles.brandName}>LocaRoom App</Text>
         <Text style={styles.brandSub}>Box Management</Text>
       </View>
-      <ActivityIndicator size="large" color="#D8F6E8" />
+      <ActivityIndicator size="large" color="#F0E2DB" />
     </SafeAreaView>
   );
 }
@@ -35,7 +35,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0B5D44",
+    backgroundColor: "#6E4331",
     alignItems: "center",
     justifyContent: "center",
     gap: 24,
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   brandSub: {
-    color: "#D5F2E5",
+    color: "#EDDFD7",
     fontSize: 14,
     marginTop: 6,
   },

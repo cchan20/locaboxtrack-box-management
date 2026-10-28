@@ -37,7 +37,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "User Management",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -46,7 +46,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Create User",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -55,7 +55,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Store Location",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -64,7 +64,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Pickup Timeslot",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -73,7 +73,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "General",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -82,7 +82,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Menu",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />
@@ -91,7 +91,7 @@ export default function AuthLayout() {
         options={{
           headerShown: true,
           title: "Create Order",
-          headerStyle: { backgroundColor: "#0B5D44" },
+          headerStyle: { backgroundColor: "#6E4331" },
           headerTintColor: "#FFFFFF",
         }}
       />

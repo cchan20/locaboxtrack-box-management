@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   menuText: {
-    color: "#1A2A24",
+    color: "#2A221E",
     fontSize: 15,
     fontWeight: "500",
   },
