@@ -27,7 +27,7 @@ export default function Index() {
         <Text style={styles.brandName}>LocaRoom App</Text>
         <Text style={styles.brandSub}>Box Management</Text>
       </View>
-      <ActivityIndicator size="large" color="#F0E2DB" />
+      <ActivityIndicator size="large" color="#D8F6E8" />
     </SafeAreaView>
   );
 }
@@ -35,7 +35,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#6E4331",
+    backgroundColor: "#0B5D44",
     alignItems: "center",
     justifyContent: "center",
     gap: 24,
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   brandSub: {
-    color: "#EDDFD7",
+    color: "#D5F2E5",
     fontSize: 14,
     marginTop: 6,
   },

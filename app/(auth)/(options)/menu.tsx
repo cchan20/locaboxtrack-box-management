@@ -690,7 +690,7 @@ export default function MenuScreen() {
         </View>
         <Pressable style={styles.dateSelector} onPress={openDatePicker}>
           <Text style={styles.dateSelectorText}>{formatDateKey(anchorDate)}</Text>
-          <Ionicons name="calendar-outline" size={16} color="#6B5348" />
+          <Ionicons name="calendar-outline" size={16} color="#42685D" />
         </Pressable>
       </View>
 
@@ -967,7 +967,7 @@ export default function MenuScreen() {
 
             {importBusy ? (
               <View style={styles.importBusyRow}>
-                <ActivityIndicator color="#8A553E" />
+                <ActivityIndicator color="#0D7A4E" />
                 <Text style={styles.importBusyText}>Working...</Text>
               </View>
             ) : null}
@@ -977,7 +977,7 @@ export default function MenuScreen() {
               disabled={importBusy}
               onPress={handleDownloadTemplate}
             >
-              <Ionicons name="download-outline" size={18} color="#8A553E" />
+              <Ionicons name="download-outline" size={18} color="#0D7A4E" />
               <Text style={styles.secondaryButtonText}>Download Template</Text>
             </Pressable>
 
@@ -1006,7 +1006,7 @@ export default function MenuScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
     gap: 12,
   },
@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 14,
@@ -1039,16 +1039,16 @@ const styles = StyleSheet.create({
   weekTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   weekSubtitle: {
     marginTop: 2,
-    color: "#74675F",
+    color: "#577066",
     fontSize: 13,
   },
   dateSelector: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateSelectorText: {
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -1069,15 +1069,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   loadingText: {
-    color: "#5E4336",
+    color: "#2D5A4B",
     fontWeight: "600",
-    backgroundColor: "#F0E8E3",
+    backgroundColor: "#E6F2ED",
     borderRadius: 10,
     padding: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -1094,12 +1094,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   subtitle: {
     marginTop: 8,
     marginBottom: 8,
-    color: "#74675F",
+    color: "#577066",
     fontSize: 14,
   },
   formScroll: {
@@ -1112,24 +1112,24 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     marginTop: 4,
-    color: "#74675F",
+    color: "#577066",
     fontSize: 13,
     fontWeight: "600",
   },
   miniLabel: {
-    color: "#7C6E67",
+    color: "#6E7C76",
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 4,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
-    color: "#5A3425",
+    color: "#0D4A37",
   },
   multilineInput: {
     minHeight: 64,
@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1179,7 +1179,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   cancelButtonText: {
-    color: "#74675F",
+    color: "#577066",
     fontWeight: "700",
   },
   deleteButton: {
@@ -1210,7 +1210,7 @@ const styles = StyleSheet.create({
   },
   row: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -1220,8 +1220,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   rowSelected: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F0E8E3",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#E6F2ED",
   },
   rowText: {
     flex: 1,
@@ -1229,22 +1229,22 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontWeight: "700",
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 15,
   },
   secondaryText: {
     marginTop: 4,
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 14,
   },
   metaText: {
     marginTop: 2,
-    color: "#74675F",
+    color: "#577066",
     fontSize: 12,
   },
   emptyDayText: {
     marginTop: 4,
-    color: "#9A8A82",
+    color: "#8A9A93",
     fontSize: 13,
     fontStyle: "italic",
   },
@@ -1254,24 +1254,24 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusPillFilled: {
-    backgroundColor: "#EFE4DE",
+    backgroundColor: "#E0F2EA",
   },
   statusPillEmpty: {
-    backgroundColor: "#F3EFEC",
+    backgroundColor: "#F0F2F1",
   },
   statusPillText: {
     fontSize: 12,
     fontWeight: "700",
   },
   statusPillTextFilled: {
-    color: "#6E4331",
+    color: "#0B5D44",
   },
   statusPillTextEmpty: {
-    color: "#7C6E67",
+    color: "#6E7C76",
   },
   emptyText: {
     marginTop: 8,
-    color: "#7C6E67",
+    color: "#6E7C76",
   },
   modalBackdrop: {
     flex: 1,
@@ -1290,7 +1290,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
     marginBottom: 8,
   },
   modalActions: {
@@ -1307,12 +1307,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   importSubtitle: {
-    color: "#74675F",
+    color: "#577066",
     fontSize: 14,
     lineHeight: 20,
   },
   importFileName: {
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -1322,12 +1322,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   importBusyText: {
-    color: "#5E4336",
+    color: "#2D5A4B",
     fontWeight: "600",
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#8A553E",
+    borderColor: "#0D7A4E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1335,10 +1335,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F0E8E3",
+    backgroundColor: "#E6F2ED",
   },
   secondaryButtonText: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "700",
   },
   importPrimaryButton: {

@@ -419,14 +419,14 @@ export default function CreateOrderScreen() {
     if (listLoading) {
       return (
         <View style={styles.emptyState}>
-          <ActivityIndicator size="large" color="#8A553E" />
+          <ActivityIndicator size="large" color="#0D7A4E" />
         </View>
       );
     }
 
     return (
       <View style={styles.emptyState}>
-        <Ionicons name="people-outline" size={36} color="#8A553E" />
+        <Ionicons name="people-outline" size={36} color="#0D7A4E" />
         <Text style={styles.emptyTitle}>
           {search.trim() ? "No matching customers" : "No customers yet"}
         </Text>
@@ -459,7 +459,7 @@ export default function CreateOrderScreen() {
             1. Customer
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#8F7A72" />
+        <Ionicons name="chevron-forward" size={16} color="#7A8F87" />
         <View
           style={[
             styles.stepChip,
@@ -491,7 +491,7 @@ export default function CreateOrderScreen() {
                   <Switch
                     value={customerMode === "walkin"}
                     onValueChange={handleWalkInToggle}
-                    trackColor={{ false: "#D6CBC4", true: "#8A553E" }}
+                    trackColor={{ false: "#C7D8D1", true: "#0D7A4E" }}
                     thumbColor="#FFFFFF"
                   />
                 </View>
@@ -503,7 +503,7 @@ export default function CreateOrderScreen() {
                     value={search}
                     onChangeText={setSearch}
                     placeholder="Search name, phone, email"
-                    placeholderTextColor="#8F7A72"
+                    placeholderTextColor="#7A8F87"
                     style={styles.input}
                     containerStyle={styles.searchInput}
                   />
@@ -519,7 +519,7 @@ export default function CreateOrderScreen() {
                     ListFooterComponent={
                       loadingMore ? (
                         <View style={styles.listFooter}>
-                          <ActivityIndicator size="small" color="#8A553E" />
+                          <ActivityIndicator size="small" color="#0D7A4E" />
                         </View>
                       ) : null
                     }
@@ -546,13 +546,13 @@ export default function CreateOrderScreen() {
                             <Ionicons
                               name="checkmark-circle"
                               size={22}
-                              color="#8A553E"
+                              color="#0D7A4E"
                             />
                           ) : (
                             <Ionicons
                               name="ellipse-outline"
                               size={22}
-                              color="#D6CBC4"
+                              color="#C7D8D1"
                             />
                           )}
                         </Pressable>
@@ -565,7 +565,7 @@ export default function CreateOrderScreen() {
                   value={walkInName}
                   onChangeText={setWalkInName}
                   placeholder="Enter walk-in customer name"
-                  placeholderTextColor="#8F7A72"
+                  placeholderTextColor="#7A8F87"
                   style={styles.input}
                   autoCapitalize="words"
                   returnKeyType="done"
@@ -607,7 +607,7 @@ export default function CreateOrderScreen() {
         >
           <View style={styles.selectedBanner}>
             <Pressable style={styles.backStepButton} onPress={() => setStep(1)}>
-              <Ionicons name="arrow-back" size={16} color="#8A553E" />
+              <Ionicons name="arrow-back" size={16} color="#0D7A4E" />
               <Text style={styles.backStepText}>Change</Text>
             </Pressable>
             <Text style={styles.selectedBannerText} numberOfLines={1}>
@@ -630,7 +630,7 @@ export default function CreateOrderScreen() {
                   name="chevron-back"
                   size={16}
                   color={
-                    canGoPrevWeek && !catalogLoading ? "#6B5348" : "#D6CBC4"
+                    canGoPrevWeek && !catalogLoading ? "#42685D" : "#C7D8D1"
                   }
                 />
               </Pressable>
@@ -650,7 +650,7 @@ export default function CreateOrderScreen() {
                 <Ionicons
                   name="chevron-forward"
                   size={16}
-                  color={!catalogLoading ? "#6B5348" : "#D6CBC4"}
+                  color={!catalogLoading ? "#42685D" : "#C7D8D1"}
                 />
               </Pressable>
             </View>
@@ -658,7 +658,7 @@ export default function CreateOrderScreen() {
 
           {catalogLoading ? (
             <View style={styles.catalogLoading}>
-              <ActivityIndicator size="large" color="#8A553E" />
+              <ActivityIndicator size="large" color="#0D7A4E" />
               <Text style={styles.catalogLoadingText}>
                 Loading this week's menu…
               </Text>
@@ -756,7 +756,7 @@ export default function CreateOrderScreen() {
                     <Ionicons
                       name="restaurant-outline"
                       size={36}
-                      color="#D6CBC4"
+                      color="#C7D8D1"
                     />
                     <Text style={styles.emptyText}>
                       Ordering is unavailable until a meal is published.
@@ -767,7 +767,7 @@ export default function CreateOrderScreen() {
                     <Ionicons
                       name="checkmark-done-outline"
                       size={36}
-                      color="#D6CBC4"
+                      color="#C7D8D1"
                     />
                     <Text style={styles.emptyText}>
                       {activeDay} order was already collected.
@@ -775,7 +775,7 @@ export default function CreateOrderScreen() {
                   </View>
                 ) : !draft ? (
                   <View style={styles.emptyState}>
-                    <Ionicons name="cart-outline" size={36} color="#D6CBC4" />
+                    <Ionicons name="cart-outline" size={36} color="#C7D8D1" />
                     <Text style={styles.emptyText}>
                       No order draft for {activeDay}
                     </Text>
@@ -1010,7 +1010,7 @@ export default function CreateOrderScreen() {
                         })
                       }
                       placeholder="Optional note (max 100 characters)"
-                      placeholderTextColor="#A8978E"
+                      placeholderTextColor="#9AAEA6"
                       maxLength={MAX_ORDER_FOOTNOTE_LENGTH}
                       multiline
                     />
@@ -1075,7 +1075,7 @@ export default function CreateOrderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
   },
   flex: {
@@ -1091,13 +1091,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F0E8E3",
+    backgroundColor: "#E6F2ED",
   },
   stepChipActive: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
   },
   stepChipText: {
-    color: "#574137",
+    color: "#35554A",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -1106,7 +1106,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 14,
@@ -1118,7 +1118,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    color: "#3F2419",
+    color: "#0B3D2E",
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 10,
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitleInline: {
-    color: "#3F2419",
+    color: "#0B3D2E",
     fontSize: 16,
     fontWeight: "700",
     flex: 1,
@@ -1143,7 +1143,7 @@ const styles = StyleSheet.create({
   },
   walkInLabel: {
     fontSize: 12,
-    color: "#5C463C",
+    color: "#39584F",
     fontWeight: "600",
   },
   searchInput: {
@@ -1151,12 +1151,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
-    color: "#2A221E",
+    color: "#1E2A26",
     fontSize: 15,
   },
   footnoteInput: {
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   footnoteCount: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontSize: 11,
     textAlign: "right",
     marginTop: 4,
@@ -1181,7 +1181,7 @@ const styles = StyleSheet.create({
   },
   customerItem: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -1190,16 +1190,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   customerItemSelected: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F5EBE6",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#EAF7F1",
   },
   customerName: {
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "700",
     fontSize: 15,
   },
   customerSub: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 12,
     marginTop: 2,
   },
@@ -1210,12 +1210,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: "#3F2419",
+    color: "#0B3D2E",
     fontWeight: "700",
     fontSize: 15,
   },
   emptyText: {
-    color: "#7C6E67",
+    color: "#6E7C76",
     fontSize: 13,
     textAlign: "center",
   },
@@ -1232,11 +1232,11 @@ const styles = StyleSheet.create({
   },
   footerHint: {
     flex: 1,
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 13,
   },
   primaryButton: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -1255,14 +1255,14 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF",
   },
   secondaryButtonText: {
-    color: "#574137",
+    color: "#35554A",
     fontWeight: "700",
     fontSize: 15,
   },
@@ -1271,12 +1271,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 10,
-    backgroundColor: "#F5EBE6",
+    backgroundColor: "#EAF7F1",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#E0D0C7",
+    borderColor: "#C7E6D6",
   },
   backStepButton: {
     flexDirection: "row",
@@ -1284,14 +1284,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   backStepText: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "700",
     fontSize: 13,
   },
   selectedBannerText: {
     flex: 1,
     minWidth: 0,
-    color: "#3F2419",
+    color: "#0B3D2E",
     fontWeight: "700",
     fontSize: 14,
   },
@@ -1302,7 +1302,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   catalogLoadingText: {
-    color: "#574137",
+    color: "#35554A",
     fontSize: 14,
   },
   step2Content: {
@@ -1317,7 +1317,7 @@ const styles = StyleSheet.create({
   weekTitle: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
     paddingHorizontal: 2,
   },
   weekArrowButton: {
@@ -1325,7 +1325,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1342,22 +1342,22 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     backgroundColor: "#FFFFFF",
     paddingVertical: 8,
     alignItems: "center",
   },
   dayChipActive: {
-    backgroundColor: "#8A553E",
-    borderColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
   },
   dayChipText: {
-    color: "#574137",
+    color: "#35554A",
     fontWeight: "700",
     fontSize: 13,
   },
   dayChipDate: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontSize: 11,
     marginTop: 2,
   },
@@ -1366,28 +1366,28 @@ const styles = StyleSheet.create({
   },
   menuBlock: {
     borderBottomWidth: 1,
-    borderBottomColor: "#F4F0ED",
+    borderBottomColor: "#EEF4F1",
     paddingBottom: 12,
     marginBottom: 12,
     gap: 6,
   },
   menuTitle: {
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "700",
     fontSize: 16,
   },
   menuBody: {
-    color: "#6A5B54",
+    color: "#4A5F57",
     fontSize: 13,
     lineHeight: 18,
   },
   menuIngredients: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontSize: 12,
     fontStyle: "italic",
   },
   mutedText: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontSize: 13,
   },
   dayMetaRow: {
@@ -1397,9 +1397,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   availBadge: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 11,
-    backgroundColor: "#F5F0EC",
+    backgroundColor: "#F0F5F3",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
@@ -1409,7 +1409,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   label: {
-    color: "#574137",
+    color: "#35554A",
     fontSize: 13,
     fontWeight: "600",
     marginTop: 10,
@@ -1420,38 +1420,38 @@ const styles = StyleSheet.create({
   },
   optionItem: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
   },
   optionItemSelected: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F5EBE6",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#EAF7F1",
   },
   optionItemDisabled: {
     opacity: 0.45,
   },
   optionItemText: {
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "600",
     fontSize: 14,
   },
   optionItemTextSelected: {
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   optionItemSub: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontSize: 11,
     marginTop: 2,
   },
   mealCard: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     padding: 12,
-    backgroundColor: "#FAF7F5",
+    backgroundColor: "#F8FBFA",
     marginTop: 10,
   },
   mealHeader: {
@@ -1466,17 +1466,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mealTitle: {
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "700",
     fontSize: 14,
   },
   mealBase: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontWeight: "400",
     fontSize: 12,
   },
   mealPrice: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "700",
     fontSize: 14,
   },
@@ -1487,43 +1487,43 @@ const styles = StyleSheet.create({
   },
   addonChip: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: "#FFFFFF",
   },
   addonChipActive: {
-    borderColor: "#8A553E",
-    backgroundColor: "#EFE4DE",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#E0F2EA",
   },
   addonChipDisabled: {
-    borderColor: "#E0D8D3",
-    backgroundColor: "#F4EFEA",
+    borderColor: "#D5DEDA",
+    backgroundColor: "#F0F3F2",
     opacity: 0.7,
   },
   addonChipText: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 12,
   },
   addonChipTextActive: {
-    color: "#6E4331",
+    color: "#0B5D44",
     fontWeight: "700",
   },
   addonChipTextDisabled: {
-    color: "#A8978E",
+    color: "#9AAEA6",
   },
   pickedBanner: {
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E0D8D3",
-    backgroundColor: "#F4EFEA",
+    borderColor: "#D5DEDA",
+    backgroundColor: "#F0F3F2",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   pickedBannerText: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 12,
     lineHeight: 18,
   },
@@ -1531,13 +1531,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
   addMealButtonText: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -1545,17 +1545,17 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#F4F0ED",
+    borderTopColor: "#EEF4F1",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   totalLabel: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 14,
   },
   totalValue: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "800",
     fontSize: 18,
   },

@@ -215,7 +215,7 @@ export default function StoreLocationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
     gap: 12,
   },
@@ -226,15 +226,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   loadingText: {
-    color: "#5E4336",
+    color: "#2D5A4B",
     fontWeight: "600",
-    backgroundColor: "#F0E8E3",
+    backgroundColor: "#E6F2ED",
     borderRadius: 10,
     padding: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -250,11 +250,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   subtitle: {
     marginTop: 8,
-    color: "#74675F",
+    color: "#577066",
     fontSize: 14,
   },
   stackedInput: {
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addButton: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   cancelButtonText: {
-    color: "#74675F",
+    color: "#577066",
     fontWeight: "700",
   },
   listContent: {
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   },
   row: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -330,8 +330,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   rowSelected: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F0E8E3",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#E6F2ED",
   },
   rowText: {
     flex: 1,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontWeight: "700",
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 15,
   },
   deleteButton: {
@@ -356,6 +356,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 8,
-    color: "#7C6E67",
+    color: "#6E7C76",
   },
 });

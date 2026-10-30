@@ -11,10 +11,10 @@ function PersistLoading() {
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#6E4331",
+        backgroundColor: "#0B5D44",
       }}
     >
-      <ActivityIndicator size="large" color="#F0E2DB" />
+      <ActivityIndicator size="large" color="#D8F6E8" />
     </View>
   );
 }

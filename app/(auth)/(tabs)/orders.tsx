@@ -666,7 +666,38 @@ export default function OrdersScreen() {
             boxIds: nextBoxIds,
           }),
         ).unwrap();
-        applyCollectedOrderUpdate(selectedOrder.id, pickedResponse.data, nextBoxIds);
+
+        let updatedOrder = {
+          ...pickedResponse.data,
+          paymentStatus: pickedResponse.data.paymentStatus ?? selectedOrder.paymentStatus,
+        };
+
+        // Initial checkout (confirmed → collected) also marks the order as paid.
+        if (!isUpdate && !isOrderPaid(updatedOrder)) {
+          try {
+            const paidResponse = await dispatch(
+              markOrderPaid({
+                customerId: selectedOrder.customerId,
+                date: selectedOrder.date,
+                orderId: selectedOrder.id,
+              }),
+            ).unwrap();
+            updatedOrder = {
+              ...updatedOrder,
+              ...paidResponse.data,
+              paymentStatus: "paid",
+            };
+          } catch (error) {
+            applyCollectedOrderUpdate(selectedOrder.id, updatedOrder, nextBoxIds);
+            Alert.alert(
+              "Partial success",
+              `Order was checked out, but marking payment as paid failed: ${getErrorMessage(error)}`,
+            );
+            return;
+          }
+        }
+
+        applyCollectedOrderUpdate(selectedOrder.id, updatedOrder, nextBoxIds);
       } catch (error) {
         Alert.alert(
           "Partial success",
@@ -955,7 +986,7 @@ export default function OrdersScreen() {
                       style={styles.dateArrowButton}
                       onPress={() => shiftSelectedDate(-1)}
                     >
-                      <Ionicons name="chevron-back" size={18} color="#6B5348" />
+                      <Ionicons name="chevron-back" size={18} color="#42685D" />
                     </Pressable>
                     <Pressable
                       disabled={isSubmitting}
@@ -963,7 +994,7 @@ export default function OrdersScreen() {
                       onPress={() => setShowDatePicker(true)}
                     >
                       <Text style={styles.dateSelectorText}>{dateKey}</Text>
-                      <Ionicons name="calendar-outline" size={16} color="#6B5348" />
+                      <Ionicons name="calendar-outline" size={16} color="#42685D" />
                     </Pressable>
                     <Pressable
                       disabled={isSubmitting}
@@ -971,7 +1002,7 @@ export default function OrdersScreen() {
                       style={styles.dateArrowButton}
                       onPress={() => shiftSelectedDate(1)}
                     >
-                      <Ionicons name="chevron-forward" size={18} color="#6B5348" />
+                      <Ionicons name="chevron-forward" size={18} color="#42685D" />
                     </Pressable>
                   </View>
                 </View>
@@ -986,7 +1017,7 @@ export default function OrdersScreen() {
                     <Text style={styles.locationSelectorText} numberOfLines={1}>
                       {selectedLocationLabel}
                     </Text>
-                    <Ionicons name="chevron-down" size={16} color="#6B5348" />
+                    <Ionicons name="chevron-down" size={16} color="#42685D" />
                   </Pressable>
                 </View>
 
@@ -1158,9 +1189,9 @@ export default function OrdersScreen() {
                   onPress={handleRefreshOrders}
                 >
                   {listLoading ? (
-                    <ActivityIndicator size="small" color="#6B5348" />
+                    <ActivityIndicator size="small" color="#42685D" />
                   ) : (
-                    <Ionicons name="refresh" size={18} color="#6B5348" />
+                    <Ionicons name="refresh" size={18} color="#42685D" />
                   )}
                 </Pressable>
                 <ClearableTextInput
@@ -1169,7 +1200,7 @@ export default function OrdersScreen() {
                   onChangeText={setCustomerSearch}
                   editable={!isSubmitting}
                   placeholder="Name / phone"
-                  placeholderTextColor="#8F7A72"
+                  placeholderTextColor="#7A8F87"
                   style={[styles.input, styles.customerSearchInput]}
                 />
               </View>
@@ -1185,11 +1216,11 @@ export default function OrdersScreen() {
                 ListEmptyComponent={
                   listLoading ? (
                     <View style={styles.emptyState}>
-                      <ActivityIndicator size="large" color="#8A553E" />
+                      <ActivityIndicator size="large" color="#0D7A4E" />
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
-                      <Ionicons name="receipt-outline" size={36} color="#8A553E" />
+                      <Ionicons name="receipt-outline" size={36} color="#0D7A4E" />
                       <Text style={styles.emptyTitle}>No orders</Text>
                       <Text style={styles.emptyText}>
                         {customerSearch.trim() ||
@@ -1218,7 +1249,7 @@ export default function OrdersScreen() {
                         <View style={styles.orderIdentity}>
                           <View style={styles.orderNameRow}>
                             {order.status === "collected" ? (
-                              <Ionicons name="checkmark-circle" size={18} color="#8A553E" />
+                              <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
                             ) : order.status === "cancelled" ? (
                               <Ionicons name="close-circle" size={18} color="#B42318" />
                             ) : null}
@@ -1282,14 +1313,14 @@ export default function OrdersScreen() {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
             <View style={styles.detailsModalHeader}>
-              <Text style={styles.sectionTitle}>Order Details</Text>
+              <Text style={styles.detailsModalTitle}>Order Details</Text>
               <Pressable
                 disabled={isSubmitting}
                 hitSlop={8}
                 style={styles.detailsModalClose}
                 onPress={closeDetailsModal}
               >
-                <Ionicons name="close" size={22} color="#3F2419" />
+                <Ionicons name="close" size={26} color="#0B3D2E" />
               </Pressable>
             </View>
 
@@ -1306,9 +1337,9 @@ export default function OrdersScreen() {
                     <View style={styles.identityBlock}>
                       <View style={styles.panelNameRow}>
                         {selectedOrder.status === "collected" ? (
-                          <Ionicons name="checkmark-circle" size={20} color="#8A553E" />
+                          <Ionicons name="checkmark-circle" size={24} color="#0D7A4E" />
                         ) : selectedOrder.status === "cancelled" ? (
-                          <Ionicons name="close-circle" size={20} color="#B42318" />
+                          <Ionicons name="close-circle" size={24} color="#B42318" />
                         ) : null}
                         {isOrderPaid(selectedOrder) ? (
                           <Text style={[styles.paidDollarIcon, styles.paidDollarIconLarge]}>$</Text>
@@ -1378,7 +1409,7 @@ export default function OrdersScreen() {
 
                     {selectedOrder.footnote ? (
                       <View style={styles.footnoteBlock}>
-                        <Text style={styles.label}>Footnote</Text>
+                        <Text style={styles.detailsLabel}>Footnote</Text>
                         <Text style={styles.footnoteText}>{selectedOrder.footnote}</Text>
                       </View>
                     ) : null}
@@ -1386,7 +1417,7 @@ export default function OrdersScreen() {
                     {selectedOrder.status === "confirmed" || selectedOrder.status === "collected" ? (
                       <View style={styles.giveBoxSection}>
                         <View style={styles.labelRow}>
-                          <Text style={styles.label}>
+                          <Text style={styles.detailsLabel}>
                             {selectedOrder.status === "collected" ? "Update Box" : "Give Box"} (
                             {selectedBoxIds.length}/{maxSelectedBoxes})
                           </Text>
@@ -1414,7 +1445,7 @@ export default function OrdersScreen() {
                                     <Ionicons
                                       name="close"
                                       size={12}
-                                      color="#6E4331"
+                                      color="#0B5D44"
                                       style={styles.tagIcon}
                                     />
                                   </Pressable>
@@ -1439,10 +1470,10 @@ export default function OrdersScreen() {
                                 hitSlop={8}
                                 onPress={() => setBoxSearch("")}
                               >
-                                <Ionicons name="close-circle" size={18} color="#8F7A72" />
+                                <Ionicons name="close-circle" size={18} color="#7A8F87" />
                               </Pressable>
                             ) : (
-                              <Ionicons name="keypad-outline" size={18} color="#8F7A72" />
+                              <Ionicons name="keypad-outline" size={18} color="#7A8F87" />
                             )}
                           </View>
                         </View>
@@ -1459,10 +1490,10 @@ export default function OrdersScreen() {
 
                             <View style={styles.boxChipGridArea}>
                               {boxesLoading ? (
-                                <ActivityIndicator size="small" color="#8A553E" />
+                                <ActivityIndicator size="small" color="#0D7A4E" />
                               ) : displayedAvailableBoxes.length === 0 ? (
                                 <View style={styles.boxesEmptyState}>
-                                  <Ionicons name="cube-outline" size={22} color="#8F7A72" />
+                                  <Ionicons name="cube-outline" size={22} color="#7A8F87" />
                                   <Text style={styles.emptyText}>No available boxes</Text>
                                 </View>
                               ) : (
@@ -1513,7 +1544,7 @@ export default function OrdersScreen() {
                                       ]}
                                     >
                                       {key === "back" ? (
-                                        <Ionicons name="backspace-outline" size={22} color="#3F2419" />
+                                        <Ionicons name="backspace-outline" size={22} color="#0B3D2E" />
                                       ) : (
                                         <Text
                                           style={[
@@ -1622,7 +1653,7 @@ export default function OrdersScreen() {
             {isSubmitting ? (
               <View style={styles.loadingOverlay}>
                 <View style={styles.loadingCard}>
-                  <ActivityIndicator size="large" color="#8A553E" />
+                  <ActivityIndicator size="large" color="#0D7A4E" />
                   <Text style={styles.loadingOverlayTitle}>
                     {submitMode === "cancel"
                       ? "Cancelling order..."
@@ -1683,7 +1714,7 @@ export default function OrdersScreen() {
                     >
                       {item.name}
                     </Text>
-                    {isActive ? <Ionicons name="checkmark" size={18} color="#8A553E" /> : null}
+                    {isActive ? <Ionicons name="checkmark" size={18} color="#0D7A4E" /> : null}
                   </Pressable>
                 );
               }}
@@ -1746,7 +1777,7 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
   },
   keyboardAvoidingView: {
@@ -1766,7 +1797,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
   },
   filterCardContent: {
     padding: 14,
@@ -1782,7 +1813,7 @@ const styles = StyleSheet.create({
   },
   locationSelector: {
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1794,7 +1825,7 @@ const styles = StyleSheet.create({
   },
   locationSelectorText: {
     flex: 1,
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "600",
     fontSize: 14,
   },
@@ -1814,32 +1845,32 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   modalOption: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#EDE5E0",
+    borderColor: "#E2EEE9",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 12,
     marginBottom: 8,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
   },
   modalOptionActive: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F3E9E3",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#E8F6EF",
   },
   modalOptionText: {
     flex: 1,
     fontSize: 14,
     fontWeight: "600",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   modalOptionTextActive: {
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   confirmModalCard: {
     backgroundColor: "#FFFFFF",
@@ -1850,7 +1881,7 @@ const styles = StyleSheet.create({
   confirmModalText: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#5C463C",
+    color: "#39584F",
   },
   confirmModalActions: {
     flexDirection: "row",
@@ -1866,15 +1897,15 @@ const styles = StyleSheet.create({
   confirmModalCancelButton: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
   },
   confirmModalCancelText: {
-    color: "#5C463C",
+    color: "#39584F",
     fontWeight: "700",
     fontSize: 14,
   },
   confirmModalContinueButton: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
   },
   confirmModalContinueText: {
     color: "#FFFFFF",
@@ -1887,7 +1918,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     padding: 14,
   },
   listHeaderRow: {
@@ -1901,7 +1932,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1928,7 +1959,7 @@ const styles = StyleSheet.create({
   },
   timeslotSeparator: {
     height: 1,
-    backgroundColor: "#D4CFCC",
+    backgroundColor: "#D0D5D3",
     marginVertical: 10,
     marginHorizontal: 2,
   },
@@ -1938,7 +1969,7 @@ const styles = StyleSheet.create({
   },
   detailsModalSafe: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
   },
   detailsModalHeader: {
     flexDirection: "row",
@@ -1954,7 +1985,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F3E9E3",
+    backgroundColor: "#E8F6EF",
   },
   detailsModalBody: {
     flex: 1,
@@ -1973,11 +2004,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   label: {
     fontSize: 13,
-    color: "#5C463C",
+    color: "#39584F",
     fontWeight: "600",
   },
   dateSelectorRow: {
@@ -1990,7 +2021,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1999,7 +2030,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 10,
@@ -2011,24 +2042,24 @@ const styles = StyleSheet.create({
   },
   dateSelectorText: {
     flexShrink: 1,
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "600",
     fontSize: 13,
   },
   timeslotChip: {
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
     backgroundColor: "#FFFFFF",
   },
   timeslotChipActive: {
-    backgroundColor: "#8A553E",
-    borderColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
   },
   timeslotChipText: {
-    color: "#5C463C",
+    color: "#39584F",
     fontWeight: "700",
     fontSize: 12,
   },
@@ -2038,16 +2069,16 @@ const styles = StyleSheet.create({
   orderItem: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "#EDE5E0",
+    borderColor: "#E2EEE9",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 10,
     marginBottom: 8,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
   },
   selectedItem: {
-    borderColor: "#8A553E",
-    backgroundColor: "#F3E9E3",
+    borderColor: "#0D7A4E",
+    backgroundColor: "#E8F6EF",
   },
   orderIdentity: {
     gap: 3,
@@ -2065,22 +2096,22 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   paidDollarIconLarge: {
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 24,
+    lineHeight: 26,
   },
   orderName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
     flexShrink: 1,
   },
   orderSub: {
     fontSize: 12,
-    color: "#766962",
+    color: "#60726A",
     flexShrink: 1,
   },
   orderPickedBoxes: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "600",
   },
   emptyState: {
@@ -2092,11 +2123,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   emptyText: {
     fontSize: 13,
-    color: "#8F7A72",
+    color: "#7A8F87",
     textAlign: "center",
   },
   detailsEmptyState: {
@@ -2106,12 +2137,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailsEmptyText: {
-    fontSize: 13,
-    color: "#8F7A72",
+    fontSize: 16,
+    color: "#7A8F87",
     textAlign: "center",
   },
+  detailsModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0B3D2E",
+  },
+  detailsLabel: {
+    fontSize: 16,
+    color: "#39584F",
+    fontWeight: "600",
+  },
   identityBlock: {
-    gap: 0,
+    gap: 4,
   },
   panelNameRow: {
     flexDirection: "row",
@@ -2120,74 +2161,74 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   panelName: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
     flexShrink: 1,
   },
   identitySubText: {
-    fontSize: 12,
-    color: "#766962",
+    fontSize: 16,
+    color: "#60726A",
   },
   identityPrice: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "800",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   mealsWrap: {
     flexDirection: "row",
-    gap: 6,
+    gap: 8,
   },
   footnoteBlock: {
     gap: 4,
   },
   footnoteText: {
-    fontSize: 13,
-    color: "#2A221E",
-    lineHeight: 18,
+    fontSize: 16,
+    color: "#1E2A26",
+    lineHeight: 22,
   },
   mealCard: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#EDE5E0",
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: "#FCFAF8",
-    gap: 4,
+    borderColor: "#E2EEE9",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FAFCFB",
+    gap: 6,
   },
   mealTitle: {
-    fontSize: 11,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   mealAddonEmpty: {
-    fontSize: 11,
-    color: "#8F7A72",
+    fontSize: 15,
+    color: "#7A8F87",
   },
   addonWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 4,
+    gap: 6,
   },
   addonTag: {
-    backgroundColor: "#EFE4DE",
+    backgroundColor: "#E0F2EA",
     borderWidth: 1,
-    borderColor: "#D2B8AC",
+    borderColor: "#A8D8C0",
     borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   addonTagText: {
-    color: "#6E4331",
+    color: "#0B5D44",
     fontWeight: "700",
-    fontSize: 10,
+    fontSize: 14,
   },
   giveBoxSection: {
     marginTop: 2,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#EDE5E0",
+    borderTopColor: "#E2EEE9",
     paddingTop: 10,
   },
   labelRow: {
@@ -2196,9 +2237,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   clearAllText: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   selectedAndSearchRow: {
     flexDirection: "row",
@@ -2209,9 +2250,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -2234,7 +2275,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -2244,13 +2285,13 @@ const styles = StyleSheet.create({
   },
   boxSearchDisplayText: {
     flex: 1,
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "700",
     fontSize: 15,
     letterSpacing: 1,
   },
   boxSearchDisplayPlaceholder: {
-    color: "#8F7A72",
+    color: "#7A8F87",
     fontWeight: "600",
     letterSpacing: 0,
     fontSize: 12,
@@ -2270,26 +2311,26 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   numpadKeyAction: {
-    backgroundColor: "#F3E9E3",
-    borderColor: "#D2B8AC",
+    backgroundColor: "#E8F6EF",
+    borderColor: "#A8D8C0",
   },
   numpadKeyPressed: {
-    backgroundColor: "#EBDCD4",
+    backgroundColor: "#D7EEE4",
   },
   numpadKeyText: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   numpadKeyActionText: {
     fontSize: 16,
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   tagContainer: {
     flexDirection: "row",
@@ -2300,50 +2341,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tagPlaceholder: {
-    color: "#8F7A72",
-    fontSize: 13,
+    color: "#7A8F87",
+    fontSize: 15,
     textAlign: "center",
     width: "100%",
   },
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFE4DE",
+    backgroundColor: "#E0F2EA",
     borderWidth: 1,
-    borderColor: "#D2B8AC",
+    borderColor: "#A8D8C0",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     gap: 4,
   },
   tagText: {
-    color: "#6E4331",
+    color: "#0B5D44",
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 15,
   },
   tagIcon: {
     marginLeft: 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
-    color: "#2A221E",
+    color: "#1E2A26",
   },
   availableBoxesLabel: {
-    fontSize: 12,
-    color: "#5C463C",
+    fontSize: 15,
+    color: "#39584F",
     fontWeight: "600",
   },
   boxChipGridArea: {
     minHeight: 160,
     borderWidth: 1,
-    borderColor: "#EDE5E0",
+    borderColor: "#E2EEE9",
     borderRadius: 10,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
@@ -2366,7 +2407,7 @@ const styles = StyleSheet.create({
     width: "30%",
     minWidth: 64,
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 6,
@@ -2374,11 +2415,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   boxChipActive: {
-    backgroundColor: "#8A553E",
-    borderColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
   },
   boxChipText: {
-    color: "#3F2419",
+    color: "#0B3D2E",
     fontWeight: "700",
     fontSize: 16,
   },
@@ -2387,7 +2428,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 10,
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
@@ -2415,7 +2456,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "#B42318",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 16,
   },
   paidButton: {
     flex: 1,
@@ -2429,7 +2470,7 @@ const styles = StyleSheet.create({
   paidButtonText: {
     color: "#B45309",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 16,
   },
   unpaidButton: {
     flex: 1,
@@ -2443,7 +2484,7 @@ const styles = StyleSheet.create({
   unpaidButtonText: {
     color: "#4B5563",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 16,
   },
   submitButtonDisabled: {
     opacity: 0.7,
@@ -2451,15 +2492,15 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 16,
   },
   statusBadge: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   statusBadgeConfirmed: {
-    backgroundColor: "#EFE4DE",
+    backgroundColor: "#E0F2EA",
   },
   statusBadgePicked: {
     backgroundColor: "#DBEAFE",
@@ -2474,22 +2515,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   statusNotice: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#EDE5E0",
+    borderColor: "#E2EEE9",
     borderRadius: 8,
     padding: 12,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
   },
   statusNoticeText: {
-    fontSize: 13,
-    color: "#766962",
-    lineHeight: 18,
+    fontSize: 16,
+    color: "#60726A",
+    lineHeight: 22,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFill,
@@ -2510,11 +2551,11 @@ const styles = StyleSheet.create({
   loadingOverlayTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   loadingOverlayText: {
     fontSize: 13,
-    color: "#766962",
+    color: "#60726A",
     textAlign: "center",
   },
 });

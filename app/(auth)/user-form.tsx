@@ -197,7 +197,7 @@ export default function UserFormScreen() {
                 value={username}
                 onChangeText={setUsername}
                 placeholder="Username"
-                placeholderTextColor="#7C6E67"
+                placeholderTextColor="#6E7C76"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}
@@ -207,7 +207,7 @@ export default function UserFormScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="Display name"
-                placeholderTextColor="#7C6E67"
+                placeholderTextColor="#6E7C76"
                 style={styles.input}
               />
 
@@ -215,7 +215,7 @@ export default function UserFormScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder={isEditMode ? "Password (optional to keep current)" : "Password"}
-                placeholderTextColor="#7C6E67"
+                placeholderTextColor="#6E7C76"
                 secureTextEntry={isPasswordHidden}
                 style={styles.input}
                 endAccessoryWidth={36}
@@ -227,7 +227,7 @@ export default function UserFormScreen() {
                     <Ionicons
                       name={isPasswordHidden ? "eye-outline" : "eye-off-outline"}
                       size={19}
-                      color="#734832"
+                      color="#0E6045"
                     />
                   </Pressable>
                 }
@@ -237,7 +237,7 @@ export default function UserFormScreen() {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 placeholder={isEditMode ? "Confirm Password (only if changing)" : "Confirm Password"}
-                placeholderTextColor="#7C6E67"
+                placeholderTextColor="#6E7C76"
                 secureTextEntry={isPasswordHidden}
                 style={styles.input}
               />
@@ -328,7 +328,7 @@ export default function UserFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
   },
   keyboardView: {
@@ -341,16 +341,16 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   loadingText: {
-    color: "#5E4336",
+    color: "#2D5A4B",
     fontWeight: "600",
-    backgroundColor: "#F0E8E3",
+    backgroundColor: "#E6F2ED",
     borderRadius: 10,
     padding: 10,
     marginBottom: 10,
   },
   card: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -358,12 +358,12 @@ const styles = StyleSheet.create({
   input: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFFFFF",
-    color: "#2A221E",
+    color: "#1E2A26",
     fontSize: 15,
   },
   passwordToggleButton: {
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   segmentLabel: {
     fontWeight: "600",
-    color: "#5A443A",
+    color: "#36584D",
   },
   segmentButtons: {
     flexDirection: "row",
@@ -389,18 +389,18 @@ const styles = StyleSheet.create({
   },
   segmentButton: {
     borderWidth: 1,
-    borderColor: "#D6CBC4",
+    borderColor: "#C7D8D1",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "#FAF7F5",
+    backgroundColor: "#F8FBFA",
   },
   segmentButtonActive: {
-    backgroundColor: "#8A553E",
-    borderColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
   },
   segmentButtonText: {
-    color: "#5A3626",
+    color: "#1F5041",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",

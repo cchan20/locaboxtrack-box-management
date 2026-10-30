@@ -83,19 +83,21 @@ type WeekDay = {
   date: Date;
 };
 
-type MealCombinationCustomer = {
+type MealItemCustomer = {
   orderId: string;
   customerName: string;
   mealCount: number;
   footnote: string;
 };
 
-type MealCombinationCount = {
+type MealItemCount = {
   key: string;
   label: string;
   count: number;
-  customers: MealCombinationCustomer[];
+  customers: MealItemCustomer[];
 };
+
+const LOCABOX_ITEM_KEY = "locabox";
 
 function orderCustomerDisplayName(order: Order) {
   return (
@@ -164,73 +166,74 @@ function mealCount(orders: Order[]) {
   return orders.reduce((sum, order) => sum + order.meals.length, 0);
 }
 
-function mealCombinationKey(addons: string[]) {
-  return [...addons]
-    .map((addon) => addon.trim().toLowerCase())
-    .filter(Boolean)
-    .sort()
-    .join("|");
-}
-
-function mealCombinationLabel(addons: string[], dailyMeal?: DailyMeal | null) {
-  if (addons.length === 0) {
-    return "Basic Meal";
-  }
-  return `Basic Meal + ${[...addons]
-    .sort()
-    .map((addon) => addonLabelFromMeal(addon, dailyMeal))
-    .join(" + ")}`;
-}
-
-function countMealCombinations(
+function countMealItems(
   orders: Order[],
   dailyMeal?: DailyMeal | null,
-): MealCombinationCount[] {
-  const counts = new Map<string, MealCombinationCount>();
+): MealItemCount[] {
+  const counts = new Map<string, MealItemCount>();
+
+  const ensureItem = (key: string, label: string) => {
+    let item = counts.get(key);
+    if (!item) {
+      item = { key, label, count: 0, customers: [] };
+      counts.set(key, item);
+    }
+    return item;
+  };
 
   for (const order of orders) {
-    const comboMealCounts = new Map<string, number>();
-    for (const meal of order.meals) {
-      const key = mealCombinationKey(meal.addons);
-      comboMealCounts.set(key, (comboMealCounts.get(key) ?? 0) + 1);
+    const itemMealCounts = new Map<string, number>();
 
-      const existing = counts.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counts.set(key, {
-          key,
-          label: mealCombinationLabel(meal.addons, dailyMeal),
-          count: 1,
-          customers: [],
-        });
+    for (const meal of order.meals) {
+      ensureItem(LOCABOX_ITEM_KEY, "LocaBox").count += 1;
+      itemMealCounts.set(
+        LOCABOX_ITEM_KEY,
+        (itemMealCounts.get(LOCABOX_ITEM_KEY) ?? 0) + 1,
+      );
+
+      for (const addon of meal.addons) {
+        const key = addon.trim().toLowerCase();
+        if (!key) {
+          continue;
+        }
+        const label = `+${addonLabelFromMeal(addon, dailyMeal)}`;
+        ensureItem(key, label).count += 1;
+        itemMealCounts.set(key, (itemMealCounts.get(key) ?? 0) + 1);
       }
     }
 
-    for (const [key, mealCountForCombo] of comboMealCounts) {
-      const combo = counts.get(key);
-      if (!combo) {
+    for (const [key, mealCountForItem] of itemMealCounts) {
+      const item = counts.get(key);
+      if (!item) {
         continue;
       }
-      combo.customers.push({
+      item.customers.push({
         orderId: order.id,
         customerName: orderCustomerDisplayName(order),
-        mealCount: mealCountForCombo,
+        mealCount: mealCountForItem,
         footnote: order.footnote?.trim() ?? "",
       });
     }
   }
 
   return Array.from(counts.values())
-    .map((combo) => ({
-      ...combo,
-      customers: [...combo.customers].sort((a, b) =>
+    .map((item) => ({
+      ...item,
+      customers: [...item.customers].sort((a, b) =>
         a.customerName.localeCompare(b.customerName, undefined, {
           sensitivity: "base",
         }),
       ),
     }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    .sort((a, b) => {
+      if (a.key === LOCABOX_ITEM_KEY) {
+        return -1;
+      }
+      if (b.key === LOCABOX_ITEM_KEY) {
+        return 1;
+      }
+      return b.count - a.count || a.label.localeCompare(b.label);
+    });
 }
 
 export default function DashboardScreen() {
@@ -246,8 +249,8 @@ export default function DashboardScreen() {
   const [detailsModalType, setDetailsModalType] = useState<
     "total-out" | "safe" | "warning" | "overdue" | null
   >(null);
-  const [selectedMealCombination, setSelectedMealCombination] =
-    useState<MealCombinationCount | null>(null);
+  const [selectedMealItem, setSelectedMealItem] =
+    useState<MealItemCount | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_STATS);
   const [checkedOutBoxes, setCheckedOutBoxes] = useState<CheckedOutBoxDetails[]>([]);
   const chartRef = useRef<any>(null);
@@ -279,8 +282,8 @@ export default function DashboardScreen() {
     setDetailsModalType(null);
   }, []);
 
-  const closeMealCombinationModal = useCallback(() => {
-    setSelectedMealCombination(null);
+  const closeMealItemModal = useCallback(() => {
+    setSelectedMealItem(null);
   }, []);
 
   const safeBoxes = useMemo(
@@ -366,8 +369,8 @@ export default function DashboardScreen() {
     [scopedOrders],
   );
   const selectedDayMeal = dailyMealsByDate[selectedDayKey] ?? null;
-  const mealCombinations = useMemo(
-    () => countMealCombinations(scopedOrders, selectedDayMeal),
+  const mealItems = useMemo(
+    () => countMealItems(scopedOrders, selectedDayMeal),
     [scopedOrders, selectedDayMeal],
   );
 
@@ -406,7 +409,7 @@ export default function DashboardScreen() {
       setSelectedWeekDate(nextDate);
       setSelectedDayKey(defaultWeekdayKey(nextWeek, nextDate));
       setOrderScopeTab("overall");
-      setSelectedMealCombination(null);
+      setSelectedMealItem(null);
     },
     [],
   );
@@ -433,8 +436,8 @@ export default function DashboardScreen() {
     [],
   );
 
-  const renderMealCombinationCustomer = useCallback(
-    ({ item }: { item: MealCombinationCustomer }) => (
+  const renderMealItemCustomer = useCallback(
+    ({ item }: { item: MealItemCustomer }) => (
       <View style={styles.modalItem}>
         <View style={styles.modalMetaRow}>
           <Text style={styles.modalCustomerName}>{item.customerName}</Text>
@@ -534,7 +537,7 @@ export default function DashboardScreen() {
   }, [selectedDayKey, selectedWeekDate, weekDays]);
 
   useEffect(() => {
-    setSelectedMealCombination(null);
+    setSelectedMealItem(null);
   }, [selectedDayKey, orderScopeTab]);
 
   useFocusEffect(
@@ -557,22 +560,22 @@ export default function DashboardScreen() {
     chart.setOption({
       legend: {
         data: ["Check-out", "Check-in"],
-        textStyle: { color: "#6A544C", fontSize: 12 },
+        textStyle: { color: "#43635A", fontSize: 12 },
         top: 0,
       },
       grid: { top: 52, bottom: 8, left: 8, right: 8, containLabel: true },
       xAxis: {
         type: "category",
         data: chartData.dates,
-        axisLabel: { color: "#74675F", fontSize: 10, rotate: 40 },
-        axisLine: { lineStyle: { color: "#E8DFD9" } },
+        axisLabel: { color: "#577066", fontSize: 10, rotate: 40 },
+        axisLine: { lineStyle: { color: "#DCE9E4" } },
         axisTick: { show: false },
       },
       yAxis: {
         type: "value",
         minInterval: 1,
-        axisLabel: { color: "#74675F", fontSize: 10 },
-        splitLine: { lineStyle: { color: "#F0EDEB" } },
+        axisLabel: { color: "#577066", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#E5EFEB" } },
       },
       series: [
         {
@@ -597,11 +600,11 @@ export default function DashboardScreen() {
           label: {
             show: true,
             position: "top",
-            color: "#8A553E",
+            color: "#0D7A4E",
             fontSize: 10,
             fontWeight: "700",
           },
-          itemStyle: { color: "#8A553E", borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: "#0D7A4E", borderRadius: [4, 4, 0, 0] },
         },
       ],
     });
@@ -672,7 +675,7 @@ export default function DashboardScreen() {
               <MetricCard
                 label="Available"
                 value={dashboardStats.availableCount}
-                color="#8A553E"
+                color="#0D7A4E"
                 width={metricCardWidth}
               />
               <MetricCard
@@ -717,7 +720,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={styles.dateSelectorText}>{weekRangeLabel}</Text>
-                <Ionicons name="calendar-outline" size={16} color="#6B5348" />
+                <Ionicons name="calendar-outline" size={16} color="#42685D" />
               </Pressable>
             </View>
 
@@ -791,7 +794,7 @@ export default function DashboardScreen() {
                           ? "#BD2323"
                           : daySoldRatio >= 0.8
                             ? "#C48700"
-                            : "#8A553E",
+                            : "#0D7A4E",
                     },
                   ]}
                 />
@@ -846,7 +849,7 @@ export default function DashboardScreen() {
 
             {ordersLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color="#8A553E" />
+                <ActivityIndicator color="#0D7A4E" />
                 <Text style={styles.loadingText}>Loading orders...</Text>
               </View>
             ) : (
@@ -867,7 +870,7 @@ export default function DashboardScreen() {
                       onPress={openOrdersForSelectedDay}
                     >
                       <Text style={styles.viewAllOrdersButtonText}>View all Orders</Text>
-                      <Ionicons name="arrow-forward" size={14} color="#8A553E" />
+                      <Ionicons name="arrow-forward" size={14} color="#0D7A4E" />
                     </Pressable>
                   ) : null}
                 </View>
@@ -891,25 +894,25 @@ export default function DashboardScreen() {
                 </View>
 
                 <View style={styles.combinationCard}>
-                  <Text style={styles.combinationTitle}>Meal Combinations</Text>
-                  {mealCombinations.length === 0 ? (
+                  <Text style={styles.combinationTitle}>Meal Items</Text>
+                  {mealItems.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Text style={styles.emptyText}>No meals ordered for this view.</Text>
                     </View>
                   ) : (
-                    mealCombinations.map((item, index) => (
+                    mealItems.map((item, index) => (
                       <Pressable
                         key={item.key}
                         style={[
                           styles.combinationRow,
                           index === 0 ? styles.combinationRowFirst : null,
                         ]}
-                        onPress={() => setSelectedMealCombination(item)}
+                        onPress={() => setSelectedMealItem(item)}
                       >
                         <Text style={styles.combinationLabel}>{item.label}</Text>
                         <View style={styles.combinationCountRow}>
-                          <Text style={styles.combinationCount}>×{item.count}</Text>
-                          <Ionicons name="chevron-forward" size={16} color="#9A8A82" />
+                          <Text style={styles.combinationCount}>{item.count}</Text>
+                          <Ionicons name="chevron-forward" size={16} color="#8A9A93" />
                         </View>
                       </Pressable>
                     ))
@@ -971,44 +974,44 @@ export default function DashboardScreen() {
       </Modal>
 
       <Modal
-        visible={selectedMealCombination !== null}
+        visible={selectedMealItem !== null}
         transparent
         animationType="fade"
-        onRequestClose={closeMealCombinationModal}
+        onRequestClose={closeMealItemModal}
         statusBarTranslucent
         hardwareAccelerated
       >
         <View style={styles.modalBackdrop}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={closeMealCombinationModal}
+            onPress={closeMealItemModal}
           />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {selectedMealCombination?.label ?? "Meal Combination"}
+              {selectedMealItem?.label ?? "Meal Item"}
             </Text>
             <Text style={styles.modalSubtitle}>
-              {selectedMealCombination
-                ? `${selectedMealCombination.customers.length} customer${
-                    selectedMealCombination.customers.length === 1 ? "" : "s"
-                  } · ${selectedMealCombination.count} meal${
-                    selectedMealCombination.count === 1 ? "" : "s"
+              {selectedMealItem
+                ? `${selectedMealItem.customers.length} customer${
+                    selectedMealItem.customers.length === 1 ? "" : "s"
+                  } · ${selectedMealItem.count} item${
+                    selectedMealItem.count === 1 ? "" : "s"
                   }`
                 : ""}
             </Text>
 
-            {!selectedMealCombination ||
-            selectedMealCombination.customers.length === 0 ? (
+            {!selectedMealItem ||
+            selectedMealItem.customers.length === 0 ? (
               <View style={styles.modalEmptyState}>
                 <Text style={styles.modalEmptyText}>No customers found.</Text>
               </View>
             ) : (
               <FlatList
-                data={selectedMealCombination.customers}
+                data={selectedMealItem.customers}
                 keyExtractor={(item) => item.orderId}
                 style={styles.modalList}
                 contentContainerStyle={styles.modalListContent}
-                renderItem={renderMealCombinationCustomer}
+                renderItem={renderMealItemCustomer}
                 initialNumToRender={10}
                 maxToRenderPerBatch={10}
                 updateCellsBatchingPeriod={50}
@@ -1022,7 +1025,7 @@ export default function DashboardScreen() {
 
             <Pressable
               style={styles.modalCloseButton}
-              onPress={closeMealCombinationModal}
+              onPress={closeMealItemModal}
             >
               <Text style={styles.modalCloseButtonText}>Close</Text>
             </Pressable>
@@ -1083,7 +1086,7 @@ function SummaryCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F4F1",
+    backgroundColor: "#F5F8F7",
     padding: 16,
   },
   dashboardTabs: {
@@ -1092,7 +1095,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     padding: 2,
     gap: 2,
     flexShrink: 0,
@@ -1106,12 +1109,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   dashboardTabActive: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
   },
   dashboardTabText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#756861",
+    color: "#5C7269",
   },
   dashboardTabTextActive: {
     color: "#FFFFFF",
@@ -1131,7 +1134,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
     lineHeight: 28,
   },
   metricsGrid: {
@@ -1145,14 +1148,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
   },
   metricCardClickable: {
-    borderColor: "#D2C5BD",
+    borderColor: "#BCD5CA",
   },
   metricLabel: {
     fontSize: 12,
-    color: "#6A544C",
+    color: "#43635A",
     fontWeight: "600",
   },
   metricValue: {
@@ -1169,18 +1172,18 @@ const styles = StyleSheet.create({
     marginBottom: -2,
     fontSize: 18,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   chartContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     overflow: "hidden",
   },
   headerMeta: {
     fontSize: 12,
-    color: "#756861",
+    color: "#5C7269",
     fontWeight: "600",
     lineHeight: 16,
   },
@@ -1192,7 +1195,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     padding: 4,
     gap: 4,
   },
@@ -1203,12 +1206,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   dayTabActive: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
   },
   dayTabLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#756861",
+    color: "#5C7269",
   },
   dayTabLabelActive: {
     color: "#FFFFFF",
@@ -1216,16 +1219,16 @@ const styles = StyleSheet.create({
   dayTabCount: {
     marginTop: 2,
     fontSize: 11,
-    color: "#9A8A82",
+    color: "#8A9A93",
   },
   dayTabCountActive: {
-    color: "#DCC4B6",
+    color: "#B7E4C7",
   },
   inventoryBarCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     padding: 12,
     gap: 8,
   },
@@ -1238,19 +1241,19 @@ const styles = StyleSheet.create({
   inventoryBarTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   inventoryBarMeta: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#756861",
+    color: "#5C7269",
     flexShrink: 1,
     textAlign: "right",
   },
   inventoryBarTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#EFE8E4",
+    backgroundColor: "#E8EFEC",
     overflow: "hidden",
   },
   inventoryBarFill: {
@@ -1260,7 +1263,7 @@ const styles = StyleSheet.create({
   inventoryBarCaption: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#9A8A82",
+    color: "#8A9A93",
   },
   weekPickerRow: {
     gap: 6,
@@ -1268,11 +1271,11 @@ const styles = StyleSheet.create({
   weekPickerLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#6A544C",
+    color: "#43635A",
   },
   dateSelector: {
     borderWidth: 1,
-    borderColor: "#D4C9C2",
+    borderColor: "#C6D6D0",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1284,19 +1287,19 @@ const styles = StyleSheet.create({
   },
   dateSelectorText: {
     flex: 1,
-    color: "#2A221E",
+    color: "#1E2A26",
     fontWeight: "600",
     fontSize: 14,
   },
   datePickerDone: {
     alignSelf: "flex-end",
-    backgroundColor: "#EFE8E4",
+    backgroundColor: "#E8EFEC",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   datePickerDoneText: {
-    color: "#594339",
+    color: "#35574A",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1306,20 +1309,20 @@ const styles = StyleSheet.create({
   },
   scopeTab: {
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   scopeTabActive: {
-    backgroundColor: "#8A553E",
-    borderColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
+    borderColor: "#0D7A4E",
   },
   scopeTabText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#756861",
+    color: "#5C7269",
   },
   scopeTabTextActive: {
     color: "#FFFFFF",
@@ -1334,7 +1337,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   loadingState: {
     paddingVertical: 28,
@@ -1342,34 +1345,34 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 13,
   },
   emptyState: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#E0D6CF",
+    borderColor: "#CFE0D9",
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: "center",
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
   },
   emptyText: {
-    color: "#7A6B64",
+    color: "#617870",
     fontSize: 13,
   },
   combinationCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     padding: 14,
     gap: 10,
   },
   combinationTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   combinationRow: {
     flexDirection: "row",
@@ -1377,7 +1380,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#F0EDEB",
+    borderTopColor: "#E5EFEB",
     paddingTop: 10,
   },
   combinationRowFirst: {
@@ -1388,7 +1391,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: "600",
-    color: "#4F2E21",
+    color: "#13493A",
   },
   combinationCountRow: {
     flexDirection: "row",
@@ -1398,13 +1401,13 @@ const styles = StyleSheet.create({
   combinationCount: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   estimatedRevenueText: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "500",
-    color: "#9A8A82",
+    color: "#8A9A93",
     textAlign: "center",
   },
   viewAllOrdersButton: {
@@ -1415,7 +1418,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   viewAllOrdersButtonText: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontWeight: "700",
     fontSize: 13,
   },
@@ -1424,18 +1427,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     alignItems: "center",
   },
   summaryValue: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   summaryLabel: {
     marginTop: 4,
     fontSize: 12,
-    color: "#9A8A82",
+    color: "#8A9A93",
     fontWeight: "600",
     textAlign: "center",
   },
@@ -1453,20 +1456,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     padding: 14,
     gap: 10,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   modalSubtitle: {
     marginTop: -4,
     fontSize: 13,
     fontWeight: "600",
-    color: "#756861",
+    color: "#5C7269",
   },
   modalList: {
     flexGrow: 0,
@@ -1477,10 +1480,10 @@ const styles = StyleSheet.create({
   },
   modalItem: {
     borderWidth: 1,
-    borderColor: "#E8DFD9",
+    borderColor: "#DCE9E4",
     borderRadius: 10,
     padding: 10,
-    backgroundColor: "#FCFAF8",
+    backgroundColor: "#FAFCFB",
     gap: 4,
   },
   modalMetaRow: {
@@ -1490,12 +1493,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalMetaLabel: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 12,
     fontWeight: "600",
   },
   modalMetaValue: {
-    color: "#4F2E21",
+    color: "#13493A",
     fontSize: 13,
     fontWeight: "700",
     flexShrink: 1,
@@ -1503,17 +1506,17 @@ const styles = StyleSheet.create({
   },
   modalCustomerName: {
     flex: 1,
-    color: "#4F2E21",
+    color: "#13493A",
     fontSize: 14,
     fontWeight: "700",
   },
   modalCustomerMealCount: {
-    color: "#8A553E",
+    color: "#0D7A4E",
     fontSize: 13,
     fontWeight: "800",
   },
   modalCustomerFootnote: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 17,
@@ -1521,24 +1524,24 @@ const styles = StyleSheet.create({
   modalEmptyState: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#E0D6CF",
+    borderColor: "#CFE0D9",
     borderRadius: 10,
     paddingVertical: 22,
     alignItems: "center",
   },
   modalEmptyText: {
-    color: "#7A6B64",
+    color: "#617870",
     fontSize: 13,
   },
   modalCloseButton: {
     marginTop: 4,
-    backgroundColor: "#EFE8E4",
+    backgroundColor: "#E8EFEC",
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
   modalCloseButtonText: {
-    color: "#594339",
+    color: "#35574A",
     fontWeight: "700",
     fontSize: 13,
   },

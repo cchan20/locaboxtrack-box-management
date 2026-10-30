@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: "#3F2419",
+    backgroundColor: "#0B3D2E",
     alignItems: "center",
   },
   keyboardView: {
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   subtitle: {
     fontSize: 14,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   passwordToggleIcon: {
-    color: "#8A553E",
+    color: "#0D7A4E",
   },
   inputError: {
     borderColor: "#D93025",
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   loginButton: {
-    backgroundColor: "#8A553E",
+    backgroundColor: "#0D7A4E",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",

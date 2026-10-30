@@ -80,13 +80,13 @@ export function TransactionHistoryModal({
               </Text>
             </View>
             <Pressable style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={18} color="#5A443A" />
+              <Ionicons name="close" size={18} color="#36584D" />
             </Pressable>
           </View>
 
           {isLoading ? (
             <View style={styles.emptyState}>
-              <Ionicons name="time-outline" size={28} color="#8F7A72" />
+              <Ionicons name="time-outline" size={28} color="#7A8F87" />
               <Text style={styles.emptyTitle}>Loading transactions...</Text>
             </View>
           ) : (
@@ -105,7 +105,7 @@ export function TransactionHistoryModal({
               removeClippedSubviews
               ListEmptyComponent={
                 <View style={styles.emptyState}>
-                  <Ionicons name="receipt-outline" size={28} color="#8F7A72" />
+                  <Ionicons name="receipt-outline" size={28} color="#7A8F87" />
                   <Text style={styles.emptyTitle}>No transactions found</Text>
                   <Text style={styles.emptyText}>There is no recorded history for this item yet.</Text>
                 </View>
@@ -147,11 +147,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#3F2419",
+    color: "#0B3D2E",
   },
   subtitle: {
     marginTop: 2,
-    color: "#776963",
+    color: "#5D746A",
     fontSize: 12,
   },
   closeButton: {
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F4F0ED",
+    backgroundColor: "#EEF4F1",
   },
   listContent: {
     paddingBottom: 8,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   },
   itemCardCompact: {
     borderWidth: 1,
-    borderColor: "#E9E0DA",
+    borderColor: "#DDEBE6",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     borderColor: "#C8DBF4",
   },
   returnTag: {
-    backgroundColor: "#F3E9E4",
-    borderColor: "#DACFC8",
+    backgroundColor: "#E7F4EE",
+    borderColor: "#C4E0D2",
   },
   typeText: {
     fontSize: 12,
@@ -209,18 +209,18 @@ const styles = StyleSheet.create({
     color: "#285D9E",
   },
   returnText: {
-    color: "#6E4331",
+    color: "#0B5D44",
   },
   dateText: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 11,
   },
   metaLabel: {
-    color: "#756861",
+    color: "#5C7269",
     fontSize: 11,
   },
   metaValue: {
-    color: "#2A221E",
+    color: "#1E2A26",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -231,12 +231,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyTitle: {
-    color: "#5A3425",
+    color: "#0D4A37",
     fontSize: 15,
     fontWeight: "700",
   },
   emptyText: {
-    color: "#776963",
+    color: "#5D746A",
     fontSize: 13,
     textAlign: "center",
   },
