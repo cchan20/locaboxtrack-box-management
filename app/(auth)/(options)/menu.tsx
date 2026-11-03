@@ -35,7 +35,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 type WeekDay = {
   dateKey: string;
@@ -207,7 +207,7 @@ export default function MenuScreen() {
 
   const weekDays = useMemo(() => getWeekDays(anchorDate), [anchorDate]);
   const weekFrom = weekDays[0]?.dateKey ?? "";
-  const weekTo = weekDays[4]?.dateKey ?? "";
+  const weekTo = weekDays[weekDays.length - 1]?.dateKey ?? "";
 
   const mealsByDate = useMemo(() => {
     const map = new Map<string, DailyMeal>();
@@ -305,7 +305,7 @@ export default function MenuScreen() {
 
   const validateForm = (): DailyMealInput | null => {
     if (!selectedDateKey) {
-      Alert.alert("Select a day", "Please select a weekday from the list first.");
+      Alert.alert("Select a day", "Please select a day from the list first.");
       return null;
     }
 
@@ -685,7 +685,7 @@ export default function MenuScreen() {
         <View style={styles.weekBarText}>
           <Text style={styles.weekTitle}>Week of {weekFrom}</Text>
           <Text style={styles.weekSubtitle}>
-            Showing Mon–Fri · {weekFrom} to {weekTo}
+            Showing Mon–Sun · {weekFrom} to {weekTo}
           </Text>
         </View>
         <Pressable style={styles.dateSelector} onPress={openDatePicker}>
@@ -712,7 +712,7 @@ export default function MenuScreen() {
           </Text>
           <Text style={styles.subtitle}>
             {!hasSelection
-              ? "Pick a weekday from the list to view or create its menu."
+              ? "Pick a day from the list to view or create its menu."
               : isEditingExisting
                 ? `Update dishes, pricing, and inventory for ${selectedDateKey}.`
                 : `No menu yet for ${selectedDateKey}. Fill in details and create it.`}
@@ -849,7 +849,7 @@ export default function MenuScreen() {
         </View>
 
         <View style={[styles.card, styles.rightCard]}>
-          <Text style={styles.title}>Weekdays</Text>
+          <Text style={styles.title}>Days</Text>
           <FlatList
             data={weekDays}
             keyExtractor={(item) => item.dateKey}
@@ -899,7 +899,7 @@ export default function MenuScreen() {
                 </Pressable>
               );
             }}
-            ListEmptyComponent={<Text style={styles.emptyText}>No weekdays available.</Text>}
+            ListEmptyComponent={<Text style={styles.emptyText}>No days available.</Text>}
           />
         </View>
       </KeyboardAvoidingView>
@@ -957,7 +957,7 @@ export default function MenuScreen() {
           <Pressable style={styles.importModalCard} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.modalTitle}>Import Menu CSV</Text>
             <Text style={styles.importSubtitle}>
-              Download the template, fill in Mon–Fri meal rows (date as YYYYMMDD), then choose the
+              Download the template, fill in Mon–Sun meal rows (date as YYYYMMDD), then choose the
               CSV file to import. Existing dates are updated; new dates are created.
             </Text>
 

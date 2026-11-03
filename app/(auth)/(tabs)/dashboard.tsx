@@ -2,7 +2,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { getCheckedOutBoxDetails } from "@/store/slices/boxSlice";
 import { getDashboardStats } from "@/store/slices/dashboardSlice";
 import { getDailyMeals } from "@/store/slices/dailyMealSlice";
-import { getOrders } from "@/store/slices/orderSlice";
+import { getOrderDailyTotals, getOrders } from "@/store/slices/orderSlice";
 import { getGlobalSettings } from "@/store/slices/settingsSlice";
 import { getTransactionsSince } from "@/store/slices/transactionSlice";
 import {
@@ -87,6 +87,7 @@ type MealItemCustomer = {
   orderId: string;
   customerName: string;
   mealCount: number;
+  orderDetails: string[];
   footnote: string;
 };
 
@@ -125,7 +126,7 @@ function buildWeekdays(anchor = new Date()): WeekDay[] {
   const monday = new Date(today);
   monday.setDate(today.getDate() + mondayOffset);
 
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
     const dayName = DAY_NAMES[date.getDay()];
@@ -166,6 +167,20 @@ function mealCount(orders: Order[]) {
   return orders.reduce((sum, order) => sum + order.meals.length, 0);
 }
 
+function formatOrderMealDetail(
+  meal: { addons: string[] },
+  dailyMeal?: DailyMeal | null,
+): string {
+  const addonLabels = meal.addons
+    .map((addon) => addon.trim())
+    .filter(Boolean)
+    .map((addon) => addonLabelFromMeal(addon, dailyMeal));
+  if (addonLabels.length === 0) {
+    return "LocaBox";
+  }
+  return `LocaBox + ${addonLabels.join(" + ")}`;
+}
+
 function countMealItems(
   orders: Order[],
   dailyMeal?: DailyMeal | null,
@@ -183,13 +198,20 @@ function countMealItems(
 
   for (const order of orders) {
     const itemMealCounts = new Map<string, number>();
+    const itemMealDetails = new Map<string, string[]>();
+
+    const trackItem = (key: string, detail: string) => {
+      itemMealCounts.set(key, (itemMealCounts.get(key) ?? 0) + 1);
+      const details = itemMealDetails.get(key) ?? [];
+      details.push(detail);
+      itemMealDetails.set(key, details);
+    };
 
     for (const meal of order.meals) {
+      const detail = formatOrderMealDetail(meal, dailyMeal);
+
       ensureItem(LOCABOX_ITEM_KEY, "LocaBox").count += 1;
-      itemMealCounts.set(
-        LOCABOX_ITEM_KEY,
-        (itemMealCounts.get(LOCABOX_ITEM_KEY) ?? 0) + 1,
-      );
+      trackItem(LOCABOX_ITEM_KEY, detail);
 
       for (const addon of meal.addons) {
         const key = addon.trim().toLowerCase();
@@ -198,7 +220,7 @@ function countMealItems(
         }
         const label = `+${addonLabelFromMeal(addon, dailyMeal)}`;
         ensureItem(key, label).count += 1;
-        itemMealCounts.set(key, (itemMealCounts.get(key) ?? 0) + 1);
+        trackItem(key, detail);
       }
     }
 
@@ -211,6 +233,7 @@ function countMealItems(
         orderId: order.id,
         customerName: orderCustomerDisplayName(order),
         mealCount: mealCountForItem,
+        orderDetails: itemMealDetails.get(key) ?? [],
         footnote: order.footnote?.trim() ?? "",
       });
     }
@@ -272,11 +295,14 @@ export default function DashboardScreen() {
   );
   const [orderScopeTab, setOrderScopeTab] = useState<OrderScopeTab>("overall");
   const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersByDate, setOrdersByDate] = useState<Record<string, Order[]>>({});
   const [dailyMealsByDate, setDailyMealsByDate] = useState<Record<string, DailyMeal>>(
     {},
   );
+  const [dayMealTotals, setDayMealTotals] = useState<Record<string, number>>({});
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const weekStartKey = weekDays[0]?.key ?? "";
+  const weekEndKey = weekDays[weekDays.length - 1]?.key ?? "";
 
   const closeDetailsModal = useCallback(() => {
     setDetailsModalType(null);
@@ -330,14 +356,12 @@ export default function DashboardScreen() {
 
   const dayOrders = useMemo(
     () =>
-      orders
-        .filter((order) => order.date === selectedDayKey)
-        .sort((a, b) =>
-          (a.customerName ?? "").localeCompare(b.customerName ?? "", undefined, {
-            sensitivity: "base",
-          }),
-        ),
-    [orders, selectedDayKey],
+      [...(ordersByDate[selectedDayKey] ?? [])].sort((a, b) =>
+        (a.customerName ?? "").localeCompare(b.customerName ?? "", undefined, {
+          sensitivity: "base",
+        }),
+      ),
+    [ordersByDate, selectedDayKey],
   );
 
   const scopedOrders = useMemo(() => {
@@ -347,17 +371,20 @@ export default function DashboardScreen() {
     return dayOrders.filter((order) => order.timeslotId === orderScopeTab);
   }, [dayOrders, orderScopeTab]);
 
-  const dayCap = useMemo(
+  const timeslotDayCap = useMemo(
     () => timeslots.reduce((sum, slot) => sum + (slot.capacity || 0), 0),
     [timeslots],
   );
 
   const scopedCapacity = useMemo(() => {
     if (orderScopeTab === "overall") {
-      return dayCap;
+      return timeslotDayCap;
     }
     return timeslots.find((slot) => slot.id === orderScopeTab)?.capacity ?? 0;
-  }, [dayCap, orderScopeTab, timeslots]);
+  }, [orderScopeTab, timeslotDayCap, timeslots]);
+
+  const selectedDayMeal = dailyMealsByDate[selectedDayKey] ?? null;
+  const dayCap = selectedDayMeal?.basicBoxInventory ?? 0;
 
   const dayTotalMeals = useMemo(() => mealCount(dayOrders), [dayOrders]);
   const dayRemaining = Math.max(dayCap - dayTotalMeals, 0);
@@ -368,19 +395,10 @@ export default function DashboardScreen() {
     () => scopedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
     [scopedOrders],
   );
-  const selectedDayMeal = dailyMealsByDate[selectedDayKey] ?? null;
   const mealItems = useMemo(
     () => countMealItems(scopedOrders, selectedDayMeal),
     [scopedOrders, selectedDayMeal],
   );
-
-  const dayMealCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const day of weekDays) {
-      counts[day.key] = mealCount(orders.filter((order) => order.date === day.key));
-    }
-    return counts;
-  }, [orders, weekDays]);
 
   const weekRangeLabel = useMemo(() => formatWeekRange(weekDays), [weekDays]);
 
@@ -445,6 +463,18 @@ export default function DashboardScreen() {
             <Text style={styles.modalCustomerMealCount}>×{item.mealCount}</Text>
           ) : null}
         </View>
+        {item.orderDetails.length > 0 ? (
+          <View style={styles.modalCustomerOrderDetailsWrap}>
+            {item.orderDetails.map((detail, index) => (
+              <Text
+                key={`${item.orderId}-detail-${index}`}
+                style={styles.modalCustomerOrderDetails}
+              >
+                {detail}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {item.footnote ? (
           <Text style={styles.modalCustomerFootnote}>{item.footnote}</Text>
         ) : null}
@@ -453,33 +483,94 @@ export default function DashboardScreen() {
     [],
   );
 
-  const loadDashboard = useCallback(async () => {
+  const loadWeekDayTotals = useCallback(async () => {
+    if (!weekStartKey || !weekEndKey) {
+      return;
+    }
+
+    try {
+      const [settingsResponse, totalsResponse] = await Promise.all([
+        dispatch(getGlobalSettings()).unwrap(),
+        dispatch(
+          getOrderDailyTotals({ from: weekStartKey, to: weekEndKey }),
+        ).unwrap(),
+      ]);
+
+      setTimeslots(settingsResponse.data.timeslots ?? []);
+      const totals: Record<string, number> = {};
+      for (const day of weekDays) {
+        totals[day.key] = 0;
+      }
+      for (const row of totalsResponse.data ?? []) {
+        totals[row.date] = row.mealCount ?? 0;
+      }
+      setDayMealTotals(totals);
+    } catch (error) {
+      console.warn("Failed to load week day totals:", error);
+    }
+  }, [dispatch, weekDays, weekEndKey, weekStartKey]);
+
+  const loadSelectedDayDetails = useCallback(async () => {
+    if (!selectedDayKey) {
+      return;
+    }
+
     setOrdersLoading(true);
     try {
-      const since = Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000;
-      const from = weekDays[0]?.key;
-      const to = weekDays[weekDays.length - 1]?.key;
+      const [ordersResponse, mealsResponse] = await Promise.all([
+        dispatch(getOrders({ from: selectedDayKey, to: selectedDayKey })).unwrap(),
+        dispatch(
+          getDailyMeals({ from: selectedDayKey, to: selectedDayKey }),
+        ).unwrap(),
+      ]);
 
-      const [statsResponse, checkedOutResponse, transactionsResponse, settingsResponse, ordersResponse, mealsResponse] =
+      const activeOrders = (ordersResponse.data ?? []).filter(
+        (order) => order.status !== "cancelled",
+      );
+      setOrdersByDate((prev) => ({
+        ...prev,
+        [selectedDayKey]: activeOrders,
+      }));
+      setDayMealTotals((prev) => ({
+        ...prev,
+        [selectedDayKey]: mealCount(activeOrders),
+      }));
+      setDailyMealsByDate((prev) => {
+        const next = { ...prev };
+        const meal = (mealsResponse.data ?? [])[0];
+        if (meal) {
+          next[selectedDayKey] = meal;
+        } else {
+          delete next[selectedDayKey];
+        }
+        return next;
+      });
+    } catch (error) {
+      console.warn("Failed to load selected day details:", error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [dispatch, selectedDayKey]);
+
+  const refreshOrderOverview = useCallback(async () => {
+    await Promise.all([loadWeekDayTotals(), loadSelectedDayDetails()]);
+  }, [loadSelectedDayDetails, loadWeekDayTotals]);
+
+  const loadBoxesDashboard = useCallback(async () => {
+    try {
+      const since = Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000;
+      const [statsResponse, checkedOutResponse, transactionsResponse] =
         await Promise.all([
           dispatch(getDashboardStats()).unwrap(),
           dispatch(getCheckedOutBoxDetails()).unwrap(),
           dispatch(getTransactionsSince(since)).unwrap(),
-          dispatch(getGlobalSettings()).unwrap(),
-          from && to
-            ? dispatch(getOrders({ from, to })).unwrap()
-            : Promise.resolve({ data: [] as Order[] }),
-          from && to
-            ? dispatch(getDailyMeals({ from, to })).unwrap()
-            : Promise.resolve({ data: [] as DailyMeal[] }),
         ]);
 
-      const stats = statsResponse.data;
-      const checkedOut = checkedOutResponse.data;
       const transactions = transactionsResponse.data;
-
       const days = Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
-        const d = new Date(Date.now() - (ACTIVITY_DAYS - 1 - i) * 24 * 60 * 60 * 1000);
+        const d = new Date(
+          Date.now() - (ACTIVITY_DAYS - 1 - i) * 24 * 60 * 60 * 1000,
+        );
         return {
           label: `${d.getMonth() + 1}/${d.getDate()}`,
           key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
@@ -500,26 +591,17 @@ export default function DashboardScreen() {
         }
       }
 
-      setDashboardStats(stats);
-      setCheckedOutBoxes(checkedOut);
+      setDashboardStats(statsResponse.data);
+      setCheckedOutBoxes(checkedOutResponse.data);
       setChartData({
         dates: days.map((d) => d.label),
         checkouts: days.map((d) => checkoutMap[d.key] ?? 0),
         checkins: days.map((d) => checkinMap[d.key] ?? 0),
       });
-      setTimeslots(settingsResponse.data.timeslots ?? []);
-      setOrders(ordersResponse.data ?? []);
-      const mealMap: Record<string, DailyMeal> = {};
-      for (const meal of mealsResponse.data ?? []) {
-        mealMap[meal.date] = meal;
-      }
-      setDailyMealsByDate(mealMap);
     } catch (error) {
-      console.warn("Failed to load dashboard:", error);
-    } finally {
-      setOrdersLoading(false);
+      console.warn("Failed to load boxes dashboard:", error);
     }
-  }, [dispatch, weekDays]);
+  }, [dispatch]);
 
   useEffect(() => {
     if (
@@ -537,13 +619,27 @@ export default function DashboardScreen() {
   }, [selectedDayKey, selectedWeekDate, weekDays]);
 
   useEffect(() => {
+    setOrdersByDate({});
+    setDailyMealsByDate({});
+    setDayMealTotals({});
+  }, [weekStartKey]);
+
+  useEffect(() => {
+    void loadWeekDayTotals();
+  }, [loadWeekDayTotals]);
+
+  useEffect(() => {
     setSelectedMealItem(null);
   }, [selectedDayKey, orderScopeTab]);
 
+  useEffect(() => {
+    void loadSelectedDayDetails();
+  }, [loadSelectedDayDetails]);
+
   useFocusEffect(
     useCallback(() => {
-      void loadDashboard();
-    }, [loadDashboard]),
+      void loadBoxesDashboard();
+    }, [loadBoxesDashboard]),
   );
 
   useEffect(() => {
@@ -745,7 +841,7 @@ export default function DashboardScreen() {
             <View style={styles.dayTabs}>
               {weekDays.map((day) => {
                 const isActive = day.key === selectedDayKey;
-                const count = dayMealCounts[day.key] ?? 0;
+                const count = dayMealTotals[day.key] ?? 0;
                 return (
                   <Pressable
                     key={day.key}
@@ -845,6 +941,24 @@ export default function DashboardScreen() {
                   </Pressable>
                 );
               })}
+              <Pressable
+                style={[
+                  styles.scopeRefreshButton,
+                  ordersLoading ? styles.scopeRefreshButtonDisabled : null,
+                ]}
+                onPress={() => {
+                  void refreshOrderOverview();
+                }}
+                disabled={ordersLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh order overview"
+              >
+                {ordersLoading ? (
+                  <ActivityIndicator size="small" color="#0D7A4E" />
+                ) : (
+                  <Ionicons name="refresh" size={16} color="#0D7A4E" />
+                )}
+              </Pressable>
             </ScrollView>
 
             {ordersLoading ? (
@@ -1327,6 +1441,19 @@ const styles = StyleSheet.create({
   scopeTabTextActive: {
     color: "#FFFFFF",
   },
+  scopeRefreshButton: {
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scopeRefreshButtonDisabled: {
+    opacity: 0.6,
+  },
   scopeHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1514,6 +1641,15 @@ const styles = StyleSheet.create({
     color: "#0D7A4E",
     fontSize: 13,
     fontWeight: "800",
+  },
+  modalCustomerOrderDetailsWrap: {
+    gap: 2,
+  },
+  modalCustomerOrderDetails: {
+    color: "#13493A",
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 17,
   },
   modalCustomerFootnote: {
     color: "#5C7269",

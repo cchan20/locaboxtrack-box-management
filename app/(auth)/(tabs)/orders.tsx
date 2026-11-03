@@ -21,12 +21,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Keyboard,
+  ListRenderItem,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -34,7 +34,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -129,6 +128,95 @@ function sortOrdersByTimeslot(orders: Order[], timeslots: Timeslot[]) {
     });
   });
 }
+
+type OrderCardProps = {
+  order: Order;
+  isSelected: boolean;
+  locationLabel: string;
+  onPress: (orderId: string) => void;
+};
+
+const OrderCard = memo(function OrderCard({
+  order,
+  isSelected,
+  locationLabel,
+  onPress,
+}: OrderCardProps) {
+  const mealCount = order.meals.length;
+  const pickedBoxLabel =
+    order.status === "collected" && order.pickedBoxIds.length > 0
+      ? order.pickedBoxIds.map((id) => id.replace("BOX-", "")).join(", ")
+      : null;
+
+  return (
+    <Pressable
+      style={[styles.orderItem, isSelected ? styles.selectedItem : null]}
+      onPress={() => onPress(order.id)}
+    >
+      <View style={styles.orderIdentity}>
+        <View style={styles.orderNameRow}>
+          {order.status === "collected" ? (
+            <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
+          ) : order.status === "cancelled" ? (
+            <Ionicons name="close-circle" size={18} color="#B42318" />
+          ) : null}
+          {isOrderPaid(order) ? <Text style={styles.paidDollarIcon}>$</Text> : null}
+          <Text style={styles.orderName} numberOfLines={1}>
+            {order.customerName || "Unknown customer"}
+          </Text>
+          <Text style={styles.orderSub} numberOfLines={1}>
+            {order.customerPhone || "No phone"}
+          </Text>
+          {pickedBoxLabel ? (
+            <Text style={[styles.orderSub, styles.orderPickedBoxes]} numberOfLines={1}>
+              Boxes: {pickedBoxLabel}
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.orderSub} numberOfLines={2}>
+          {locationLabel} · {mealCount} meal{mealCount === 1 ? "" : "s"}
+        </Text>
+      </View>
+    </Pressable>
+  );
+});
+
+type OrderListRowViewProps = {
+  row: OrderListRow;
+  selectedOrderId: string | null;
+  resolveLocationLabel: (storeLocationId: string) => string;
+  onSelectOrder: (orderId: string) => void;
+};
+
+const OrderListRowView = memo(function OrderListRowView({
+  row,
+  selectedOrderId,
+  resolveLocationLabel,
+  onSelectOrder,
+}: OrderListRowViewProps) {
+  if (row.type === "separator") {
+    return <View style={styles.timeslotSeparator} />;
+  }
+
+  const fillers = Math.max(0, ORDER_LIST_COLUMNS - row.orders.length);
+  return (
+    <View style={styles.orderColumnWrapper}>
+      {row.orders.map((order) => (
+        <View key={order.id} style={styles.orderItemSlot}>
+          <OrderCard
+            order={order}
+            isSelected={selectedOrderId === order.id}
+            locationLabel={resolveLocationLabel(order.storeLocationId)}
+            onPress={onSelectOrder}
+          />
+        </View>
+      ))}
+      {Array.from({ length: fillers }, (_, index) => (
+        <View key={`spacer-${row.key}-${index}`} style={styles.orderItemSpacer} />
+      ))}
+    </View>
+  );
+});
 
 export default function OrdersScreen() {
   const dispatch = useAppDispatch();
@@ -962,21 +1050,80 @@ export default function OrdersScreen() {
     });
   }, [navigation]);
 
+  const handleSelectOrder = useCallback((orderId: string) => {
+    setSelectedOrderId(orderId);
+  }, []);
+
+  const renderOrderListRow = useCallback<ListRenderItem<OrderListRow>>(
+    ({ item }) => {
+      // Only pass the selected id into the row that contains it so other
+      // memoized rows skip re-render when selection changes.
+      const rowSelectedOrderId =
+        item.type === "orders" &&
+        selectedOrderId != null &&
+        item.orders.some((order) => order.id === selectedOrderId)
+          ? selectedOrderId
+          : null;
+
+      return (
+        <OrderListRowView
+          row={item}
+          selectedOrderId={rowSelectedOrderId}
+          resolveLocationLabel={resolveLocationLabel}
+          onSelectOrder={handleSelectOrder}
+        />
+      );
+    },
+    [handleSelectOrder, resolveLocationLabel, selectedOrderId],
+  );
+
+  const listEmptyComponent = useMemo(() => {
+    if (listLoading) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color="#0D7A4E" />
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="receipt-outline" size={36} color="#0D7A4E" />
+        <Text style={styles.emptyTitle}>No orders</Text>
+        <Text style={styles.emptyText}>
+          {customerSearch.trim() ||
+          selectedStatuses.length > 0 ||
+          selectedPaymentStatuses.length > 0
+            ? "No orders match the current filters."
+            : `No customers ordered on this day${
+                selectedTimeslotId ? " for the selected timeslot" : ""
+              }.`}
+        </Text>
+      </View>
+    );
+  }, [
+    customerSearch,
+    listLoading,
+    selectedPaymentStatuses.length,
+    selectedStatuses.length,
+    selectedTimeslotId,
+  ]);
+
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.mainContent}>
-            <View style={styles.filterPanel}>
-              <ScrollView
-                style={styles.filterCard}
-                contentContainerStyle={styles.filterCardContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View pointerEvents={isSubmitting ? "none" : "auto"} style={styles.mainContent}>
+          <View style={styles.filterPanel}>
+            <ScrollView
+              style={styles.filterCard}
+              contentContainerStyle={styles.filterCardContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
                 <View style={styles.filterField}>
                   <Text style={styles.label}>Date</Text>
                   <View style={styles.dateSelectorRow}>
@@ -1205,101 +1352,24 @@ export default function OrdersScreen() {
                 />
               </View>
               <FlatList
+                style={styles.orderList}
                 data={orderListRows}
                 keyExtractor={(item) => item.key}
                 contentContainerStyle={styles.listContent}
                 keyboardShouldPersistTaps="handled"
-                initialNumToRender={16}
-                maxToRenderPerBatch={16}
-                windowSize={7}
-                removeClippedSubviews
-                ListEmptyComponent={
-                  listLoading ? (
-                    <View style={styles.emptyState}>
-                      <ActivityIndicator size="large" color="#0D7A4E" />
-                    </View>
-                  ) : (
-                    <View style={styles.emptyState}>
-                      <Ionicons name="receipt-outline" size={36} color="#0D7A4E" />
-                      <Text style={styles.emptyTitle}>No orders</Text>
-                      <Text style={styles.emptyText}>
-                        {customerSearch.trim() ||
-                        selectedStatuses.length > 0 ||
-                        selectedPaymentStatuses.length > 0
-                          ? "No orders match the current filters."
-                          : `No customers ordered on this day${
-                              selectedTimeslotId ? " for the selected timeslot" : ""
-                            }.`}
-                      </Text>
-                    </View>
-                  )
-                }
-                renderItem={({ item: row }) => {
-                  if (row.type === "separator") {
-                    return <View style={styles.timeslotSeparator} />;
-                  }
-
-                  const renderOrderCard = (order: Order) => {
-                    const isSelected = selectedOrderId === order.id;
-                    return (
-                      <Pressable
-                        style={[styles.orderItem, isSelected ? styles.selectedItem : null]}
-                        onPress={() => setSelectedOrderId(order.id)}
-                      >
-                        <View style={styles.orderIdentity}>
-                          <View style={styles.orderNameRow}>
-                            {order.status === "collected" ? (
-                              <Ionicons name="checkmark-circle" size={18} color="#0D7A4E" />
-                            ) : order.status === "cancelled" ? (
-                              <Ionicons name="close-circle" size={18} color="#B42318" />
-                            ) : null}
-                            {isOrderPaid(order) ? (
-                              <Text style={styles.paidDollarIcon}>$</Text>
-                            ) : null}
-                            <Text style={styles.orderName} numberOfLines={1}>
-                              {order.customerName || "Unknown customer"}
-                            </Text>
-                            <Text style={styles.orderSub} numberOfLines={1}>
-                              {order.customerPhone || "No phone"}
-                            </Text>
-                            {order.status === "collected" && order.pickedBoxIds.length > 0 ? (
-                              <Text
-                                style={[styles.orderSub, styles.orderPickedBoxes]}
-                                numberOfLines={1}
-                              >
-                                Boxes:{" "}
-                                {order.pickedBoxIds.map((id) => id.replace("BOX-", "")).join(", ")}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Text style={styles.orderSub} numberOfLines={2}>
-                            {resolveLocationLabel(order.storeLocationId)} · {order.meals.length}{" "}
-                            meal{order.meals.length === 1 ? "" : "s"}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    );
-                  };
-
-                  const fillers = Math.max(0, ORDER_LIST_COLUMNS - row.orders.length);
-                  return (
-                    <View style={styles.orderColumnWrapper}>
-                      {row.orders.map((order) => (
-                        <View key={order.id} style={styles.orderItemSlot}>
-                          {renderOrderCard(order)}
-                        </View>
-                      ))}
-                      {Array.from({ length: fillers }, (_, index) => (
-                        <View key={`spacer-${row.key}-${index}`} style={styles.orderItemSpacer} />
-                      ))}
-                    </View>
-                  );
-                }}
+                keyboardDismissMode="on-drag"
+                initialNumToRender={12}
+                maxToRenderPerBatch={8}
+                updateCellsBatchingPeriod={50}
+                windowSize={5}
+                removeClippedSubviews={Platform.OS === "android"}
+                extraData={selectedOrderId}
+                ListEmptyComponent={listEmptyComponent}
+                renderItem={renderOrderListRow}
               />
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
 
       <Modal
         visible={detailsModalOpen}
@@ -1915,11 +1985,16 @@ const styles = StyleSheet.create({
   listCard: {
     flex: 1,
     minWidth: 0,
+    minHeight: 0,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#DDEBE6",
     padding: 14,
+  },
+  orderList: {
+    flex: 1,
+    minHeight: 0,
   },
   listHeaderRow: {
     flexDirection: "row",

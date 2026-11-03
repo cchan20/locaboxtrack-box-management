@@ -49,6 +49,17 @@ function buildOrdersQuery(params: GetOrdersParams): string {
   return `?${query.toString()}`;
 }
 
+export type OrderDailyTotal = {
+  date: string;
+  orderCount: number;
+  mealCount: number;
+};
+
+export type GetOrderDailyTotalsParams = {
+  from: string;
+  to: string;
+};
+
 export const getOrders = createAsyncThunk(
   "getOrders",
   async (params: GetOrdersParams) => {
@@ -56,6 +67,23 @@ export const getOrders = createAsyncThunk(
       const url = `orders${buildOrdersQuery(params)}`;
       const response = await axiosInstance.get<OrderDto[]>(url);
       return { data: (response.data ?? []).map(mapOrder) };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
+export const getOrderDailyTotals = createAsyncThunk(
+  "getOrderDailyTotals",
+  async (params: GetOrderDailyTotalsParams) => {
+    try {
+      const query = new URLSearchParams();
+      query.set("from", params.from);
+      query.set("to", params.to);
+      const response = await axiosInstance.get<OrderDailyTotal[]>(
+        `orders/daily-totals?${query.toString()}`,
+      );
+      return { data: response.data ?? [] };
     } catch (error) {
       throw error;
     }
