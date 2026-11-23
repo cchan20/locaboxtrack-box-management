@@ -3,6 +3,7 @@ import { useAppDispatch } from "@/store/hooks";
 import {
   deleteWelcomeImage,
   getGlobalSettings,
+  renewOdooApiKey,
   updateDailyCutOffTime,
   updateMaxMealsPerOrder,
   updateOrderWhatsappNumber,
@@ -66,6 +67,11 @@ const formatTime = (date: Date) => {
   return `${hours}:${minutes}`;
 };
 
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const formatApiKeyRenewName = (date = new Date()) =>
+  `API Key Renew ${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+
 function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -110,6 +116,8 @@ export default function WelcomeMessageScreen() {
   const [pendingRemove, setPendingRemove] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [newApiKey, setNewApiKey] = useState("");
+  const [isRenewingApiKey, setIsRenewingApiKey] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setIsFetching(true);
@@ -364,6 +372,30 @@ export default function WelcomeMessageScreen() {
     pendingImage != null ||
     pendingRemove;
 
+  const handleRenewApiKey = async () => {
+    const apiKey = newApiKey.trim();
+    if (!apiKey) {
+      Alert.alert("Missing API key", "Please enter a new API key to renew.");
+      return;
+    }
+
+    setIsRenewingApiKey(true);
+    try {
+      await dispatch(
+        renewOdooApiKey({
+          apiKey,
+          name: formatApiKeyRenewName(),
+        }),
+      ).unwrap();
+      setNewApiKey("");
+      Alert.alert("API key renewed", "The Odoo API key was updated successfully.");
+    } catch (error) {
+      Alert.alert("Unable to renew API key", getErrorMessage(error));
+    } finally {
+      setIsRenewingApiKey(false);
+    }
+  };
+
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -492,6 +524,37 @@ export default function WelcomeMessageScreen() {
             >
               <Text style={styles.saveButtonText}>
                 {isSaving ? "Saving..." : "Save"}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.fieldLabel}>New API Key</Text>
+            <Text style={styles.fieldHint}>
+              Paste a new Odoo API key and tap Renew. The key is verified and
+              stored on the server; it is not kept in this app.
+            </Text>
+            <ClearableTextInput
+              value={newApiKey}
+              onChangeText={setNewApiKey}
+              placeholder="Paste new Odoo API key"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              style={styles.whatsappInput}
+              editable={!isRenewingApiKey}
+            />
+            <Pressable
+              style={[
+                styles.saveButton,
+                (!newApiKey.trim() || isRenewingApiKey) && styles.saveButtonDisabled,
+              ]}
+              onPress={() => {
+                Keyboard.dismiss();
+                void handleRenewApiKey();
+              }}
+              disabled={!newApiKey.trim() || isRenewingApiKey}
+            >
+              <Text style={styles.saveButtonText}>
+                {isRenewingApiKey ? "Renewing..." : "Renew"}
               </Text>
             </Pressable>
           </View>

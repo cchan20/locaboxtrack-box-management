@@ -177,6 +177,44 @@ export const deleteWelcomeImage = createAsyncThunk(
   },
 );
 
+export type RenewOdooApiKeyPayload = {
+  apiKey: string;
+  name: string;
+  expirationDate?: string;
+};
+
+export type RenewOdooApiKeyResult = {
+  message: string;
+  current?: {
+    id: string;
+    name: string;
+    status: string;
+    role: string;
+    expirationDate: string;
+  };
+};
+
+export const renewOdooApiKey = createAsyncThunk(
+  "renewOdooApiKey",
+  async (payload: RenewOdooApiKeyPayload) => {
+    try {
+      const response = await axiosInstance.post<RenewOdooApiKeyResult>(
+        "odoo/api-key/renew",
+        {
+          apiKey: payload.apiKey,
+          name: payload.name,
+          ...(payload.expirationDate
+            ? { expirationDate: payload.expirationDate }
+            : {}),
+        },
+      );
+      return { data: response.data };
+    } catch (error) {
+      throw error;
+    }
+  },
+);
+
 const settingsSlice = createSlice({
   name: "settings",
   initialState,
